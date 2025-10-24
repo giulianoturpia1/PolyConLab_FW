@@ -39,3 +39,11 @@
 
 # debug information files
 *.dwo
+
+# VS Code settings
+.vscode/
+
+# PlatformIO files
+.pio/
+# Ignore PlatformIO added .gitignore entries
+.gitignore
