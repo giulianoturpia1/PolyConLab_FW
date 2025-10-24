@@ -7,7 +7,7 @@ Repository that holds all the firmware and utilities related to the ESP32-based 
 
 Before you begin, ensure you have met the following requirements, regarding your development environment:
 
-* You have installed ESP-IDF version "5.5.1 (release version") with your IDE of choice. We recommend using Visual Studio Code. Additional information can be found [here](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html).
+* You have installed ESP-IDF version "5.5.1 (release version)" with your IDE of choice. We recommend using Visual Studio Code. Additional information can be found [here](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html).
 
 * You have installed the following extensions in Visual Studio Code:
   * "Espressif IDF" by Espressif Systems.
