@@ -1,4 +1,5 @@
 # PolyConLab_FW
+
 Repository that holds all the firmware and utilities related to the ESP32-based PLC from Arduino Shields. Part of a Final Degree Project for Facultad de Ingeniería, UDELAR.
 
 ## Table of Contents
@@ -25,9 +26,78 @@ Furthermore, since the library was initially designed for Arduino IDE, the Platf
 
 ## 3. Building the Firmware
 
+Since this project uses PlatformIO as the build system, building the firmware is straightforward. Follow these steps:
+
+1. Open Visual Studio Code.
+2. Open the project folder.
+3. Open the PlatformIO Home by clicking on the PlatformIO icon in the left sidebar.
+4. Click on "Projects" and select your project.
+5. Click on the "Build" button (checkmark icon) in the bottom bar or use the command palette (Ctrl+Shift+P) and type "PlatformIO: Build".
+
 ## 4. Flashing the Firmware
 
+To flash the firmware onto the ESP32-based PLC, follow these steps:
+
+1. Connect your ESP32-based PLC to your computer via USB.
+2. Open Visual Studio Code.
+3. Open the PlatformIO Home by clicking on the PlatformIO icon in the left sidebar.
+4. Click on "Projects" and select your project.
+5. Click on the "Upload" button (right arrow icon) in the bottom bar or use the command palette (Ctrl+Shift+P) and type "PlatformIO: Upload".
+
 ## 5. Additional Utilities
+
+### 5.1. Pre-commit Hooks
+
+This project uses pre-commit hooks to maintain code quality and consistency. The hooks automatically check and format your code before each commit.
+
+#### Installation
+
+1. Install Python (if not already installed). You can download it from [python.org](https://www.python.org/downloads/).
+
+2. Install pre-commit (if not already installed):
+
+   ```powershell
+   python -m pip install pre-commit
+   ```
+
+3. Install the git hook scripts:
+
+   ```powershell
+   pre-commit install
+   ```
+
+#### Usage
+
+Pre-commit will now run automatically every time you `git commit`. It checks your staged files and blocks the commit if any issues are found.
+
+You can also run pre-commit manually:
+
+```powershell
+# Run on all files
+pre-commit run --all-files
+
+# Run on specific files
+pre-commit run --files src/main.cpp
+
+# Run only on staged files
+pre-commit run
+```
+
+If these commands do not run or the package is not found even after installation, run the commands by  prefixing them with `python -m`, like so:
+
+```powershell
+python -m pre-commit run --all-files
+```
+
+#### Configuration
+
+The project includes a `.clang-format` file to customize code formatting style. You can modify settings such as:
+
+- `IndentWidth`: spaces per indent level
+- `ColumnLimit`: maximum line length
+- `BreakBeforeBraces`: brace style (Attach, Allman, Linux, etc.)
+
+See all available options at: https://clang.llvm.org/docs/ClangFormatStyleOptions.html
 
 ## 6. Notes
 
@@ -36,6 +106,7 @@ This project is part of a Final Degree Project for the Facultad de Ingeniería, 
 ### 6.1. Contact Information
 
 For any questions or further information, please reach out to:
+
 - **Giuliano Turpía**: [giuliano.turpia@fing.edu.uy](mailto:giuliano.turpia@fing.edu.uy)
 - **Sofía Miranda**: [sample](mailto:sample)
 - **Francisco Galietta**: [sample](mailto:sample)
