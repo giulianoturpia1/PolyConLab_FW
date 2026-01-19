@@ -1,11 +1,51 @@
 
-This directory is intended for PlatformIO Test Runner and project tests.
+# Testing Directory and Simulation
 
-Unit Testing is a software testing method by which individual units of
-source code, sets of one or more MCU program modules together with associated
-control data, usage procedures, and operating procedures, are tested to
-determine whether they are fit for use. Unit testing finds problems early
-in the development cycle.
+This directory hosts both hardware and host-side tests, organized in subfolders.
 
-More information about PlatformIO Unit Testing:
-- https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+Structure:
+
+- test_name_of_module/  Other module tests (host + hardware)
+
+Each test folder contains a host-side C++ test file that can be compiled
+and run on the platform of preference, that being a PC or the target hardware.
+In order to run the tests, PlatformIO is used as the build system and Unity as the test framework.
+The tests executions depends on the traget platform, as described below. In all cases, ensure to be in a PlatformIO CLI terminal environment.
+
+## Simulation Tests
+
+Some test folders include simulation tests using QEMU to emulate the target hardware. In particular, the simulation
+tools are automatically downloaded and configured via PlatformIO.
+To run all simulation tests, use the following command:
+
+```bash
+pio test -e <env_name> --without-uploading
+```
+
+Where `<env_name>` corresponds to the environment defined in `platformio.ini` for the target hardware.
+
+To run a specific test file in simulation mode, use:
+
+```bash
+pio test -e <env_name> --without-uploading -f "test_name_of_module"
+```
+
+Where `test_name_of_module` is the name of the test folder containing the desired test file.
+
+### Target Hardware Tests
+
+To run all tests on the actual target hardware, use the following command:
+
+```bash
+pio test -e <env_name> --upload-port <port_name>
+```
+
+Where `<env_name>` corresponds to the environment defined in `platformio.ini` for the target hardware, and `<port_name>` is the serial port connected to the target device.
+
+To run a specific test file on the target hardware, use:
+
+```bash
+pio test -e <env_name> --upload-port <port_name> -f "test_name_of_module"
+```
+
+Where `test_name_of_module` is the name of the test folder containing the desired test file.
