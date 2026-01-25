@@ -13,46 +13,46 @@
 #pragma once
 
 #include <Arduino.h>
-#include <SPI.h>
 #include <Ethernet.h>
+#include <SPI.h>
+#include <stdint.h>
 
 // Pins definitions
 // ------- Actuators pins -------
-#define RELAYHEATER A1_0
-#define RELAYBOMBA A1_0 
+#define RELAYHEATER R0_5  // A1_0
+#define RELAYPUMP R0_4    // A1_0
 // Valves pins
-#define RELAY_AUS_1 R1_4
-#define RELAY_AUS_2 R1_5
-#define RELAY_AUS_3 R1_6
+#define RELAY_AUS_1 R0_1  // R1_4
+#define RELAY_AUS_2 R0_2  // R1_5
+#define RELAY_AUS_3 R0_3  // R1_6
 
 //------- Sensors pins -------
-#define RES_ST_1 T1
-#define RES_ST_2 T2
-#define RES_ST_3 T3
-#define RES_ST_4 T4
+#define RES_ST_1 I0_2  // T1
+#define RES_ST_2 I0_3  // T2
+#define RES_ST_3 I0_4  // T3
+#define RES_ST_4 I0_5  // T4
 
-#define INTERVALO_TEMP 2000
+#define TEMP_INTERVAL 2000
 #define ERR_TEMP 111
 
 void setupDevices();
 
-void heaterON(int relayHeater_);
-void heaterOFF(int relayHeater_);
+void heaterON(uint32_t relayHeater_);
+void heaterOFF(uint32_t relayHeater_);
 bool heaterStatus();
 
-float leerSensorTemp(uint8_t sensor_);
+float readTempSensor(uint32_t sensor_);
 
-void bombaON(int relayBomba_);
-void bombaOFF(int relayBomba_);
+void pumpON(uint32_t relayPump_);
+void pumpOFF(uint32_t relayPump_);
 bool statusPump();
 
-void valveON(int relayValvula_);
-void valveOFF(int relayValvula_);
-bool valveStatus(int relayValvula_);
+void valveON(uint32_t relayValve_);
+void valveOFF(uint32_t relayValve_);
+bool valveStatus(uint32_t relayValve_);
 
-void IRAM_ATTR isrCaudalimetro();
-void IRAM_ATTR isrTimerCaudal();
-void initCaudalimetro(int pinQ_);
-void detenerCaudalimetro(int pinQ_);
-float leerCaudalimetro();
-
+void IRAM_ATTR isrFlowMeter();
+void IRAM_ATTR isrTimerFlow();
+void initFlowMeter(uint32_t pinFlow_);
+void stopFlowMeter(uint32_t pinFlow_);
+float readFlowMeter();
