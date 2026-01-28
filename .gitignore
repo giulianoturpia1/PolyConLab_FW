@@ -45,5 +45,9 @@
 
 # PlatformIO files
 .pio/
+
 # Ignore PlatformIO added .gitignore entries
 .gitignore
+
+# Ignore Python Virtual Environments
+.venv/

@@ -1,6 +1,10 @@
 #include "StateMachine.hpp"
 
+#if defined(ARDUINO)
 #include <Arduino.h>
+#else
+#include <chrono>
+#endif
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -12,7 +16,7 @@ modules::StateMachine& modules::StateMachine::instance() {
 void modules::StateMachine::begin() {
     currentState_ = definitions::SystemState::STARTUP;
     previousState_ = definitions::SystemState::STARTUP;
-    stateEntryTime_ = millis();
+    stateEntryTime_ = current_millis();
     stateChanged_ = true;
     on_state_enter();
 }
@@ -153,7 +157,7 @@ void modules::StateMachine::transition_to(definitions::SystemState newState) {
     on_state_exit();
     previousState_ = currentState_;
     currentState_ = newState;
-    stateEntryTime_ = millis();
+    stateEntryTime_ = current_millis();
     stateChanged_ = true;
     on_state_enter();
 }
@@ -206,6 +210,16 @@ void modules::StateMachine::handle_critical_error() {
     // TODO: Implement full stop
     // TODO: Lock control
     // TODO: Require reset
+}
+
+unsigned long modules::StateMachine::current_millis() {
+#if defined(ARDUINO)
+    return millis();
+#else
+    static const auto start = std::chrono::steady_clock::now();
+    const auto now = std::chrono::steady_clock::now();
+    return static_cast<unsigned long>(std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count());
+#endif
 }
 
 ////////////////////////////////////// State Names Mapping //////////////////////////////////////
