@@ -1,119 +1,38 @@
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
-#include <freertos/task.h>
+#include <Ethernet.h>
 
-#include "HALGeneral.hpp"
-#include "StateMachine.hpp"
+#include "App.hpp"
+#include "Devices.hpp"
 
-QueueHandle_t eventQueue = nullptr;
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};  // MAC address of the PLC
+IPAddress ip(192, 168, 1, 1);                       // IP address of the PLC
 
-void state_machine_task(void* pvParameters) {
-    auto& sm = modules::StateMachine::instance();
-    sm.begin();
-
-    modules::hal_general().serial_println("StateMachine task started");
-
-    definitions::SystemEvent event;
-
-    for (;;) {
-        // Check for events (non-blocking, timeout of 10ms)
-        if (xQueueReceive(eventQueue, &event, pdMS_TO_TICKS(10)) == pdPASS) {
-            modules::hal_general().serial_print("Event received: ");
-            modules::hal_general().serial_println(static_cast<int>(event));
-            sm.process_event(event);
-
-            // Log state transition
-            modules::hal_general().serial_print("Current state: ");
-            modules::hal_general().serial_println(sm.get_state_name(sm.get_current_state()));
-        }
-
-        sm.run();  // Always run state handlers
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-}
-
-void test_task(void* pvParameters) {
-    vTaskDelay(pdMS_TO_TICKS(2000));  // Wait 2 seconds before starting tests
-
-    modules::hal_general().serial_println("\n=== Starting StateMachine Tests ===\n");
-
-    // Test 1: STARTUP -> CHECKUP transition
-    modules::hal_general().serial_println("Test 1: Sending INIT_OK event (STARTUP -> CHECKUP)");
-    definitions::SystemEvent event = definitions::SystemEvent::INIT_OK;
-    xQueueSend(eventQueue, &event, pdMS_TO_TICKS(100));
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    // Test 2: CHECKUP -> CALIBRATION transition
-    modules::hal_general().serial_println("Test 2: Sending START_CALIBRATION event (CHECKUP -> CALIBRATION)");
-    event = definitions::SystemEvent::START_CALIBRATION;
-    xQueueSend(eventQueue, &event, pdMS_TO_TICKS(100));
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    // Test 3: CALIBRATION -> CHECKUP transition
-    modules::hal_general().serial_println("Test 3: Sending FINISH_CALIBRATION event (CALIBRATION -> CHECKUP)");
-    event = definitions::SystemEvent::FINISH_CALIBRATION;
-    xQueueSend(eventQueue, &event, pdMS_TO_TICKS(100));
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    // Test 4: CHECKUP -> MANUAL (needs both SCADA and SENSORS ok)
-    modules::hal_general().serial_println("Test 4: Sending SCADA_LINK_OK and SENSORS_OK (CHECKUP -> MANUAL)");
-    event = definitions::SystemEvent::SCADA_LINK_OK;
-    xQueueSend(eventQueue, &event, pdMS_TO_TICKS(100));
-    vTaskDelay(pdMS_TO_TICKS(100));
-    event = definitions::SystemEvent::SENSORS_OK;
-    xQueueSend(eventQueue, &event, pdMS_TO_TICKS(100));
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    // Test 5: MANUAL -> SOFT_ERROR transition
-    modules::hal_general().serial_println("Test 5: Sending FAULT_RECOVERABLE event (MANUAL -> SOFT_ERROR)");
-    event = definitions::SystemEvent::FAULT_RECOVERABLE;
-    xQueueSend(eventQueue, &event, pdMS_TO_TICKS(100));
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    // Test 6: SOFT_ERROR -> CRITICAL_ERROR transition
-    modules::hal_general().serial_println("Test 6: Sending FAULT_CRITICAL event (SOFT_ERROR -> CRITICAL_ERROR)");
-    event = definitions::SystemEvent::FAULT_CRITICAL;
-    xQueueSend(eventQueue, &event, pdMS_TO_TICKS(100));
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    // Test 7: CRITICAL_ERROR -> STARTUP transition
-    modules::hal_general().serial_println("Test 7: Sending CMD_RESET_FAULT event (CRITICAL_ERROR -> STARTUP)");
-    event = definitions::SystemEvent::CMD_RESET_FAULT;
-    xQueueSend(eventQueue, &event, pdMS_TO_TICKS(100));
-    vTaskDelay(pdMS_TO_TICKS(500));
-
-    modules::hal_general().serial_println("\n=== Tests Complete ===\n");
-
-    vTaskDelete(nullptr);
-}
+// Initialize the Ethernet server library
+// with the IP address and port you want to use
+// (port 80 is default for HTTP):
+EthernetServer server_(80);  // Means the pc is listening for standard HTTP web traffic, acting as a website host
 
 void setup() {
-    // Explicitly initialize HALGeneral manager (eager initialization)
-    modules::HALGeneralManager::instance();
-
-    // HALGeneral is now ready to use
-    modules::hal_general().serial_begin(9600);
-    modules::hal_general().delay(1000);
-
-    modules::hal_general().serial_println("\n=== PolyConLab Firmware ===\n");
-
-    // Create event queue
-    eventQueue = xQueueCreate(10, sizeof(definitions::SystemEvent));
-    if (eventQueue == nullptr) {
-        modules::hal_general().serial_println("Failed to create event queue!");
-        return;
-    }
-
-    // Create StateMachine task with high priority
-    xTaskCreate(state_machine_task, "StateMachine", 4096, nullptr, tskIDLE_PRIORITY + 2, nullptr);
-
-    // Create test task with lower priority
-    xTaskCreate(test_task, "TestTask", 2048, nullptr, tskIDLE_PRIORITY + 1, nullptr);
-
-    modules::hal_general().serial_println("Setup complete, FreeRTOS tasks created\n");
+    Serial.begin(115200);
+    Serial.println("Iniciando setup...");
+    // setupDevices();
+    delay(1000);
+    int comunicacion = initTCPServer(mac, ip, server_);
+    Serial.println("Setup completado");
 }
 
 void loop() {
-    // FreeRTOS is running, loop is handled by the OS
-    modules::hal_general().delay(1000);
+    EthernetClient client = server_.available();
+    if (client) {
+        while (client.connected()) {
+            if (client.available()) {
+                Serial.println("New client");
+                String msg = client.readStringUntil('\n');
+                msg.trim();
+                Serial.println("Message recieved: " + msg);
+                Serial.println("Processing command...");
+                processCommand(msg, client);
+            }
+        }
+    }
+    // Serial.println("Esta pasando el tiempo..." + String(millis()));
 }
