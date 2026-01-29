@@ -4,8 +4,6 @@
 #include <cstdlib>
 #include <string>
 
-#include "test_config.hpp"
-
 // Mock counter for testing state changes
 static int test_counter = 0;
 

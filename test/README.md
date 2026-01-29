@@ -1,4 +1,3 @@
-
 # Testing Directory and Simulation
 
 This directory hosts both hardware and host-side tests, organized in subfolders. We use the following structure for tests:
@@ -12,7 +11,7 @@ test/
 ```
 
 Each test folder contains a C++ test file that can be compiled and run on the platform of preference, that being a PC or the target hardware.
-Tests now use the doctest framework (header-only, C++11) integrated with PlatformIO. doctest is lightweight and works for both native (simulation) and Arduino/ESP32 targets when built through PlatformIO.
+Tests now use the doctest framework (header-only, C++11) integrated with PlatformIO. doctest is lightweight and works for both native (simulation) and Arduino targets when built through PlatformIO.
 The tests executions depend on the target platform, as described below. In all cases, ensure you are in a PlatformIO CLI terminal environment.
 
 ## Table of Contents
@@ -66,7 +65,16 @@ Most Linux distributions come with GCC pre-installed. If not, use your package m
 ## 2. Testing
 
 The tests are divided into two categories: simulation tests that run on the host machine, and tests that run on the actual target hardware.
-The purpose of this division is to allow for quick verification of logic and functionality without the need for flashing the target device, as well as to perform comprehensive tests on the actual hardware when necessary. In particular, virtual tests can be executed in the target hardware, while virtual tests cannot be run on the target hardware.
+The purpose of this division is to allow for quick verification of logic and functionality without the need for flashing the target device, as well as to perform comprehensive tests on the actual hardware when necessary. In particular, virtual tests can be executed in both PLC and PC environments, while hardware tests can only be run on the target PLC. The "virtual" tests as mentioned can run on both environments, but are primarily intended for testing in a PC environment, since the abstractions that take place in the HAL layer allow for this flexibility.
+
+### Important Testing Note
+
+**Virtual (native) tests run modules in isolation without FreeRTOS tasks.** This means:
+
+- Tests validate individual module behavior (e.g., StateMachine transitions, HAL operations)
+- Tests do NOT run the full application with concurrent tasks
+- Tests do NOT include the event queue or task scheduling from `main.cpp`
+- For integration testing with FreeRTOS, you must test on hardware targets.
 
 ## 2.1. Virtual Tests
 
