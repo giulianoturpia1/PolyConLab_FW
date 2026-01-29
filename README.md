@@ -11,7 +11,7 @@ This project is part of a Final Degree Project for the Facultad de Ingeniería, 
 - [4. Flashing the Firmware](#4-flashing-the-firmware)
 - [5. Utilities](#5-utilities)
   - [5.1. Testing and Simulation](#51-testing-and-simulation)
-  - [5.2. Pre-commit Hooks](#52-pre-commit-hooks)
+  - [5.2. Pre-Commit Hooks, Formatting, and Linting](#52-pre-commit-hooks-formatting-and-linting)
     - [5.2.1. Installation](#521-installation)
     - [5.2.2. Usage](#522-usage)
 - [6. Known Issues](#6-known-issues)
@@ -37,6 +37,7 @@ Before you begin, ensure you have met the following requirements, regarding your
 Other extensions may be useful, but these are essential for development.
 Refering to the Industrial Shields library, it is only available through PlatformIO or directly from Arduino IDE. For this reason, PlatformIO is the recommended IDE for this project on top of Visual Studio Code. It is also recommended to have the Utilities installed that we recommend for the project, as described in the [Utilities](#5-utilities) section.
 Furthermore, since the library was initially designed for Arduino IDE, the PlatformIO project configuration file (`platformio.ini`) needs to use the Arduino framework for ESP32.
+Across the root folders of the repository, you will find `README.md` files that provide additional information about the structure and usage of each folder. It is recommended to read these files to gain a better understanding of the project organization and functionality.
 
 ## 2. Setting Up the Project
 
@@ -77,7 +78,9 @@ This section describes the utilities used in this project, which help maintain c
 
 For information regarding testing and simulation, please refer to the [Testing Directory and Simulation](test/README.md) document located in the `test` folder of this repository.
 
-### 5.2. Pre-commit Hooks, Formatting, and Linting
+**Important**: Virtual (native) tests run modules in isolation without FreeRTOS tasks. See [test/README.md](test/README.md#important-testing-note) for details on testing scope and platform-specific testing.
+
+### 5.2. Pre-Commit Hooks, Formatting, and Linting
 
 This project uses pre-commit hooks to maintain code quality and consistency. The hooks automatically check and format your code before each commit. These pre-commit hooks use `clang-format` for code formatting and `cppcheck` for static code analysis, while, on the other hand, PlatformIO has a built-in `clang-tidy` that can be used for additional static analysis if desired. It can be accessed through the PlatformIO IDE extension in Visual Studio Code.
 
@@ -127,6 +130,8 @@ If these commands do not run or the package is not found even after installation
 ```powershell
 python -m pre-commit run --all-files
 ```
+
+**Note:** By default, the `cppcheck` hook is disabled, as it may produce false positives or require additional configuration. If you want to modify these settings, you can edit the `.pre-commit-config.yaml` file located in the root of the repository without needing to change the installed pre-commit package. To enable `cppcheck`, simply remove the `#` characters before the relevant lines in the configuration file, adjust the arguments as needed, save the file, and add it to your next commit. Remember to revert these changes after commiting to avoid erratic behavior for other contributors.
 
 ## 6. Known Issues
 

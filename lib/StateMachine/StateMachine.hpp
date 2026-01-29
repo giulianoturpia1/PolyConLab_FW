@@ -135,13 +135,6 @@ class StateMachine {
     ///
     void on_state_enter();
 
-    ///
-    /// @brief Get the current time in milliseconds.
-    ///
-    /// @return unsigned long
-    ///
-    static unsigned long current_millis();
-
     // State handlers for SystemState enum class
     void handle_startup();
     void handle_checkup();
