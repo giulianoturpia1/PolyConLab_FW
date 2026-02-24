@@ -19,4 +19,4 @@ repos:
   #     - id: clang-format
   #       args: [-i, --style=file]
   #     - id: cppcheck
-  #       args: [--enable=all, --inconclusive, --std=c++11, --language=c++, --suppress=missingInclude, --suppress=unusedFunction, --suppress=missingIncludeSystem, --suppress=unmatchedSuppression]
+  #       args: [--enable=all, --inconclusive, --std=c++11, --language=c++, --suppress=missingInclude, --suppress=unusedFunction, --suppress=missingIncludeSystem, --suppress=unmatchedSuppression, --suppress=functionStatic]

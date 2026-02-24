@@ -2,7 +2,6 @@
 #include <doctest/doctest.h>
 
 #include "StateMachine.hpp"
-#include "test_config.hpp"
 
 using definitions::SystemEvent;
 using definitions::SystemState;
