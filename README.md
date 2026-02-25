@@ -144,6 +144,29 @@ If you are using Windows and PlatformIO is unable to find the COM port of your E
 If you encounter issues related to the Industrial Shields library, the only known method of fixing this issue is by deleting the `.pio` folder in the project directory and also deleting the `.platformio` folder. This folder is usually located in the user's home directory.
 The next time you build the project, PlatformIO will re-download all necessary libraries and dependencies, this may take some time depending on your internet connection.
 
+### 6.3. Ethernet Arduino Library Issues
+
+If you encounter issues related to the Ethernet library from Arduino, which is a dependency of the Industrial Shields library, the only known method of fixing this issue is by going to the packages folder of the PlatformIO installation folder and deleting inside `Server.h` certain lines. For the IndustrialShields packages, it is located in `.platformio/packages/framework-industrialshields-esp32/cores/industrialshields/Server.h`. Usually, this folder is located in the local user (for Windows users). Given this, modify the following lines from:
+
+```cpp
+class Server: public Print
+{
+public:
+    virtual void begin(uint16_t port=0) =0;
+};
+```
+
+To:
+
+```cpp
+class Server: public Print
+{public:
+    virtual void begin() =0;
+};
+```
+
+After doing the previous modification, delete the local build files by deleting the `.pio` folder in the project directory folder.
+
 ### 6.3. Testing and Simulation
 
 #### 6.3.1. Arduino Header Dependencies

@@ -77,4 +77,12 @@ enum class SystemEvent {
     STOP
 };
 
+enum class ErrorCode {
+    ERR_TEMP = 111,  ///< Error code for temperature sensor failure
+};
+
+enum class Constants {
+    TEMP_INTERVAL_MS = 2000,  ///< Interval for temperature readings in milliseconds
+};
+
 }  // namespace definitions
