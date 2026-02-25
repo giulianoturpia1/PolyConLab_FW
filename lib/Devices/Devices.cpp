@@ -1,6 +1,7 @@
 #include "Devices.hpp"
 #include "HALGeneral.hpp"
 #include "Pump.hpp"
+#include "Heater.hpp"
 #include "Definitions.hpp"
 
 #include <Ethernet.h>
@@ -31,27 +32,13 @@ void setupDevices() {
     // modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayAus2), modules::PIN_MODE_OUTPUT);
     // modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayAus3), modules::PIN_MODE_OUTPUT);
 
-    // // Inicializar estados
-    //heaterOFF(static_cast<uint32_t>(definitions::Pins::RelayHeater));
+    // Inicializar estados
+    modules::Heater::instance().begin(static_cast<uint32_t>(definitions::Pins::RelayHeater));
+    modules::Heater::instance().off();
     modules::Pump::instance().begin(static_cast<uint32_t>(definitions::Pins::RelayPump));
     //valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus1));
     //valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus2));
     //valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus3));
-}
-
-// -------- HEATER FUNCTIONS ---------
-void heaterON(uint32_t relayHeater_) {
-    modules::hal_general().digital_write(relayHeater_, modules::PIN_HIGH);
-    heaterStatusFlag = true;
-}
-
-void heaterOFF(uint32_t relayHeater_) {
-    modules::hal_general().digital_write(relayHeater_, modules::PIN_LOW);
-    heaterStatusFlag = false;
-}
-
-bool heaterStatus() {
-    return (heaterStatusFlag);
 }
 
 // -------- TEMPERATURE SENSOR FUNCTIONS ---------

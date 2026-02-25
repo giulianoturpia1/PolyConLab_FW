@@ -2,6 +2,7 @@
 #include "Definitions.hpp"
 #include "Devices.hpp"
 #include "Pump.hpp"
+#include "Heater.hpp"
 
 #if defined(PLC_38AR)
 #include "PLC38AR.hpp"
@@ -10,6 +11,7 @@
 #endif
 
 modules::Pump& pump = modules::Pump::instance(); // Global instance of the pump controller.
+modules::Heater& heater = modules::Heater::instance();
 
 int initTCPServer(byte mac[], IPAddress ip, EthernetServer& server_) {
     // start the Ethernet connection and the server:
@@ -39,13 +41,13 @@ void processCommand(String msg, EthernetClient client) {
 
     // -------- RESISTENCIA / HEATER ---------
     if (msg == "RES_ON") {
-        heaterON(static_cast<uint32_t>(definitions::Pins::RelayHeater));
+        heater.on();
         response = "RES:ON";
     } else if (msg == "RES_OFF") {
-        heaterOFF(static_cast<uint32_t>(definitions::Pins::RelayHeater));
+        heater.off();
         response = "RES:OFF";
     } else if (msg == "RES_STATE") {
-        bool state = heaterStatus();
+        bool state = heater.status();
         response = "RES:STATE," + String(state ? "ON" : "OFF");
     }
 
