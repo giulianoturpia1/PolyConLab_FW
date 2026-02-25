@@ -26,17 +26,17 @@ volatile float flow_rate = 0;
 
 void setupDevices() {
     // Configuracion de pines
-    modules::hal_general().pin_mode(static_cast<uint8_t>(definitions::Pins::RelayHeater), modules::PIN_MODE_OUTPUT);
-    modules::hal_general().pin_mode(static_cast<uint8_t>(definitions::Pins::RelayAus1), modules::PIN_MODE_OUTPUT);
-    modules::hal_general().pin_mode(static_cast<uint8_t>(definitions::Pins::RelayAus2), modules::PIN_MODE_OUTPUT);
-    modules::hal_general().pin_mode(static_cast<uint8_t>(definitions::Pins::RelayAus3), modules::PIN_MODE_OUTPUT);
+    //modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayHeater), modules::PIN_MODE_OUTPUT);
+    // modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayAus1), modules::PIN_MODE_OUTPUT);
+    // modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayAus2), modules::PIN_MODE_OUTPUT);
+    // modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayAus3), modules::PIN_MODE_OUTPUT);
 
-    // Inicializar estados
-    heaterOFF(static_cast<uint32_t>(definitions::Pins::RelayHeater));
+    // // Inicializar estados
+    //heaterOFF(static_cast<uint32_t>(definitions::Pins::RelayHeater));
     modules::Pump::instance().begin(static_cast<uint32_t>(definitions::Pins::RelayPump));
-    valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus1));
-    valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus2));
-    valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus3));
+    //valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus1));
+    //valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus2));
+    //valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus3));
 }
 
 // -------- HEATER FUNCTIONS ---------

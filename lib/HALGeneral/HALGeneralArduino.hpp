@@ -75,7 +75,7 @@ class HALGeneralArduino : public HALGeneral {
 
     // ==================== Digital I/O ====================
 
-    void pin_mode(uint8_t pin, uint8_t mode) override {
+    void pin_mode(uint32_t pin, uint8_t mode) override {
         uint8_t arduino_mode;
         switch (mode) {
             case PIN_MODE_INPUT:
@@ -91,24 +91,24 @@ class HALGeneralArduino : public HALGeneral {
                 arduino_mode = INPUT;
                 break;
         }
-        pinMode(pin, arduino_mode);
+        pinMode((pin), arduino_mode);
     }
 
-    void digital_write(uint8_t pin, uint8_t value) override {
+    void digital_write(uint32_t pin, uint8_t value) override {
         digitalWrite(pin, value);
     }
 
-    int digital_read(uint8_t pin) override {
+    int digital_read(uint32_t pin) override {
         return digitalRead(pin);
     }
 
     // ==================== Analog I/O ====================
 
-    int analog_read(uint8_t pin) override {
+    int analog_read(uint32_t pin) override {
         return analogRead(pin);
     }
 
-    void analog_write(uint8_t pin, int value) override {
+    void analog_write(uint32_t pin, int value) override {
         analogWrite(pin, value);
     }
 

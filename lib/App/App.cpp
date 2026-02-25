@@ -1,18 +1,19 @@
 #include "App.hpp"
-
+#include "Definitions.hpp"
+#include "Devices.hpp"
 #include "Pump.hpp"
 
 #if defined(PLC_38AR)
 #include "PLC38AR.hpp"
 #elif defined(PLC_19R)
 #include "PLC19R.hpp"
-#else
-#include "Definitions.hpp"
 #endif
 
-int initTCPServer(byte _mac[], IPAddress ip_, EthernetServer& server_) {
+modules::Pump& pump = modules::Pump::instance(); // Global instance of the pump controller.
+
+int initTCPServer(byte mac[], IPAddress ip, EthernetServer& server_) {
     // start the Ethernet connection and the server:
-    Ethernet.begin(_mac, ip_);
+    Ethernet.begin(mac, ip);
 
     // Check for Ethernet hardware present
     if (Ethernet.hardwareStatus() == EthernetNoHardware) {
@@ -50,13 +51,13 @@ void processCommand(String msg, EthernetClient client) {
 
     // -------- PUMP ---------
     else if (msg == "BBA_ON") {
-        modules::Pump::instance().on();
+        pump.on();
         response = "BBA:ON";
     } else if (msg == "BBA_OFF") {
-        modules::Pump::instance().off();
+        pump.off();
         response = "BBA:OFF";
     } else if (msg == "BBA_STATE") {
-        bool state = modules::Pump::instance().status();
+        bool state = pump.status();
         response = "BBA:STATE," + String(state ? "ON" : "OFF");
     }
 
