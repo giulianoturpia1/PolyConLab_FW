@@ -1,7 +1,9 @@
 #include <Ethernet.h>
 
-#include "App.hpp"
+#include "Communications.hpp"
 #include "Devices.hpp"
+#include "HALGeneral.hpp"
+#include "LocalServer.hpp"
 
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};  // MAC address of the PLC
 IPAddress ip(192, 168, 1, 1);                       // IP address of the PLC
@@ -12,27 +14,35 @@ IPAddress ip(192, 168, 1, 1);                       // IP address of the PLC
 EthernetServer server_(80);  // Means the pc is listening for standard HTTP web traffic, acting as a website host
 
 void setup() {
-    Serial.begin(115200);
-    Serial.println("Iniciando setup...");
+    modules::hal_general().serial_begin(115200);
+    modules::hal_general().log("Iniciando setup...");
     // setupDevices();
-    delay(1000);
-    int comunicacion = initTCPServer(mac, ip, server_);
-    Serial.println("Setup completado");
+    modules::hal_general().delay(1000);
+
+    // Initialize LocalServer with the EthernetServer
+    modules::LocalServer::instance().initialize(server_);
+    modules::LocalServer::instance().begin(mac, ip);
+
+    // Set up Serial response callback
+    modules::Communications::instance().set_serial_response_callback(
+        [](const std::string& response) {
+            Serial.println(response.c_str());
+        });
+
+    modules::hal_general().log("Setup completado");
 }
 
 void loop() {
-    EthernetClient client = server_.available();
-    if (client) {
-        while (client.connected()) {
-            if (client.available()) {
-                Serial.println("New client");
-                String msg = client.readStringUntil('\n');
-                msg.trim();
-                Serial.println("Message recieved: " + msg);
-                Serial.println("Processing command...");
-                processCommand(msg, client);
-            }
+    // Poll Ethernet
+    modules::LocalServer::instance().poll(modules::Communications::instance());
+
+    // Poll Serial
+    if (Serial.available()) {
+        String arduino_msg = Serial.readStringUntil('\n');
+        arduino_msg.trim();
+        if (arduino_msg.length() > 0) {
+            std::string msg(arduino_msg.c_str());
+            modules::Communications::instance().handle_serial_message(msg);
         }
     }
-    // Serial.println("Esta pasando el tiempo..." + String(millis()));
 }

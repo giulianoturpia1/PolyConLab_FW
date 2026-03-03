@@ -11,6 +11,9 @@
 
 #pragma once
 
+#include <array>
+#include <string>
+
 namespace definitions {
 
 ///
@@ -76,5 +79,95 @@ enum class SystemEvent {
     TOO_MANY_RETRIES,
     STOP
 };
+
+struct EventMap {
+	const char* name;
+	SystemEvent event;
+};
+
+///
+/// @brief Device commands that can be sent over communication transports
+///
+enum class CommandType {
+    // Heater/Resistor commands
+    HEATER_ON,
+    HEATER_OFF,
+    HEATER_STATE,
+
+    // Pump commands
+    PUMP_ON,
+    PUMP_OFF,
+    PUMP_STATE,
+
+    // Valve commands
+    VALVE_OPEN,
+    VALVE_CLOSE,
+    VALVE_STATE,
+
+    // Temperature sensor commands
+    TEMP_IN_READ,
+    TEMP_OUT_READ,
+    TEMP_BATH_READ,
+    TEMP_MIX_READ,
+
+    // Flow meter command
+    FLOW_READ,
+
+    // Diagnostics/Status
+    PING,
+    STATE_QUERY
+};
+
+struct CommandMap {
+	const char* name;
+	CommandType command;
+};
+
+constexpr std::array<CommandMap, 13> kCommandMap = {{
+	{("RES_ON"), CommandType::HEATER_ON},
+	{("RES_OFF"), CommandType::HEATER_OFF},
+	{("RES_STATE"), CommandType::HEATER_STATE},
+	{("BBA_ON"), CommandType::PUMP_ON},
+	{("BBA_OFF"), CommandType::PUMP_OFF},
+	{("BBA_STATE"), CommandType::PUMP_STATE},
+	{("VALVE_OPN"), CommandType::VALVE_OPEN},
+	{("VALVE_CLS"), CommandType::VALVE_CLOSE},
+	{("VALVE_STATE"), CommandType::VALVE_STATE},
+	{("LEER_CAUDAL"), CommandType::FLOW_READ},
+	{("PING"), CommandType::PING},
+	{("STATE"), CommandType::STATE_QUERY},
+	{("STATE?"), CommandType::STATE_QUERY},
+}};
+
+constexpr std::array<EventMap, 28> kEventMap = {{
+	{("POWER_ON"), SystemEvent::POWER_ON},
+	{("INIT_OK"), SystemEvent::INIT_OK},
+	{("CHECKUP_OK"), SystemEvent::CHECKUP_OK},
+	{("SCADA_LINK_OK"), SystemEvent::SCADA_LINK_OK},
+	{("SENSORS_OK"), SystemEvent::SENSORS_OK},
+	{("START_CALIBRATION"), SystemEvent::START_CALIBRATION},
+	{("FINISH_CALIBRATION"), SystemEvent::FINISH_CALIBRATION},
+	{("CMD_START_AUTO"), SystemEvent::CMD_START_AUTO},
+	{("SEQ_LOADED"), SystemEvent::SEQ_LOADED},
+	{("CMD_START_DEMO"), SystemEvent::CMD_START_DEMO},
+	{("DEMO_ENABLED"), SystemEvent::DEMO_ENABLED},
+	{("CMD_PAUSE"), SystemEvent::CMD_PAUSE},
+	{("CMD_RESUME"), SystemEvent::CMD_RESUME},
+	{("CMD_ABORT"), SystemEvent::CMD_ABORT},
+	{("CMD_SHUTDOWN"), SystemEvent::CMD_SHUTDOWN},
+	{("FAULT_RECOVERABLE"), SystemEvent::FAULT_RECOVERABLE},
+	{("FAULT_CRITICAL"), SystemEvent::FAULT_CRITICAL},
+	{("CMD_RETRY_CHECK"), SystemEvent::CMD_RETRY_CHECK},
+	{("CMD_SEQ_RESET"), SystemEvent::CMD_SEQ_RESET},
+	{("CONDITION_CLEARED"), SystemEvent::CONDITION_CLEARED},
+	{("SEQ_DONE"), SystemEvent::SEQ_DONE},
+	{("CMD_RESET_FAULT"), SystemEvent::CMD_RESET_FAULT},
+	{("SHUTDOWN_COMPLETE"), SystemEvent::SHUTDOWN_COMPLETE},
+	{("SHUTDOWN_BUTTON"), SystemEvent::SHUTDOWN_BUTTON},
+	{("INIT_FATAL"), SystemEvent::INIT_FATAL},
+	{("WATCHDOG_FATAL"), SystemEvent::WATCHDOG_FATAL},
+	{("TOO_MANY_RETRIES"), SystemEvent::TOO_MANY_RETRIES},
+	{("STOP"), SystemEvent::STOP},
+}};
 
 }  // namespace definitions

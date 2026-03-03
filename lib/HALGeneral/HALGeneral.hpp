@@ -111,6 +111,15 @@ class HALGeneral {
     ///
     virtual int serial_read() = 0;
 
+    // ==================== Logging ====================
+
+    ///
+    /// @brief Log a message (platform-independent logging)
+    ///
+    /// @param message Message to log
+    ///
+    virtual void log(const std::string& message) = 0;
+
     // ==================== Digital I/O ====================
 
     ///

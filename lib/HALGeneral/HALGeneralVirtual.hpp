@@ -83,6 +83,12 @@ class HALGeneralVirtual : public HALGeneral {
         return -1;
     }
 
+    // ==================== Logging ====================
+
+    void log(const std::string& message) override {
+        std::cout << "[LOG] " << message << std::endl;
+    }
+
     // ==================== Digital I/O ====================
 
     void pin_mode(uint8_t pin, uint8_t mode) override {

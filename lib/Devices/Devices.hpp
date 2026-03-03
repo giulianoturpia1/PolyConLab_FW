@@ -19,18 +19,18 @@
 
 // Pins definitions
 // ------- Actuators pins -------
-#define RELAYHEATER R0_5  // A1_0
-#define RELAYPUMP R0_4    // A1_0
+#define RELAYHEATER Q0_0  // A1_0
+#define RELAYPUMP Q0_1    // A1_0
 // Valves pins
-#define RELAY_AUS_1 R0_1  // R1_4
-#define RELAY_AUS_2 R0_2  // R1_5
-#define RELAY_AUS_3 R0_3  // R1_6
+#define RELAY_AUS_1 R1_1  // R1_4
+#define RELAY_AUS_2 R1_2  // R1_5
+#define RELAY_AUS_3 R1_3  // R1_6
 
 //------- Sensors pins -------
-#define RES_ST_1 I0_2  // T1
-#define RES_ST_2 I0_3  // T2
-#define RES_ST_3 I0_4  // T3
-#define RES_ST_4 I0_5  // T4
+#define RES_ST_1 I0_0  // T1
+#define RES_ST_2 I0_1  // T2
+#define RES_ST_3 I0_2  // T3
+#define RES_ST_4 I0_3  // T4
 
 #define TEMP_INTERVAL 2000
 #define ERR_TEMP 111
