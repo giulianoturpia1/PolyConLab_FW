@@ -5,12 +5,12 @@
 
 namespace modules {
 
+////////////////////////////////////// Public Methods //////////////////////////////////////
+
 LocalServer& LocalServer::instance() {
     static LocalServer instance;
     return instance;
 }
-
-LocalServer::LocalServer() : server_(nullptr), initialized_(false), mac_{0, 0, 0, 0, 0, 0}, ip_(0, 0, 0, 0) {}
 
 void LocalServer::initialize(EthernetServer& server) {
     server_ = &server;
@@ -78,5 +78,9 @@ void LocalServer::poll(const MessageHandler& handler) {
 
     handler(msg, respond);
 }
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+LocalServer::LocalServer() : server_(nullptr), initialized_(false), mac_{0, 0, 0, 0, 0, 0}, ip_(0, 0, 0, 0) {}
 
 }  // namespace modules
