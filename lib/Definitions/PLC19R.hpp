@@ -17,10 +17,12 @@
 namespace definitions {
 
 ///
-/// @brief Pin definitions for the system. These are arbitrary and should be defined according to the actual hardware design. They can be used in the HAL and device drivers to refer to specific pins in a more abstract way.
-/// @note Check the "ESP32_PLC_UserGuide.pdf" Section 7 for the actual pinout and update these definitions accordingly.///
+/// @brief Pin definitions for the system. These are arbitrary and should be defined according to the actual hardware
+/// design. They can be used in the HAL and device drivers to refer to specific pins in a more abstract way.
+/// @note Check the "ESP32_PLC_UserGuide.pdf" Section 7 for the actual pinout and update these definitions
+/// accordingly.///
 ///
-enum class Pins: uint32_t {
+enum class Pins : uint32_t {
     // Actuators
     RelayHeater = Q0_1,  ///< Heating resistor relay
     RelayPump = Q0_0,    ///< Circulation pump relay

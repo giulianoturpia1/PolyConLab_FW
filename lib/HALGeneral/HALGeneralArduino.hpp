@@ -73,6 +73,13 @@ class HALGeneralArduino : public HALGeneral {
         return Serial.read();
     }
 
+    // ==================== Logging ====================
+
+    void log(const std::string& message) override {
+        Serial.print("[LOG] ");
+        Serial.println(message.c_str());
+    }
+
     // ==================== Digital I/O ====================
 
     void pin_mode(uint32_t pin, uint8_t mode) override {

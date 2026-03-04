@@ -1,10 +1,11 @@
 #include "Devices.hpp"
-#include "HALGeneral.hpp"
-#include "Pump.hpp"
-#include "Definitions.hpp"
 
 #include <Ethernet.h>
 #include <SPI.h>
+
+#include "Definitions.hpp"
+#include "HALGeneral.hpp"
+#include "Pump.hpp"
 
 #if defined(PLC_38AR)
 #include "PLC38AR.hpp"
@@ -26,17 +27,17 @@ volatile float flow_rate = 0;
 
 void setupDevices() {
     // Configuracion de pines
-    //modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayHeater), modules::PIN_MODE_OUTPUT);
+    // modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayHeater), modules::PIN_MODE_OUTPUT);
     // modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayAus1), modules::PIN_MODE_OUTPUT);
     // modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayAus2), modules::PIN_MODE_OUTPUT);
     // modules::hal_general().pin_mode(static_cast<uint32_t>(definitions::Pins::RelayAus3), modules::PIN_MODE_OUTPUT);
 
     // // Inicializar estados
-    //heaterOFF(static_cast<uint32_t>(definitions::Pins::RelayHeater));
+    // heaterOFF(static_cast<uint32_t>(definitions::Pins::RelayHeater));
     modules::Pump::instance().begin(static_cast<uint32_t>(definitions::Pins::RelayPump));
-    //valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus1));
-    //valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus2));
-    //valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus3));
+    // valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus1));
+    // valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus2));
+    // valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus3));
 }
 
 // -------- HEATER FUNCTIONS ---------
@@ -63,7 +64,9 @@ float readTempSensor(uint32_t sensor_) {
     Serial1.println(sensor_);  // envio comando al esp32 externo
 awaitReading:
     unsigned long initial_time = millis();
-    while (!Serial1.available() && ((millis() - initial_time) < static_cast<unsigned long>(definitions::Constants::TEMP_INTERVAL_MS)));  // seria bueno agregar un timeout
+    while (!Serial1.available() &&
+           ((millis() - initial_time) <
+            static_cast<unsigned long>(definitions::Constants::TEMP_INTERVAL_MS)));  // seria bueno agregar un timeout
     if ((millis() - initial_time) >= static_cast<unsigned long>(definitions::Constants::TEMP_INTERVAL_MS)) {
         return static_cast<float>(definitions::ErrorCode::ERR_TEMP);  // codigo de error de lectura
     } else {

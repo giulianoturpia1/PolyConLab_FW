@@ -20,55 +20,55 @@ namespace modules {
 ///
 class Pump {
    public:
-	///
-	/// @brief Get the singleton instance of the Pump controller.
-	///
-	/// @return Pump&
-	///
-	static Pump& instance();
+    ///
+    /// @brief Get the singleton instance of the Pump controller.
+    ///
+    /// @return Pump&
+    ///
+    static Pump& instance();
 
-	///
-	/// @brief Initialize the pump controller with the relay pin.
-	///
-	/// @param pin Relay pin for pump control.
-	///
-	void begin(uint32_t pin);
+    ///
+    /// @brief Initialize the pump controller with the relay pin.
+    ///
+    /// @param pin Relay pin for pump control.
+    ///
+    void begin(uint32_t pin);
 
-	///
-	/// @brief Turn the pump on.
-	///
-	void on();
+    ///
+    /// @brief Turn the pump on.
+    ///
+    void on();
 
-	///
-	/// @brief Turn the pump off.
-	///
-	void off();
+    ///
+    /// @brief Turn the pump off.
+    ///
+    void off();
 
-	///
-	/// @brief Get the pump status.
-	///
-	/// @return true if pump is ON, false otherwise.
-	///
-	bool status() const;
+    ///
+    /// @brief Get the pump status.
+    ///
+    /// @return true if pump is ON, false otherwise.
+    ///
+    bool status() const;
 
-	///
-	/// @brief Get the pump relay pin.
-	///
-	/// @return uint32_t
-	///
-	uint32_t pin() const;
+    ///
+    /// @brief Get the pump relay pin.
+    ///
+    /// @return uint32_t
+    ///
+    uint32_t pin() const;
 
    private:
-	Pump();
+    Pump();
     // Rule of Five
-	~Pump() = default;
-	Pump(const Pump&) = delete;
-	Pump& operator=(const Pump&) = delete;
-	Pump(Pump&&) = delete;
-	Pump& operator=(Pump&&) = delete;
+    ~Pump() = default;
+    Pump(const Pump&) = delete;
+    Pump& operator=(const Pump&) = delete;
+    Pump(Pump&&) = delete;
+    Pump& operator=(Pump&&) = delete;
 
-	uint32_t pin_;
-	bool status_;
+    uint32_t pin_;
+    bool status_;
 };
 
 }  // namespace modules

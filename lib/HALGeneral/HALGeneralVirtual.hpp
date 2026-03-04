@@ -83,18 +83,22 @@ class HALGeneralVirtual : public HALGeneral {
         return -1;
     }
 
+    // ==================== Logging ====================
+
+    void log(const std::string& message) override {
+        std::cout << "[LOG] " << message << std::endl;
+    }
+
     // ==================== Digital I/O ====================
 
     void pin_mode(uint32_t pin, uint8_t mode) override {
         pin_modes_[pin] = mode;
-        std::cout << "[HALGeneralVirtual] Pin " << pin << " set to mode " << static_cast<int>(mode)
-                  << std::endl;
+        std::cout << "[HALGeneralVirtual] Pin " << pin << " set to mode " << static_cast<int>(mode) << std::endl;
     }
 
     void digital_write(uint32_t pin, uint8_t value) override {
         digital_pins_[pin] = value;
-        std::cout << "[HALGeneralVirtual] Digital write: Pin " << pin << " = " << static_cast<int>(value)
-                  << std::endl;
+        std::cout << "[HALGeneralVirtual] Digital write: Pin " << pin << " = " << static_cast<int>(value) << std::endl;
     }
 
     int digital_read(uint32_t pin) override {
@@ -183,9 +187,9 @@ class HALGeneralVirtual : public HALGeneral {
     HALGeneralVirtual& operator=(HALGeneralVirtual&&) = delete;
 
     std::chrono::steady_clock::time_point start_time_;  ///< Start time point for timing functions
-    std::map<uint32_t, uint8_t> pin_modes_;              ///< Pin modes map
-    std::map<uint32_t, uint8_t> digital_pins_;           ///< Digital pin states map
-    std::map<uint32_t, int> analog_pins_;                ///< Analog pin values map
+    std::map<uint32_t, uint8_t> pin_modes_;             ///< Pin modes map
+    std::map<uint32_t, uint8_t> digital_pins_;          ///< Digital pin states map
+    std::map<uint32_t, int> analog_pins_;               ///< Analog pin values map
 };
 
 }  // namespace modules
