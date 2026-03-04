@@ -10,8 +10,8 @@ modules::StateMachine& modules::StateMachine::instance() {
 }
 
 void modules::StateMachine::begin() {
-    currentState_ = definitions::SystemState::STARTUP;
-    previousState_ = definitions::SystemState::STARTUP;
+    currentState_ = definitions::SystemState::kStartup;
+    previousState_ = definitions::SystemState::kStartup;
     stateEntryTime_ = modules::hal_general().millis();
     stateChanged_ = true;
     on_state_enter();
@@ -22,28 +22,28 @@ void modules::StateMachine::run() {
 
     // Execute the current state handler
     switch (currentState_) {
-        case definitions::SystemState::STARTUP:
+        case definitions::SystemState::kStartup:
             handle_startup();
             break;
-        case definitions::SystemState::CHECKUP:
+        case definitions::SystemState::kCheckup:
             handle_checkup();
             break;
-        case definitions::SystemState::CALIBRATION:
+        case definitions::SystemState::kCalibration:
             handle_calibration();
             break;
-        case definitions::SystemState::MANUAL:
+        case definitions::SystemState::kManual:
             handle_manual();
             break;
-        case definitions::SystemState::SOFT_ERROR:
+        case definitions::SystemState::kSoftError:
             handle_soft_error();
             break;
-        case definitions::SystemState::CRITICAL_ERROR:
+        case definitions::SystemState::kCriticalError:
             handle_critical_error();
             break;
 
         default:
             // Unknown state, transition to CRITICAL_ERROR
-            transition_to(definitions::SystemState::CRITICAL_ERROR);
+            transition_to(definitions::SystemState::kCriticalError);
             break;
     }
 }
@@ -51,69 +51,69 @@ void modules::StateMachine::run() {
 void modules::StateMachine::process_event(definitions::SystemEvent event) {
     definitions::SystemState nextState = currentState_;
     switch (currentState_) {
-        case definitions::SystemState::STARTUP:
-            if (event == definitions::SystemEvent::INIT_OK) {
-                nextState = definitions::SystemState::CHECKUP;
-            } else if (event == definitions::SystemEvent::INIT_FATAL ||
-                       event == definitions::SystemEvent::WATCHDOG_FATAL) {
-                nextState = definitions::SystemState::CRITICAL_ERROR;
+        case definitions::SystemState::kStartup:
+            if (event == definitions::SystemEvent::kInitOk) {
+                nextState = definitions::SystemState::kCheckup;
+            } else if (event == definitions::SystemEvent::kInitFatal ||
+                       event == definitions::SystemEvent::kWatchdogFatal) {
+                nextState = definitions::SystemState::kCriticalError;
             }
             break;
 
-        case definitions::SystemState::CHECKUP:
-            if (event == definitions::SystemEvent::SCADA_LINK_OK && event == definitions::SystemEvent::SENSORS_OK) {
-                nextState = definitions::SystemState::MANUAL;
-            } else if (event == definitions::SystemEvent::START_CALIBRATION) {
-                nextState = definitions::SystemState::CALIBRATION;
-            } else if (event == definitions::SystemEvent::FAULT_RECOVERABLE) {
-                nextState = definitions::SystemState::SOFT_ERROR;
-            } else if (event == definitions::SystemEvent::FAULT_CRITICAL) {
-                nextState = definitions::SystemState::CRITICAL_ERROR;
-            } else if (event == definitions::SystemEvent::CMD_RESET_FAULT) {
-                nextState = definitions::SystemState::STARTUP;
+        case definitions::SystemState::kCheckup:
+            if (event == definitions::SystemEvent::kScadaLinkOk && event == definitions::SystemEvent::kSensorsOk) {
+                nextState = definitions::SystemState::kManual;
+            } else if (event == definitions::SystemEvent::kStartCalibration) {
+                nextState = definitions::SystemState::kCalibration;
+            } else if (event == definitions::SystemEvent::kFaultRecoverable) {
+                nextState = definitions::SystemState::kSoftError;
+            } else if (event == definitions::SystemEvent::kFaultCritical) {
+                nextState = definitions::SystemState::kCriticalError;
+            } else if (event == definitions::SystemEvent::kCmdResetFault) {
+                nextState = definitions::SystemState::kStartup;
             }
             break;
 
-        case definitions::SystemState::CALIBRATION:
-            if (event == definitions::SystemEvent::FINISH_CALIBRATION) {
-                nextState = definitions::SystemState::CHECKUP;
-            } else if (event == definitions::SystemEvent::FAULT_RECOVERABLE) {
-                nextState = definitions::SystemState::SOFT_ERROR;
-            } else if (event == definitions::SystemEvent::FAULT_CRITICAL) {
-                nextState = definitions::SystemState::CRITICAL_ERROR;
+        case definitions::SystemState::kCalibration:
+            if (event == definitions::SystemEvent::kFinishCalibration) {
+                nextState = definitions::SystemState::kCheckup;
+            } else if (event == definitions::SystemEvent::kFaultRecoverable) {
+                nextState = definitions::SystemState::kSoftError;
+            } else if (event == definitions::SystemEvent::kFaultCritical) {
+                nextState = definitions::SystemState::kCriticalError;
             }
             break;
 
-        case definitions::SystemState::MANUAL:
-            if (event == definitions::SystemEvent::CMD_START_AUTO ||
-                event == definitions::SystemEvent::CMD_START_DEMO) {
+        case definitions::SystemState::kManual:
+            if (event == definitions::SystemEvent::kCmdStartAuto ||
+                event == definitions::SystemEvent::kCmdStartDemo) {
                 // Stay in MANUAL for now (Auto/Demo states not implemented yet)
-                nextState = definitions::SystemState::MANUAL;
-            } else if (event == definitions::SystemEvent::START_CALIBRATION) {
-                nextState = definitions::SystemState::CALIBRATION;
-            } else if (event == definitions::SystemEvent::FAULT_RECOVERABLE) {
-                nextState = definitions::SystemState::SOFT_ERROR;
-            } else if (event == definitions::SystemEvent::FAULT_CRITICAL || event == definitions::SystemEvent::STOP) {
-                nextState = definitions::SystemState::CRITICAL_ERROR;
-            } else if (event == definitions::SystemEvent::CMD_ABORT) {
-                nextState = definitions::SystemState::MANUAL;
+                nextState = definitions::SystemState::kManual;
+            } else if (event == definitions::SystemEvent::kStartCalibration) {
+                nextState = definitions::SystemState::kCalibration;
+            } else if (event == definitions::SystemEvent::kFaultRecoverable) {
+                nextState = definitions::SystemState::kSoftError;
+            } else if (event == definitions::SystemEvent::kFaultCritical || event == definitions::SystemEvent::kStop) {
+                nextState = definitions::SystemState::kCriticalError;
+            } else if (event == definitions::SystemEvent::kCmdAbort) {
+                nextState = definitions::SystemState::kManual;
             }
             break;
 
-        case definitions::SystemState::SOFT_ERROR:
-            if (event == definitions::SystemEvent::CMD_RETRY_CHECK &&
-                event == definitions::SystemEvent::CONDITION_CLEARED) {
+        case definitions::SystemState::kSoftError:
+            if (event == definitions::SystemEvent::kCmdRetryCheck &&
+                event == definitions::SystemEvent::kConditionCleared) {
                 nextState = previousState_;  // Return to previous state
-            } else if (event == definitions::SystemEvent::FAULT_CRITICAL ||
-                       event == definitions::SystemEvent::TOO_MANY_RETRIES) {
-                nextState = definitions::SystemState::CRITICAL_ERROR;
+            } else if (event == definitions::SystemEvent::kFaultCritical ||
+                       event == definitions::SystemEvent::kTooManyRetries) {
+                nextState = definitions::SystemState::kCriticalError;
             }
             break;
 
-        case definitions::SystemState::CRITICAL_ERROR:
-            if (event == definitions::SystemEvent::CMD_RESET_FAULT ||
-                event == definitions::SystemEvent::SHUTDOWN_BUTTON || event == definitions::SystemEvent::CMD_SHUTDOWN) {
-                nextState = definitions::SystemState::STARTUP;
+        case definitions::SystemState::kCriticalError:
+            if (event == definitions::SystemEvent::kCmdResetFault ||
+                event == definitions::SystemEvent::kShutdownButton || event == definitions::SystemEvent::kCmdShutdown) {
+                nextState = definitions::SystemState::kStartup;
             }
             break;
     }
@@ -144,8 +144,8 @@ const std::string& modules::StateMachine::get_state_name(definitions::SystemStat
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
 modules::StateMachine::StateMachine()
-    : currentState_(definitions::SystemState::STARTUP),
-      previousState_(definitions::SystemState::STARTUP),
+        : currentState_(definitions::SystemState::kStartup),
+            previousState_(definitions::SystemState::kStartup),
       stateEntryTime_(0),
       stateChanged_(false) {}
 
@@ -210,9 +210,9 @@ void modules::StateMachine::handle_critical_error() {
 
 ////////////////////////////////////// State Names Mapping //////////////////////////////////////
 const std::map<definitions::SystemState, std::string> modules::StateMachine::stateNames_ = {
-    {definitions::SystemState::STARTUP, "STARTUP"},
-    {definitions::SystemState::CHECKUP, "CHECKUP"},
-    {definitions::SystemState::CALIBRATION, "CALIBRATION"},
-    {definitions::SystemState::MANUAL, "MANUAL"},
-    {definitions::SystemState::SOFT_ERROR, "SOFT_ERROR"},
-    {definitions::SystemState::CRITICAL_ERROR, "CRITICAL_ERROR"}};
+    {definitions::SystemState::kStartup, "STARTUP"},
+    {definitions::SystemState::kCheckup, "CHECKUP"},
+    {definitions::SystemState::kCalibration, "CALIBRATION"},
+    {definitions::SystemState::kManual, "MANUAL"},
+    {definitions::SystemState::kSoftError, "SOFT_ERROR"},
+    {definitions::SystemState::kCriticalError, "CRITICAL_ERROR"}};

@@ -10,46 +10,46 @@ static modules::StateMachine& sm = modules::StateMachine::instance();
 
 TEST_CASE("StateMachine starts in STARTUP after begin()") {
     sm.begin();
-    CHECK(sm.is_in_state(SystemState::STARTUP));
+    CHECK(sm.is_in_state(SystemState::kStartup));
 }
 
 TEST_CASE("INIT_OK transitions STARTUP -> CHECKUP") {
     sm.begin();
-    sm.process_event(SystemEvent::INIT_OK);
-    CHECK(sm.is_in_state(SystemState::CHECKUP));
+    sm.process_event(SystemEvent::kInitOk);
+    CHECK(sm.is_in_state(SystemState::kCheckup));
 }
 
 TEST_CASE("START_CALIBRATION transitions CHECKUP -> CALIBRATION") {
     sm.begin();
-    sm.process_event(SystemEvent::INIT_OK);
-    sm.process_event(SystemEvent::START_CALIBRATION);
-    CHECK(sm.is_in_state(SystemState::CALIBRATION));
+    sm.process_event(SystemEvent::kInitOk);
+    sm.process_event(SystemEvent::kStartCalibration);
+    CHECK(sm.is_in_state(SystemState::kCalibration));
 }
 
 TEST_CASE("FAULT_CRITICAL transitions to CRITICAL_ERROR") {
     sm.begin();
-    sm.process_event(SystemEvent::INIT_OK);
-    sm.process_event(SystemEvent::START_CALIBRATION);
-    sm.process_event(SystemEvent::FAULT_CRITICAL);
-    CHECK(sm.is_in_state(SystemState::CRITICAL_ERROR));
+    sm.process_event(SystemEvent::kInitOk);
+    sm.process_event(SystemEvent::kStartCalibration);
+    sm.process_event(SystemEvent::kFaultCritical);
+    CHECK(sm.is_in_state(SystemState::kCriticalError));
 }
 
 TEST_CASE("CMD_RESET_FAULT transitions CRITICAL_ERROR -> STARTUP") {
     sm.begin();
-    sm.process_event(SystemEvent::INIT_OK);
-    sm.process_event(SystemEvent::START_CALIBRATION);
-    sm.process_event(SystemEvent::FAULT_CRITICAL);
-    sm.process_event(SystemEvent::CMD_RESET_FAULT);
-    CHECK(sm.is_in_state(SystemState::STARTUP));
+    sm.process_event(SystemEvent::kInitOk);
+    sm.process_event(SystemEvent::kStartCalibration);
+    sm.process_event(SystemEvent::kFaultCritical);
+    sm.process_event(SystemEvent::kCmdResetFault);
+    CHECK(sm.is_in_state(SystemState::kStartup));
 }
 
 TEST_CASE("state name mapping returns expected labels") {
-    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::STARTUP), "STARTUP");
-    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::CHECKUP), "CHECKUP");
-    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::CALIBRATION), "CALIBRATION");
-    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::MANUAL), "MANUAL");
-    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::SOFT_ERROR), "SOFT_ERROR");
-    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::CRITICAL_ERROR), "CRITICAL_ERROR");
+    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::kStartup), "STARTUP");
+    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::kCheckup), "CHECKUP");
+    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::kCalibration), "CALIBRATION");
+    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::kManual), "MANUAL");
+    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::kSoftError), "SOFT_ERROR");
+    CHECK_EQ(modules::StateMachine::get_state_name(SystemState::kCriticalError), "CRITICAL_ERROR");
 }
 
 #if defined(ARDUINO)

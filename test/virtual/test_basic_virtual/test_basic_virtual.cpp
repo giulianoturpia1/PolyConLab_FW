@@ -94,16 +94,16 @@ TEST_CASE("loop iteration") {
 }
 
 TEST_CASE("state transitions enum") {
-    enum class system_state_t { STATE_INIT = 0, STATE_RUNNING = 1, STATE_STOPPED = 2 };
+    enum class system_state_t { kInit = 0, kRunning = 1, kStopped = 2 };
 
-    system_state_t current_state = system_state_t::STATE_INIT;
-    CHECK(current_state == system_state_t::STATE_INIT);
+    system_state_t current_state = system_state_t::kInit;
+    CHECK(current_state == system_state_t::kInit);
 
-    current_state = system_state_t::STATE_RUNNING;
-    CHECK(current_state == system_state_t::STATE_RUNNING);
+    current_state = system_state_t::kRunning;
+    CHECK(current_state == system_state_t::kRunning);
 
-    current_state = system_state_t::STATE_STOPPED;
-    CHECK(current_state == system_state_t::STATE_STOPPED);
+    current_state = system_state_t::kStopped;
+    CHECK(current_state == system_state_t::kStopped);
 }
 
 TEST_CASE("bitwise operations") {

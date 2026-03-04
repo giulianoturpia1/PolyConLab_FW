@@ -9,8 +9,6 @@ modules::Pump& modules::Pump::instance() {
     return instance;
 }
 
-modules::Pump::Pump() : pin_(0), status_(false) {}
-
 void modules::Pump::begin(uint32_t pin) {
     pin_ = pin;
     modules::hal_general().pin_mode(pin_, modules::PIN_MODE_OUTPUT);
@@ -36,3 +34,5 @@ uint32_t modules::Pump::pin() const {
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+modules::Pump::Pump() : pin_(0), status_(false) {}
