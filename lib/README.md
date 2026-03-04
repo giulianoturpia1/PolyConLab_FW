@@ -20,12 +20,12 @@ Some libraries may contain additional files, such as configuration files, exampl
 
 ## 1. Hardware Abstraction Layer (HAL)
 
-## 1.1. Overview
+### 1.1. Overview
 
 The Hardware Abstraction Layer (HAL) provides a platform-independent interface to abstract specific calls, in particular, Arduino specific calls for this project. This enables code portability and easier testing on different platforms. It automatically detects your platform at compile-time and initializes the correct implementation without any manual setup required. For each important part of a system (e.g., GPIO, I2C, Network, Storage), there is a corresponding HAL module.
 The reason for using several HAL modules instead of a single monolithic HAL is to promote modularity and separation of concerns. Each HAL module focuses on a specific aspect of hardware interaction, making it easier to maintain, extend, and test individual components without affecting the entire system.
 
-## 1.2. Details
+### 1.2. Details
 
 Each platform-specific implementation inherits from this base class which is purely virtual and provides concrete implementations for the defined methods, by being a singleton. This is controlled through polymorphism, and by using a HAL Manager to handle the selection of the appropriate HAL implementation at runtime. For this reason, each HAL module consists of:
 
@@ -53,3 +53,9 @@ lib/
 └── HALInterrupt/     (Interrupt handling)
 ...
 ```
+
+## 2. Devices
+
+### 2.1. Overview
+
+The devices are the actual hardware components that the PLC interacts with, such as sensors, actuators, communication modules, etc. Each device has its own driver that implements the necessary functionality to interface with the hardware. The device drivers utilize the HAL to perform hardware-specific operations, allowing for a clean separation between hardware abstraction and device logic.

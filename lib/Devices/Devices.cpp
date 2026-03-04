@@ -1,7 +1,19 @@
 #include "Devices.hpp"
+#include "HALGeneral.hpp"
+#include "Pump.hpp"
+#include "Definitions.hpp"
+
+#include <Ethernet.h>
+#include <SPI.h>
+
+#if defined(PLC_38AR)
+#include "PLC38AR.hpp"
+#elif defined(PLC_19R)
+#include "PLC19R.hpp"
+#else
+#endif
 
 bool heaterStatusFlag = false;
-bool pumpStatusFlag = false;
 bool valve1StatusFlag = false;
 bool valve2StatusFlag = false;
 bool valve3StatusFlag = false;
@@ -14,28 +26,27 @@ volatile float flow_rate = 0;
 
 void setupDevices() {
     // Configuracion de pines
-    pinMode(RELAYHEATER, OUTPUT);
-    pinMode(RELAYPUMP, OUTPUT);
-    pinMode(RELAY_AUS_1, OUTPUT);
-    pinMode(RELAY_AUS_2, OUTPUT);
-    pinMode(RELAY_AUS_3, OUTPUT);
+    modules::hal_general().pin_mode(static_cast<uint8_t>(definitions::Pins::RelayHeater), modules::PIN_MODE_OUTPUT);
+    modules::hal_general().pin_mode(static_cast<uint8_t>(definitions::Pins::RelayAus1), modules::PIN_MODE_OUTPUT);
+    modules::hal_general().pin_mode(static_cast<uint8_t>(definitions::Pins::RelayAus2), modules::PIN_MODE_OUTPUT);
+    modules::hal_general().pin_mode(static_cast<uint8_t>(definitions::Pins::RelayAus3), modules::PIN_MODE_OUTPUT);
 
     // Inicializar estados
-    heaterOFF(RELAYHEATER);
-    pumpOFF(RELAYPUMP);
-    valveOFF(RELAY_AUS_1);
-    valveOFF(RELAY_AUS_2);
-    valveOFF(RELAY_AUS_3);
+    heaterOFF(static_cast<uint32_t>(definitions::Pins::RelayHeater));
+    modules::Pump::instance().begin(static_cast<uint32_t>(definitions::Pins::RelayPump));
+    valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus1));
+    valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus2));
+    valveOFF(static_cast<uint32_t>(definitions::Pins::RelayAus3));
 }
 
 // -------- HEATER FUNCTIONS ---------
 void heaterON(uint32_t relayHeater_) {
-    digitalWrite(relayHeater_, HIGH);
+    modules::hal_general().digital_write(relayHeater_, modules::PIN_HIGH);
     heaterStatusFlag = true;
 }
 
 void heaterOFF(uint32_t relayHeater_) {
-    digitalWrite(relayHeater_, LOW);
+    modules::hal_general().digital_write(relayHeater_, modules::PIN_LOW);
     heaterStatusFlag = false;
 }
 
@@ -52,9 +63,9 @@ float readTempSensor(uint32_t sensor_) {
     Serial1.println(sensor_);  // envio comando al esp32 externo
 awaitReading:
     unsigned long initial_time = millis();
-    while (!Serial1.available() && ((millis() - initial_time) < TEMP_INTERVAL));  // seria bueno agregar un timeout
-    if ((millis() - initial_time) >= TEMP_INTERVAL) {
-        return ERR_TEMP;  // codigo de error de lectura
+    while (!Serial1.available() && ((millis() - initial_time) < static_cast<unsigned long>(definitions::Constants::TEMP_INTERVAL_MS)));  // seria bueno agregar un timeout
+    if ((millis() - initial_time) >= static_cast<unsigned long>(definitions::Constants::TEMP_INTERVAL_MS)) {
+        return static_cast<float>(definitions::ErrorCode::ERR_TEMP);  // codigo de error de lectura
     } else {
         sensor_response = Serial1.readStringUntil('\n');
         if (sensor_response == "Conversion not complete!") {
@@ -67,54 +78,37 @@ awaitReading:
     return (temp);
 }
 
-// -------- PUMP FUNCTIONS ---------
-void pumpON(uint32_t relayPump_) {
-    digitalWrite(relayPump_, HIGH);
-    pumpStatusFlag = true;
-    return;
-}
-
-void pumpOFF(uint32_t relayPump_) {
-    digitalWrite(relayPump_, LOW);  // Generar modulo drivers
-    pumpStatusFlag = false;
-    return;
-}
-
-bool statusPump() {
-    return (pumpStatusFlag);
-}
-
 // -------- VALVE FUNCTIONS ---------
 void valveON(uint32_t relayValve_) {
-    digitalWrite(relayValve_, HIGH);
-    if (relayValve_ == RELAY_AUS_1) {
+    modules::hal_general().digital_write(relayValve_, modules::PIN_HIGH);
+    if (relayValve_ == static_cast<uint32_t>(definitions::Pins::RelayAus1)) {
         valve1StatusFlag = true;
-    } else if (relayValve_ == RELAY_AUS_2) {
+    } else if (relayValve_ == static_cast<uint32_t>(definitions::Pins::RelayAus2)) {
         valve2StatusFlag = true;
-    } else if (relayValve_ == RELAY_AUS_3) {
+    } else if (relayValve_ == static_cast<uint32_t>(definitions::Pins::RelayAus3)) {
         valve3StatusFlag = true;
     }
     return;
 }
 
 void valveOFF(uint32_t relayValve_) {
-    digitalWrite(relayValve_, LOW);
-    if (relayValve_ == RELAY_AUS_1) {
+    modules::hal_general().digital_write(relayValve_, modules::PIN_LOW);
+    if (relayValve_ == static_cast<uint32_t>(definitions::Pins::RelayAus1)) {
         valve1StatusFlag = false;
-    } else if (relayValve_ == RELAY_AUS_2) {
+    } else if (relayValve_ == static_cast<uint32_t>(definitions::Pins::RelayAus2)) {
         valve2StatusFlag = false;
-    } else if (relayValve_ == RELAY_AUS_3) {
+    } else if (relayValve_ == static_cast<uint32_t>(definitions::Pins::RelayAus3)) {
         valve3StatusFlag = false;
     }
     return;
 }
 
 bool valveStatus(uint32_t relayValve_) {
-    if (relayValve_ == RELAY_AUS_1) {
+    if (relayValve_ == static_cast<uint32_t>(definitions::Pins::RelayAus1)) {
         return (valve1StatusFlag);
-    } else if (relayValve_ == RELAY_AUS_2) {
+    } else if (relayValve_ == static_cast<uint32_t>(definitions::Pins::RelayAus2)) {
         return (valve2StatusFlag);
-    } else if (relayValve_ == RELAY_AUS_3) {
+    } else if (relayValve_ == static_cast<uint32_t>(definitions::Pins::RelayAus3)) {
         return (valve3StatusFlag);
     } else {
         return false;
@@ -139,7 +133,7 @@ void IRAM_ATTR isrTimerFlow() {
 }
 
 void initFlowMeter(uint32_t pinFlow_) {
-    pinMode(pinFlow_, INPUT);
+    modules::hal_general().pin_mode(pinFlow_, modules::PIN_MODE_INPUT);
     attachInterrupt(digitalPinToInterrupt(pinFlow_), isrFlowMeter, RISING);
 
     timer = timerBegin(0, 80, true);  // timer 0, prescaler 80 → 1 tick = 1 µs
