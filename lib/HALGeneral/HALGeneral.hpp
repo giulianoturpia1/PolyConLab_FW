@@ -119,7 +119,7 @@ class HALGeneral {
     /// @param pin Pin number
     /// @param mode Mode (INPUT, OUTPUT, INPUT_PULLUP)
     ///
-    virtual void pin_mode(uint8_t pin, uint8_t mode) = 0;
+    virtual void pin_mode(uint32_t pin, uint8_t mode) = 0;
 
     ///
     /// @brief Write digital value to pin
@@ -127,7 +127,7 @@ class HALGeneral {
     /// @param pin Pin number
     /// @param value HIGH or LOW
     ///
-    virtual void digital_write(uint8_t pin, uint8_t value) = 0;
+    virtual void digital_write(uint32_t pin, uint8_t value) = 0;
 
     ///
     /// @brief Read digital value from pin
@@ -135,7 +135,7 @@ class HALGeneral {
     /// @param pin Pin number
     /// @return int Pin value (HIGH or LOW)
     ///
-    virtual int digital_read(uint8_t pin) = 0;
+    virtual int digital_read(uint32_t pin) = 0;
 
     // ==================== Analog I/O ====================
 
@@ -145,7 +145,7 @@ class HALGeneral {
     /// @param pin Pin number
     /// @return int Analog value (0-1023 or 0-4095 depending on platform)
     ///
-    virtual int analog_read(uint8_t pin) = 0;
+    virtual int analog_read(uint32_t pin) = 0;
 
     ///
     /// @brief Write analog value to pin (PWM)
@@ -153,7 +153,7 @@ class HALGeneral {
     /// @param pin Pin number
     /// @param value Analog value (0-255)
     ///
-    virtual void analog_write(uint8_t pin, int value) = 0;
+    virtual void analog_write(uint32_t pin, int value) = 0;
 
     // ==================== System Functions ====================
 

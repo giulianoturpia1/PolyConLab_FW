@@ -14,7 +14,7 @@ EthernetServer server_(80);  // Means the pc is listening for standard HTTP web 
 void setup() {
     Serial.begin(115200);
     Serial.println("Iniciando setup...");
-    // setupDevices();
+    setupDevices();
     delay(1000);
     int comunicacion = initTCPServer(mac, ip, server_);
     Serial.println("Setup completado");
