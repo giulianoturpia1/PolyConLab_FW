@@ -75,5 +75,21 @@ inline const definitions::CommandMap* find_command(const std::string& cmd_name) 
 	return nullptr;
 }
 
+///
+/// @brief Resolve a response text from the response map
+///
+/// @param type Response identifier
+/// @return const char* Canonical response text
+///
+inline const char* response(const definitions::ResponseType type) {
+	for (const auto& response_entry : definitions::kResponseMap) {
+		if (response_entry.type == type) {
+			return response_entry.name;
+		}
+	}
+
+	return "";
+}
+
 
 }  // namespace utils

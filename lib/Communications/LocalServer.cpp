@@ -1,6 +1,5 @@
 #include "LocalServer.hpp"
 
-#include "Communications.hpp"
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
 
@@ -11,18 +10,24 @@ LocalServer& LocalServer::instance() {
 	return instance;
 }
 
-LocalServer::LocalServer() : server_(nullptr), initialized_(false) {}
+LocalServer::LocalServer()
+    : server_(nullptr), initialized_(false), mac_{0, 0, 0, 0, 0, 0}, ip_(0, 0, 0, 0) {}
 
 void LocalServer::initialize(EthernetServer& server) {
 	server_ = &server;
 	initialized_ = false;
 }
 
-bool LocalServer::begin(byte mac[], IPAddress ip) {
-	Ethernet.begin(mac, ip);
+bool LocalServer::begin(const byte mac[6], const IPAddress& ip) {
+	for (int i = 0; i < 6; ++i) {
+		mac_[i] = mac[i];
+	}
+	ip_ = ip;
+
+	Ethernet.begin(mac_, ip_);
 
 	if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-		modules::hal_general().log("Ethernet shield was not found. Sorry, can't run without hardware.");
+		modules::hal_general().log("Ethernet shield was not found. Can't run without hardware.");
 		initialized_ = false;
 		return false;
 	}
@@ -34,7 +39,7 @@ bool LocalServer::begin(byte mac[], IPAddress ip) {
 	}
 
 	server_->begin();
-	std::string msg = "Server is at ";
+	std::string msg = "Server is at: ";
 	IPAddress local_ip = Ethernet.localIP();
 	for (int i = 0; i < 4; i++) {
 		msg += std::to_string(local_ip[i]);
@@ -45,7 +50,7 @@ bool LocalServer::begin(byte mac[], IPAddress ip) {
 	return true;
 }
 
-void LocalServer::poll(Communications& handler) {
+void LocalServer::poll(const MessageHandler& handler) {
 	if (!initialized_) {
 		return;
 	}
@@ -64,15 +69,14 @@ void LocalServer::poll(Communications& handler) {
 
 	modules::hal_general().log("New client message: " + msg);
 
-	// Set up a callback that sends responses back to this specific client
-	handler.set_ethernet_response_callback([&client](const std::string& response) {
+	ResponseCallback respond = [&client](const std::string& response) {
 		if (client.connected()) {
 			client.println(response.c_str());
 			modules::hal_general().log("Response sent: " + response);
 		}
-	});
+	};
 
-	handler.handle_ethernet_message(msg);
+	handler(msg, respond);
 }
 
 }  // namespace modules

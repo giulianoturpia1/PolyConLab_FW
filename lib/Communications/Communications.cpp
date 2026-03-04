@@ -1,12 +1,10 @@
 #include "Communications.hpp"
-
-#include <array>
-
 #include "Definitions.hpp"
 #include "Devices.hpp"
-#include "HALGeneral.hpp"
 #include "Helpers.hpp"
 #include "StateMachine.hpp"
+
+#include <array>
 
 namespace modules {
 
@@ -57,7 +55,7 @@ void Communications::handle_message(const std::string& msg, const std::function<
 		return;
 	}
 
-	respond("ERROR:UNKNOWN_COMMAND");
+	respond(utils::response(definitions::ResponseType::ERROR_UNKNOWN_COMMAND));
 }
 
 bool Communications::handle_device_command(const std::string& msg, const std::function<void(const std::string&)>& respond) {
@@ -66,22 +64,26 @@ bool Communications::handle_device_command(const std::string& msg, const std::fu
 		// Check for temperature commands that aren't in the map
 		if (msg == "LEER_TEMP_INCAMISA") {
 			float temp = readTempSensor(RES_ST_1);
-			respond(std::string("TEMP_IN:") + utils::format_float(temp, 2));
+			respond(std::string(utils::response(definitions::ResponseType::TEMP_IN_PREFIX)) +
+			       utils::format_float(temp, 2));
 			return true;
 		}
 		if (msg == "LEER_TEMP_OUTCAMISA") {
 			float temp = readTempSensor(RES_ST_2);
-			respond(std::string("TEMP_OUT:") + utils::format_float(temp, 2));
+			respond(std::string(utils::response(definitions::ResponseType::TEMP_OUT_PREFIX)) +
+			       utils::format_float(temp, 2));
 			return true;
 		}
 		if (msg == "LEER_TEMP_CAMISA") {
 			float temp = readTempSensor(RES_ST_3);
-			respond(std::string("TEMP_BATH:") + utils::format_float(temp, 2));
+			respond(std::string(utils::response(definitions::ResponseType::TEMP_BATH_PREFIX)) +
+			       utils::format_float(temp, 2));
 			return true;
 		}
 		if (msg == "LEER_TEMP_MEZCLA") {
 			float temp = readTempSensor(RES_ST_4);
-			respond(std::string("TEMP_MIX:") + utils::format_float(temp, 2));
+			respond(std::string(utils::response(definitions::ResponseType::TEMP_MIX_PREFIX)) +
+			       utils::format_float(temp, 2));
 			return true;
 		}
 		return false;
@@ -90,69 +92,78 @@ bool Communications::handle_device_command(const std::string& msg, const std::fu
 	switch (cmd->command) {
 		case definitions::CommandType::HEATER_ON:
 			heaterON(RELAYHEATER);
-			respond("RES:ON");
+			respond(utils::response(definitions::ResponseType::HEATER_ON));
 			return true;
 
 		case definitions::CommandType::HEATER_OFF:
 			heaterOFF(RELAYHEATER);
-			respond("RES:OFF");
+			respond(utils::response(definitions::ResponseType::HEATER_OFF));
 			return true;
 
 		case definitions::CommandType::HEATER_STATE: {
 			bool state = heaterStatus();
-			respond(std::string("RES:STATE,") + (state ? "ON" : "OFF"));
+			respond(std::string(utils::response(definitions::ResponseType::HEATER_STATE_PREFIX)) +
+			       (state ? utils::response(definitions::ResponseType::STATUS_ON)
+			              : utils::response(definitions::ResponseType::STATUS_OFF)));
 			return true;
 		}
 
 		case definitions::CommandType::PUMP_ON:
 			pumpON(RELAYPUMP);
-			respond("BBA:ON");
+			respond(utils::response(definitions::ResponseType::PUMP_ON));
 			return true;
 
 		case definitions::CommandType::PUMP_OFF:
 			pumpOFF(RELAYPUMP);
-			respond("BBA:OFF");
+			respond(utils::response(definitions::ResponseType::PUMP_OFF));
 			return true;
 
 		case definitions::CommandType::PUMP_STATE: {
 			bool state = statusPump();
-			respond(std::string("BBA:STATE,") + (state ? "ON" : "OFF"));
+			respond(std::string(utils::response(definitions::ResponseType::PUMP_STATE_PREFIX)) +
+			       (state ? utils::response(definitions::ResponseType::STATUS_ON)
+			              : utils::response(definitions::ResponseType::STATUS_OFF)));
 			return true;
 		}
 
 		case definitions::CommandType::VALVE_OPEN:
 			valveON(RELAY_AUS_1);
-			respond("VALVE:OPEN");
+			respond(utils::response(definitions::ResponseType::VALVE_OPEN));
 			return true;
 
 		case definitions::CommandType::VALVE_CLOSE:
 			valveOFF(RELAY_AUS_1);
-			respond("VALVE:CLOSED");
+			respond(utils::response(definitions::ResponseType::VALVE_CLOSED));
 			return true;
 
 		case definitions::CommandType::VALVE_STATE: {
 			bool state = valveStatus(RELAY_AUS_1);
-			respond(std::string("VALVE:STATE,") + (state ? "OPEN" : "CLOSED"));
+			respond(std::string(utils::response(definitions::ResponseType::VALVE_STATE_PREFIX)) +
+			       (state ? utils::response(definitions::ResponseType::STATUS_OPEN)
+			              : utils::response(definitions::ResponseType::STATUS_CLOSED)));
 			return true;
 		}
 
 		case definitions::CommandType::FLOW_READ: {
 			float flow_rate = readFlowMeter();
-			respond(std::string("CAUDAL:") + utils::format_float(flow_rate, 2));
+			respond(std::string(utils::response(definitions::ResponseType::FLOW_PREFIX)) +
+			       utils::format_float(flow_rate, 2));
 			return true;
 		}
 
 		case definitions::CommandType::PING:
-			respond("PONG");
+			respond(utils::response(definitions::ResponseType::PING_OK));
 			return true;
 
 		case definitions::CommandType::STATE_QUERY: {
 			auto state = modules::StateMachine::instance().get_current_state();
-			respond(std::string("STATE:") + modules::StateMachine::get_state_name(state));
+			respond(std::string(utils::response(definitions::ResponseType::STATE_PREFIX)) +
+			       modules::StateMachine::get_state_name(state));
 			return true;
 		}
 
 		default:
+			respond(utils::response(definitions::ResponseType::ERROR_UNKNOWN_COMMAND));
 			return false;
 	}
 
@@ -172,16 +183,16 @@ bool Communications::handle_event_command(const std::string& msg, const std::fun
 
 	event_name = utils::trim(event_name);
 	if (event_name.length() == 0) {
-		respond("ERROR:EMPTY_EVENT");
+		respond(utils::response(definitions::ResponseType::ERROR_EMPTY_EVENT));
 		return true;
 	}
 
 	if (!dispatch_event(event_name)) {
-		respond("ERROR:UNKNOWN_EVENT");
+		respond(utils::response(definitions::ResponseType::ERROR_UNKNOWN_EVENT));
 		return true;
 	}
 
-	respond(std::string("EVENT:OK,") + event_name);
+	respond(std::string(utils::response(definitions::ResponseType::EVENT_OK_PREFIX)) + event_name);
 	return true;
 }
 

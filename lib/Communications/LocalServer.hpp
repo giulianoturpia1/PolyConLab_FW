@@ -14,17 +14,19 @@
 #include <Arduino.h>
 #include <Ethernet.h>
 #include <SPI.h>
+#include <functional>
 
 namespace modules {
 
-class Communications;
-
 ///
-/// @brief Ethernet server wrapper that reads lines and forwards them to the communications module.
+/// @brief Ethernet server wrapper that reads lines and forwards them to a caller-provided handler.
 /// Implemented as a singleton.
 ///
 class LocalServer {
    public:
+	using ResponseCallback = std::function<void(const std::string&)>;
+	using MessageHandler = std::function<void(const std::string&, const ResponseCallback&)>;
+
 	///
 	/// @brief Get the singleton instance of LocalServer
 	///
@@ -38,12 +40,12 @@ class LocalServer {
 	///
 	/// @brief Start the Ethernet server and validate link/hardware.
 	///
-	bool begin(byte mac[], IPAddress ip);
+	bool begin(const byte mac[6], const IPAddress& ip);
 
 	///
-	/// @brief Poll for new client data.
+	/// @brief Poll for new client data and dispatch messages through the provided handler.
 	///
-	void poll(Communications& handler);
+	void poll(const MessageHandler& handler);
 
    private:
 	LocalServer();
@@ -56,6 +58,8 @@ class LocalServer {
 
 	EthernetServer* server_;
 	bool initialized_;
+	byte mac_[6];
+	IPAddress ip_;
 };
 
 }  // namespace modules
