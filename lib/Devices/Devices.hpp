@@ -17,10 +17,6 @@
 
 void setupDevices();
 
-void heaterON(uint32_t relayHeater_);
-void heaterOFF(uint32_t relayHeater_);
-bool heaterStatus();
-
 float readTempSensor(uint32_t sensor_);
 
 void valveON(uint32_t relayValve_);

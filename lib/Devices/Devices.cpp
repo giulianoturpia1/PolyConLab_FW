@@ -37,21 +37,6 @@ void setupDevices() {
     // valveOFF(static_cast<uint32_t>(definitions::Pins::kValve2));
 }
 
-// -------- HEATER FUNCTIONS ---------
-void heaterON(uint32_t relayHeater_) {
-    modules::hal_general().digital_write(relayHeater_, modules::PIN_HIGH);
-    heaterStatusFlag = true;
-}
-
-void heaterOFF(uint32_t relayHeater_) {
-    modules::hal_general().digital_write(relayHeater_, modules::PIN_LOW);
-    heaterStatusFlag = false;
-}
-
-bool heaterStatus() {
-    return (heaterStatusFlag);
-}
-
 // -------- TEMPERATURE SENSOR FUNCTIONS ---------
 float readTempSensor(uint32_t sensor_) {
     // TODO: Implement actual sensor reading logic based on the specific temperature sensor used (e.g., DS18B20, thermocouple, etc.)

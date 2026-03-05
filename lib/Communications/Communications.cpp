@@ -1,5 +1,5 @@
 #include "Communications.hpp"
-
+#include "Heater.hpp"
 #include "Definitions.hpp"
 #include "Devices.hpp"
 #include "Helpers.hpp"
@@ -100,17 +100,17 @@ bool Communications::handle_device_command(const std::string& msg,
 
     switch (cmd->command) {
         case definitions::CommandType::kHeaterOn:
-            heaterON(static_cast<uint32_t>(definitions::Pins::kHeater));
+            modules::Heater::instance().on();
             respond(utils::response(definitions::ResponseType::kHeaterOn));
             return true;
 
         case definitions::CommandType::kHeaterOff:
-            heaterOFF(static_cast<uint32_t>(definitions::Pins::kHeater));
+        modules::Heater::instance().off();
             respond(utils::response(definitions::ResponseType::kHeaterOff));
             return true;
 
         case definitions::CommandType::kHeaterState: {
-            bool state = heaterStatus();
+            bool state = modules::Heater::instance().status();
             respond(std::string(utils::response(definitions::ResponseType::kHeaterStatePrefix)) +
                     (state ? utils::response(definitions::ResponseType::kStatusOn)
                            : utils::response(definitions::ResponseType::kStatusOff)));
