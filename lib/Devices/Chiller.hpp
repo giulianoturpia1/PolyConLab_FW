@@ -28,9 +28,9 @@ class Chiller {
     static Chiller& instance();
 
     ///
-    /// @brief Initialize the chiller controller with the relay pin.
+    /// @brief Initialize the chiller controller with the pin.
     ///
-    /// @param pin Relay pin for chiller control.
+    /// @param pin Pin for chiller control.
     ///
     void begin(uint32_t pin);
 
@@ -52,7 +52,7 @@ class Chiller {
     bool status() const;
 
     ///
-    /// @brief Get the chiller relay pin.
+    /// @brief Get the chiller pin.
     ///
     /// @return uint32_t
     ///
