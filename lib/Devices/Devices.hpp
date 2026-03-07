@@ -19,10 +19,6 @@ void setupDevices();
 
 float readTempSensor(uint32_t sensor_);
 
-void valveON(uint32_t relayValve_);
-void valveOFF(uint32_t relayValve_);
-bool valveStatus(uint32_t relayValve_);
-
 void IRAM_ATTR isrFlowMeter();
 void IRAM_ATTR isrTimerFlow();
 void initFlowMeter(uint32_t pinFlow_);

@@ -11,22 +11,29 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #include <array>
 #include <string>
 
 namespace definitions {
 
 ///
+/// @brief Maximum number of solenoid valves supported by the system.
+///
+constexpr uint8_t kMaxSolenoidValves = 8;
+
+///
 /// @brief System states for the Finite State Machine. Refer to the design documentation for details.
 ///
 ///
 enum class SystemState {
-    kStartup,        ///< Initial state: Initialize HW/RTOS, Init TCP/BLE, Init lights
-    kCheckup,        ///< Automatic checkup: Health-check sensors, Handshake SCADA/BLE, Analogic checks
-    kCalibration,    ///< Calibration: Ordered stop, Execute calibration protocol, Return to Automatic Checkups
-    kManual,         ///< Manual/Wait state: Commands 1 and 1, Active interfaces, User waiting
-    kSoftError,      ///< Soft error: Partial stop, HMI warning + LED/Buzzer, Retry/Ack
-    kCriticalError   ///< Critical error (latched): Full stop, Control locked, Requires reset
+    kStartup,       ///< Initial state: Initialize HW/RTOS, Init TCP/BLE, Init lights
+    kCheckup,       ///< Automatic checkup: Health-check sensors, Handshake SCADA/BLE, Analogic checks
+    kCalibration,   ///< Calibration: Ordered stop, Execute calibration protocol, Return to Automatic Checkups
+    kManual,        ///< Manual/Wait state: Commands 1 and 1, Active interfaces, User waiting
+    kSoftError,     ///< Soft error: Partial stop, HMI warning + LED/Buzzer, Retry/Ack
+    kCriticalError  ///< Critical error (latched): Full stop, Control locked, Requires reset
 };
 
 ///
@@ -103,7 +110,12 @@ enum class CommandType {
     kPumpOff,
     kPumpState,
 
-    // Valve commands
+    // Chiller commands
+    kChillerOn,
+    kChillerOff,
+    kChillerState,
+
+    // Valve commands (parameterized by valve number)
     kValveOpen,
     kValveClose,
     kValveState,
@@ -149,6 +161,9 @@ enum class ResponseType {
     kPumpOn,
     kPumpOff,
     kPumpStatePrefix,
+    kChillerOn,
+    kChillerOff,
+    kChillerStatePrefix,
     kValveOpen,
     kValveClosed,
     kValveStatePrefix,
@@ -170,15 +185,18 @@ struct ResponseMap {
     ResponseType type;  //< Response identifier
 };
 
-constexpr std::array<CommandMap, 13> kCommandMap = {{
+constexpr std::array<CommandMap, 16> kCommandMap = {{
     {("HEATER_ON"), CommandType::kHeaterOn},
     {("HEATER_OFF"), CommandType::kHeaterOff},
     {("HEATER_STATE"), CommandType::kHeaterState},
     {("PUMP_ON"), CommandType::kPumpOn},
     {("PUMP_OFF"), CommandType::kPumpOff},
     {("PUMP_STATE"), CommandType::kPumpState},
-    {("VALVE_OPN"), CommandType::kValveOpen},
-    {("VALVE_CLS"), CommandType::kValveClose},
+    {("CHILLER_ON"), CommandType::kChillerOn},
+    {("CHILLER_OFF"), CommandType::kChillerOff},
+    {("CHILLER_STATE"), CommandType::kChillerState},
+    {("VALVE_OPEN"), CommandType::kValveOpen},
+    {("VALVE_CLOSE"), CommandType::kValveClose},
     {("VALVE_STATE"), CommandType::kValveState},
     {("READ_FLOW"), CommandType::kFlowRead},
     {("PING"), CommandType::kPing},
@@ -217,31 +235,34 @@ constexpr std::array<EventMap, 28> kEventMap = {{
     {("STOP"), SystemEvent::kStop},
 }};
 
-constexpr std::array<ResponseMap, 24> kResponseMap = {{
+constexpr std::array<ResponseMap, 27> kResponseMap = {{
     {"ERROR:UNKNOWN_COMMAND", ResponseType::kErrorUnknownCommand},
     {"ERROR:EMPTY_EVENT", ResponseType::kErrorEmptyEvent},
     {"ERROR:UNKNOWN_EVENT", ResponseType::kErrorUnknownEvent},
     {"EVENT:OK,", ResponseType::kEventOkPrefix},
-    {"TEMP_IN:", ResponseType::kTempInPrefix},
-    {"TEMP_OUT:", ResponseType::kTempOutPrefix},
-    {"TEMP_BATH:", ResponseType::kTempBathPrefix},
-    {"TEMP_MIX:", ResponseType::kTempMixPrefix},
-    {"HEATER:ON", ResponseType::kHeaterOn},
-    {"HEATER:OFF", ResponseType::kHeaterOff},
-    {"HEATER:STATE,", ResponseType::kHeaterStatePrefix},
-    {"PUMP:ON", ResponseType::kPumpOn},
-    {"PUMP:OFF", ResponseType::kPumpOff},
-    {"PUMP:STATE,", ResponseType::kPumpStatePrefix},
-    {"VALVE:OPEN", ResponseType::kValveOpen},
-    {"VALVE:CLOSED", ResponseType::kValveClosed},
-    {"VALVE:STATE,", ResponseType::kValveStatePrefix},
-    {"FLOW:", ResponseType::kFlowPrefix},
+    {"TEMP_IN: ", ResponseType::kTempInPrefix},
+    {"TEMP_OUT: ", ResponseType::kTempOutPrefix},
+    {"TEMP_BATH: ", ResponseType::kTempBathPrefix},
+    {"TEMP_MIX: ", ResponseType::kTempMixPrefix},
+    {"HEATER: ON", ResponseType::kHeaterOn},
+    {"HEATER: OFF", ResponseType::kHeaterOff},
+    {"HEATER: STATE,", ResponseType::kHeaterStatePrefix},
+    {"PUMP: ON", ResponseType::kPumpOn},
+    {"PUMP: OFF", ResponseType::kPumpOff},
+    {"PUMP: STATE,", ResponseType::kPumpStatePrefix},
+    {"CHILLER: ON", ResponseType::kChillerOn},
+    {"CHILLER: OFF", ResponseType::kChillerOff},
+    {"CHILLER: STATE,", ResponseType::kChillerStatePrefix},
+    {"VALVE: OPEN ", ResponseType::kValveOpen},
+    {"VALVE: CLOSE ", ResponseType::kValveClosed},
+    {"VALVE: STATE ,", ResponseType::kValveStatePrefix},
+    {"FLOW: ", ResponseType::kFlowPrefix},
     {"PONG", ResponseType::kPingOk},
-    {"STATE:", ResponseType::kStatePrefix},
+    {"STATE: ", ResponseType::kStatePrefix},
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},
     {"OPEN", ResponseType::kStatusOpen},
-    {"CLOSED", ResponseType::kStatusClosed},
+    {"CLOSE", ResponseType::kStatusClosed},
 }};
 
 enum class ErrorCode {

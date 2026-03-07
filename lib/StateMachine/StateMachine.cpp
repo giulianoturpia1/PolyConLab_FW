@@ -85,8 +85,7 @@ void modules::StateMachine::process_event(definitions::SystemEvent event) {
             break;
 
         case definitions::SystemState::kManual:
-            if (event == definitions::SystemEvent::kCmdStartAuto ||
-                event == definitions::SystemEvent::kCmdStartDemo) {
+            if (event == definitions::SystemEvent::kCmdStartAuto || event == definitions::SystemEvent::kCmdStartDemo) {
                 // Stay in MANUAL for now (Auto/Demo states not implemented yet)
                 nextState = definitions::SystemState::kManual;
             } else if (event == definitions::SystemEvent::kStartCalibration) {
@@ -144,8 +143,8 @@ const std::string& modules::StateMachine::get_state_name(definitions::SystemStat
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
 modules::StateMachine::StateMachine()
-        : currentState_(definitions::SystemState::kStartup),
-            previousState_(definitions::SystemState::kStartup),
+    : currentState_(definitions::SystemState::kStartup),
+      previousState_(definitions::SystemState::kStartup),
       stateEntryTime_(0),
       stateChanged_(false) {}
 

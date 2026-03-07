@@ -24,17 +24,17 @@ namespace definitions {
 ///
 enum class Pins : uint32_t {
     // Actuators
-    kHeater = Q0_1,   ///< Heating resistor relay
-    kPump = Q0_0,     ///< Circulation pump relay
-    kChiller = Q0_2,  ///< Chiller relay
-    kValve1 = R1_1,   ///< Valve 1 relay
-    kValve2 = R1_2,   ///< Valve 2 relay
+    kHeater = Q0_1,   ///< Heating Resistor
+    kPump = Q0_0,     ///< Circulation Pump
+    kChiller = Q0_2,  ///< Chiller
+    kValve1 = R1_1,   ///< Valve 1
+    kValve2 = R1_2,   ///< Valve 2
 
     // Sensors
-    kTempSensor1 = I0_2,  ///< Temperature sensor 1
-    kTempSensor2 = I0_3,  ///< Temperature sensor 2
-    kTempSensor3 = I0_4,  ///< Temperature sensor 3
-    kTempSensor4 = I0_5,  ///< Temperature sensor 4
+    kTempSensor1 = I0_2,  ///< Temperature Sensor 1
+    kTempSensor2 = I0_3,  ///< Temperature Sensor 2
+    kTempSensor3 = I0_4,  ///< Temperature Sensor 3
+    kTempSensor4 = I0_5,  ///< Temperature Sensor 4
 };
 
 }  // namespace definitions

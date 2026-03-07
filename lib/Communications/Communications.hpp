@@ -72,7 +72,9 @@ class Communications {
     void handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond);
 
     ///
-    /// @brief Handle a device command message.
+    /// @brief Handle a device command message.The command name is extracted from the message and dispatched to the
+    /// corresponding handler. Dispatches the command if it is valid, otherwise responds with an error. Dispatches the
+    /// event if it is valid, otherwise responds with an error.
     ///
     /// @param msg
     /// @param respond
@@ -101,6 +103,15 @@ class Communications {
     /// @return false
     ///
     bool dispatch_event(const std::string& event_name);
+
+    ///
+    /// @brief Parse valve number from command message and return corresponding pin.
+    /// Expected format: "VALVE_CMD,N" where N is 1 or 2.
+    ///
+    /// @param msg Command message
+    /// @return uint32_t Pin number, or 0 if invalid
+    ///
+    uint32_t parse_valve_pin(const std::string& msg) const;
 
     std::function<void(const std::string&)> ethernet_response_callback_;
     std::function<void(const std::string&)> serial_response_callback_;

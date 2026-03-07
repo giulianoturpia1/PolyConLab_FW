@@ -13,10 +13,10 @@ repos:
       - id: check-merge-conflict
       - id: mixed-line-ending
 
-  # - repo: https://github.com/pocc/pre-commit-hooks
-  #   rev: v1.3.5
-  #   hooks:
-  #     - id: clang-format
-  #       args: [-i, --style=file]
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+      - id: clang-format
+        args: [-i, --style=file]
   #     - id: cppcheck
   #       args: [--enable=all, --inconclusive, --std=c++11, --language=c++, --suppress=missingInclude, --suppress=unusedFunction, --suppress=missingIncludeSystem, --suppress=unmatchedSuppression, --suppress=functionStatic, --suppress=unusedStructMember]

@@ -21,7 +21,7 @@ auto& communications = modules::Communications::instance();
 auto& state_machine = modules::StateMachine::instance();
 
 void configure_serial_response_callback() {
-    communications.set_serial_response_callback([](const std::string& response) { Serial.println(response.c_str()); });
+    communications.set_serial_response_callback([](const std::string& response) { hal.log(response.c_str()); });
 }
 
 void initialize_network_server() {

@@ -28,9 +28,9 @@ class Pump {
     static Pump& instance();
 
     ///
-    /// @brief Initialize the pump controller with the relay pin.
+    /// @brief Initialize the pump controller with the pin.
     ///
-    /// @param pin Relay pin for pump control.
+    /// @param pin Pin for pump control.
     ///
     void begin(uint32_t pin);
 
@@ -52,7 +52,7 @@ class Pump {
     bool status() const;
 
     ///
-    /// @brief Get the pump relay pin.
+    /// @brief Get the pump pin.
     ///
     /// @return uint32_t
     ///
