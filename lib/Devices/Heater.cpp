@@ -11,7 +11,28 @@
 
 #include "Heater.hpp"
 
+#include <freertos/task.h>
+
 #include "HALGeneral.hpp"
+
+constexpr UBaseType_t kHeaterTaskPriority = 2;
+
+////////////////////////////////////// Task Function //////////////////////////////////////
+
+void modules::Heater::task_entry(void* param) {
+    Heater* self = static_cast<Heater*>(param);
+    definitions::CommandType command = definitions::CommandType::kHeaterOff;
+
+    while (true) {
+        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
+            if (command == definitions::CommandType::kHeaterOn) {
+                self->on();
+            } else {
+                self->off();
+            }
+        }
+    }
+}
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -20,7 +41,7 @@ modules::Heater& modules::Heater::instance() {
     return instance;
 }
 
-modules::Heater::Heater() : pin_(0), status_(false) {}
+modules::Heater::Heater() : pin_(0), status_(false), queue_(nullptr) {}
 
 void modules::Heater::begin(uint32_t pin) {
     pin_ = pin;
@@ -44,6 +65,50 @@ bool modules::Heater::status() const {
 
 uint32_t modules::Heater::pin() const {
     return pin_;
+}
+
+void modules::Heater::start_task() {
+    if (queue_ != nullptr) {
+        return;
+    }
+
+    queue_ = xQueueCreate(8, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        modules::hal_general().log("No se pudo crear la cola del calentador.");
+        return;
+    }
+
+    if (xTaskCreate(task_entry, "heater_task", 2048, this, kHeaterTaskPriority, nullptr) != pdPASS) {
+        modules::hal_general().log("No se pudo crear la tarea del calentador.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+    }
+}
+
+bool modules::Heater::send_command(definitions::CommandType command, uint32_t timeout_ms) {
+    if (command != definitions::CommandType::kHeaterOn && command != definitions::CommandType::kHeaterOff) {
+        return false;
+    }
+
+    if (queue_ == nullptr) {
+        if (command == definitions::CommandType::kHeaterOn) {
+            on();
+        } else {
+            off();
+        }
+        return false;
+    }
+
+    if (xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+        if (command == definitions::CommandType::kHeaterOn) {
+            on();
+        } else {
+            off();
+        }
+        return false;
+    }
+
+    return true;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////

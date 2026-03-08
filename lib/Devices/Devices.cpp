@@ -3,11 +3,7 @@
 #include <Ethernet.h>
 #include <SPI.h>
 
-#include "Chiller.hpp"
-#include "Definitions.hpp"
 #include "HALGeneral.hpp"
-#include "Pump.hpp"
-#include "SolenoidValve.hpp"
 
 #if defined(PLC_38AR)
 #include "PLC38AR.hpp"
@@ -23,15 +19,6 @@ portMUX_TYPE flowMux = portMUX_INITIALIZER_UNLOCKED;
 hw_timer_t* timer = NULL;
 const float pulsesPerLiter = 450.0;  // A configurar segun el sensor
 volatile float flow_rate = 0;
-
-void setupDevices() {
-    // Configuracion de pines y estado inicial de los dispositivos
-    modules::Pump::instance().begin(static_cast<uint32_t>(definitions::Pins::kPump));
-    modules::Chiller::instance().begin(static_cast<uint32_t>(definitions::Pins::kChiller));
-    uint32_t valve_pins[] = {static_cast<uint32_t>(definitions::Pins::kValve1),
-                             static_cast<uint32_t>(definitions::Pins::kValve2)};
-    modules::SolenoidValve::instance().begin(valve_pins, 2);
-}
 
 // -------- TEMPERATURE SENSOR FUNCTIONS ---------
 float readTempSensor(uint32_t sensor_) {

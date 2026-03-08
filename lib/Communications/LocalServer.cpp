@@ -26,13 +26,13 @@ bool LocalServer::begin(const byte mac[6], const IPAddress& ip) {
     Ethernet.begin(mac_, ip_);
 
     if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-        modules::hal_general().log("Ethernet shield was not found. Can't run without hardware.");
+        modules::hal_general().log("No se encontro el shield Ethernet. No se puede ejecutar sin el.");
         initialized_ = false;
         return false;
     }
 
     if (Ethernet.linkStatus() == LinkOFF) {
-        modules::hal_general().log("Ethernet cable is not connected.");
+        modules::hal_general().log("El cable Ethernet no esta conectado.");
         initialized_ = false;
         return false;
     }
@@ -67,12 +67,12 @@ void LocalServer::poll(const MessageHandler& handler) {
         return;
     }
 
-    modules::hal_general().log("New client message: " + msg);
+    modules::hal_general().log("Nuevo Mensaje del Cliente: " + msg);
 
     ResponseCallback respond = [&client](const std::string& response) {
         if (client.connected()) {
             client.println(response.c_str());
-            modules::hal_general().log("Response sent: " + response);
+            modules::hal_general().log("Respuesta Enviada: " + response);
         }
     };
 

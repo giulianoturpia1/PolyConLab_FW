@@ -8,26 +8,26 @@ using definitions::SystemState;
 
 static modules::StateMachine& sm = modules::StateMachine::instance();
 
-TEST_CASE("StateMachine starts in STARTUP after begin()") {
-    sm.begin();
+TEST_CASE("StateMachine starts in STARTUP after initialize()") {
+    sm.initialize();
     CHECK(sm.is_in_state(SystemState::kStartup));
 }
 
 TEST_CASE("INIT_OK transitions STARTUP -> CHECKUP") {
-    sm.begin();
+    sm.initialize();
     sm.process_event(SystemEvent::kInitOk);
     CHECK(sm.is_in_state(SystemState::kCheckup));
 }
 
 TEST_CASE("START_CALIBRATION transitions CHECKUP -> CALIBRATION") {
-    sm.begin();
+    sm.initialize();
     sm.process_event(SystemEvent::kInitOk);
     sm.process_event(SystemEvent::kStartCalibration);
     CHECK(sm.is_in_state(SystemState::kCalibration));
 }
 
 TEST_CASE("FAULT_CRITICAL transitions to CRITICAL_ERROR") {
-    sm.begin();
+    sm.initialize();
     sm.process_event(SystemEvent::kInitOk);
     sm.process_event(SystemEvent::kStartCalibration);
     sm.process_event(SystemEvent::kFaultCritical);
@@ -35,7 +35,7 @@ TEST_CASE("FAULT_CRITICAL transitions to CRITICAL_ERROR") {
 }
 
 TEST_CASE("CMD_RESET_FAULT transitions CRITICAL_ERROR -> STARTUP") {
-    sm.begin();
+    sm.initialize();
     sm.process_event(SystemEvent::kInitOk);
     sm.process_event(SystemEvent::kStartCalibration);
     sm.process_event(SystemEvent::kFaultCritical);

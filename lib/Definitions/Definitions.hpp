@@ -135,6 +135,14 @@ enum class CommandType {
 };
 
 ///
+/// @brief Payload to request a command dispatch from the StateMachine.
+///
+struct CommandRequest {
+    CommandType command;
+    uint32_t pin;
+};
+
+///
 /// @brief Mapping of command strings to CommandType enums for parsing incoming messages.
 ///
 ///

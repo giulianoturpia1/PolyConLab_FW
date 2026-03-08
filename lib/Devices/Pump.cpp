@@ -1,6 +1,27 @@
 #include "Pump.hpp"
 
+#include <freertos/task.h>
+
 #include "HALGeneral.hpp"
+
+constexpr UBaseType_t kPumpTaskPriority = 2;
+
+////////////////////////////////////// Task Function //////////////////////////////////////
+
+void modules::Pump::task_entry(void* param) {
+    Pump* self = static_cast<Pump*>(param);
+    definitions::CommandType command = definitions::CommandType::kPumpOff;
+
+    while (true) {
+        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
+            if (command == definitions::CommandType::kPumpOn) {
+                self->on();
+            } else {
+                self->off();
+            }
+        }
+    }
+}
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -33,6 +54,50 @@ uint32_t modules::Pump::pin() const {
     return pin_;
 }
 
+void modules::Pump::start_task() {
+    if (queue_ != nullptr) {
+        return;
+    }
+
+    queue_ = xQueueCreate(8, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        modules::hal_general().log("No se pudo crear la cola de la bomba.");
+        return;
+    }
+
+    if (xTaskCreate(task_entry, "pump_task", 2048, this, kPumpTaskPriority, nullptr) != pdPASS) {
+        modules::hal_general().log("No se pudo crear la tarea de la bomba.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+    }
+}
+
+bool modules::Pump::send_command(definitions::CommandType command, uint32_t timeout_ms) {
+    if (command != definitions::CommandType::kPumpOn && command != definitions::CommandType::kPumpOff) {
+        return false;
+    }
+
+    if (queue_ == nullptr) {
+        if (command == definitions::CommandType::kPumpOn) {
+            on();
+        } else {
+            off();
+        }
+        return false;
+    }
+
+    if (xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+        if (command == definitions::CommandType::kPumpOn) {
+            on();
+        } else {
+            off();
+        }
+        return false;
+    }
+
+    return true;
+}
+
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-modules::Pump::Pump() : pin_(0), status_(false) {}
+modules::Pump::Pump() : pin_(0), status_(false), queue_(nullptr) {}

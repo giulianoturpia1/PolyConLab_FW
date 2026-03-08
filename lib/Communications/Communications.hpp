@@ -72,7 +72,7 @@ class Communications {
     void handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond);
 
     ///
-    /// @brief Handle a device command message.The command name is extracted from the message and dispatched to the
+    /// @brief Handle a command message.The command name is extracted from the message and dispatched to the
     /// corresponding handler. Dispatches the command if it is valid, otherwise responds with an error. Dispatches the
     /// event if it is valid, otherwise responds with an error.
     ///
@@ -81,28 +81,18 @@ class Communications {
     /// @return true
     /// @return false
     ///
-    bool handle_device_command(const std::string& msg, const std::function<void(const std::string&)>& respond);
+    bool handle_command(const std::string& msg, const std::function<void(const std::string&)>& respond);
 
     ///
-    /// @brief Handle an event command message. The event name is extracted from the message and dispatched to the state
-    /// machine. Dispatches the event if it is valid, otherwise responds with an error. Utilizes the dispatch_event()
-    /// method to find the corresponding event in the state machine.
+    /// @brief Handle an event message. The event name is extracted from the message and dispatched to the state
+    /// machine. Dispatches the event if it is valid, otherwise responds with an error.
     ///
     /// @param msg
     /// @param respond
     /// @return true
     /// @return false
     ///
-    bool handle_event_command(const std::string& msg, const std::function<void(const std::string&)>& respond);
-
-    ///
-    /// @brief Dispatch an event to the state machine based on the event name.
-    ///
-    /// @param event_name
-    /// @return true
-    /// @return false
-    ///
-    bool dispatch_event(const std::string& event_name);
+    bool handle_event(const std::string& msg, const std::function<void(const std::string&)>& respond);
 
     ///
     /// @brief Parse valve number from command message and return corresponding pin.

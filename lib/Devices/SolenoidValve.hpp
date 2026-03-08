@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -95,6 +97,22 @@ class SolenoidValve {
     ///
     uint8_t count() const;
 
+    ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    void start_task();
+
+    ///
+    /// @brief Send a valve command through the module queue.
+    /// Falls back to direct call when queueing is unavailable.
+    ///
+    /// @param command Command to be sent.
+    /// @param pin Pin for valve control.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if command was queued, false if direct fallback was used.
+    ///
+    bool send_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms = 0);
+
    private:
     SolenoidValve();
 
@@ -124,6 +142,9 @@ class SolenoidValve {
 
     std::array<ValveSlot, definitions::kMaxSolenoidValves> valves_;
     uint8_t valve_count_;
+    QueueHandle_t queue_;
+
+    static void task_entry(void* param);
 };
 
 }  // namespace modules

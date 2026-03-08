@@ -26,14 +26,14 @@ namespace modules {
 /// The StateMachine class should be run in a task, and should be executed in the
 /// following way:
 ///
-/// 		+ begin(), then run() in a loop
+/// 		+ initialize(), then tick() in a loop
 ///
 /// 		+ process_event(event) can be called from other tasks to trigger state transitions
 ///
-/// @note The task calling run() should have a higher priority than tasks
+/// @note The task calling tick() should have a higher priority than tasks
 ///       which call process_event(), to ensure state transitions.
 /// @note Furthermore, process_event() is the one to execute the state transitions,
-///       while run() only executes the current state's handler.
+///       while tick() only executes the current state's handler.
 ///
 class StateMachine {
    public:
@@ -54,15 +54,15 @@ class StateMachine {
     /// @brief Initialize the state machine. Starts in the STARTUP state.
     ///
     ///
-    void begin();
+    void initialize();
 
     ///
-    /// @brief Run the state machine (to be called in the main loop).
+    /// @brief Execute one state-machine cycle (to be called repeatedly in a loop).
     /// This executes the handler for the current state and does not handle event logic transition, that
     /// should be done via process_event().
     ///
     ///
-    void run();
+    void tick();
 
     ///
     /// @brief Process an event of SystemEvent type, in a running state machine.
@@ -72,6 +72,60 @@ class StateMachine {
     /// @param event The event to process
     ///
     void process_event(definitions::SystemEvent event);
+
+    ///
+    /// @brief Process a command request immediately.
+    /// Intended for internal scheduler/task use and non-RTOS fallback paths.
+    ///
+    /// @param request Command request.
+    ///
+    void process_command(const definitions::CommandRequest& request);
+
+    ///
+    /// @brief Enqueue an event to be handled by the FSM task.
+    /// Falls back to direct processing when queueing is unavailable.
+    ///
+    /// @param event Event to enqueue.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if event was queued, false if direct fallback was used.
+    ///
+    bool enqueue_event(definitions::SystemEvent event, uint32_t timeout_ms = 0);
+
+    ///
+    /// @brief Enqueue a command request to be decided and executed by the FSM task.
+    /// Falls back to direct processing when queueing is unavailable.
+    ///
+    /// @param request Command request.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if request was queued, false if direct fallback was used.
+    ///
+    bool enqueue_command(const definitions::CommandRequest& request, uint32_t timeout_ms = 0);
+
+    ///
+    /// @brief Route a command name through the state-machine command path.
+    /// Command names not handled by the FSM command path return false.
+    ///
+    /// @param command_name Command string (e.g. "HEATER_ON").
+    /// @param pin Optional pin payload for parameterized commands.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if command name is known and was routed, false otherwise.
+    ///
+    bool route_command_name(const std::string& command_name, uint32_t pin = 0, uint32_t timeout_ms = 0);
+
+    ///
+    /// @brief Route an event name through the state-machine event path.
+    /// Event names not handled by the FSM event path return false.
+    ///
+    /// @param event_name Event name string (e.g. "INIT_OK").
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if event name is known and was routed, false otherwise.
+    ///
+    bool route_event_name(const std::string& event_name, uint32_t timeout_ms = 0);
+
+    ///
+    /// @brief Start the dedicated FSM FreeRTOS task and event queue.
+    ///
+    void start_task();
 
     ///
     /// @brief Get the Current State object
@@ -135,6 +189,15 @@ class StateMachine {
     ///
     void on_state_enter();
 
+    ///
+    /// @brief Execute an already accepted command request.
+    /// This is the internal command executor used by process_command(). It enqueues the command to the corresponding
+    /// module or executes it directly, depending on the command type and current state.
+    ///
+    /// @param request Command request.
+    ///
+    void execute_command(const definitions::CommandRequest& request);
+
     // State handlers for SystemState enum class
     void handle_startup();
     void handle_checkup();
@@ -146,7 +209,7 @@ class StateMachine {
     definitions::SystemState currentState_;
     definitions::SystemState previousState_;
     unsigned long stateEntryTime_;  ///< Timestamp of when the current state was entered
-    bool stateChanged_;             ///< Flag indicating if the state has changed since the last run
+    bool stateChanged_;             ///< Flag indicating if the state has changed since the last tick
     static const std::map<definitions::SystemState, std::string> stateNames_;
 };
 

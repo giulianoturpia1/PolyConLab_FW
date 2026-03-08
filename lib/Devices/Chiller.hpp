@@ -11,7 +11,11 @@
 
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <stdint.h>
+
+#include "Definitions.hpp"
 
 namespace modules {
 
@@ -58,6 +62,21 @@ class Chiller {
     ///
     uint32_t pin() const;
 
+    ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    void start_task();
+
+    ///
+    /// @brief Send a chiller command through the module queue.
+    /// Falls back to direct call when queueing is unavailable.
+    ///
+    /// @param command Command to be sent.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if command was queued, false if direct fallback was used.
+    ///
+    bool send_command(definitions::CommandType command, uint32_t timeout_ms = 0);
+
    private:
     Chiller();
     // Rule of Five
@@ -69,6 +88,9 @@ class Chiller {
 
     uint32_t pin_;
     bool status_;
+    QueueHandle_t queue_;
+
+    static void task_entry(void* param);
 };
 
 }  // namespace modules
