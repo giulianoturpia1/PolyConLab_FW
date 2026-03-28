@@ -3,6 +3,7 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "StateMachine.hpp"
 
 constexpr UBaseType_t kPumpTaskPriority = 2;
 
@@ -14,11 +15,7 @@ void modules::Pump::task_entry(void* param) {
 
     while (true) {
         if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            if (command == definitions::CommandType::kPumpOn) {
-                self->on();
-            } else {
-                self->off();
-            }
+            self->process_command(command);
         }
     }
 }
@@ -73,25 +70,7 @@ void modules::Pump::start_task() {
 }
 
 bool modules::Pump::send_command(definitions::CommandType command, uint32_t timeout_ms) {
-    if (command != definitions::CommandType::kPumpOn && command != definitions::CommandType::kPumpOff) {
-        return false;
-    }
-
-    if (queue_ == nullptr) {
-        if (command == definitions::CommandType::kPumpOn) {
-            on();
-        } else {
-            off();
-        }
-        return false;
-    }
-
-    if (xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
-        if (command == definitions::CommandType::kPumpOn) {
-            on();
-        } else {
-            off();
-        }
+    if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
 
@@ -99,5 +78,22 @@ bool modules::Pump::send_command(definitions::CommandType command, uint32_t time
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+bool modules::Pump::process_command(definitions::CommandType command) {
+    switch (command) {
+        case definitions::CommandType::kPumpOn:
+            on();
+            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kPumpOn, 0}, 10);
+            return true;
+
+        case definitions::CommandType::kPumpOff:
+            off();
+            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kPumpOff, 0}, 10);
+            return true;
+
+        default:
+            return false;
+    }
+}
 
 modules::Pump::Pump() : pin_(0), status_(false), queue_(nullptr) {}

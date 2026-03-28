@@ -82,24 +82,41 @@ class StateMachine {
     void process_command(const definitions::CommandRequest& request);
 
     ///
+    /// @brief Process an executed action report.
+    /// Intended for internal scheduler/task use and non-RTOS fallback paths.
+    ///
+    /// @param action Executed action report.
+    ///
+    void process_action(const definitions::CommandRequest& action);
+
+    ///
     /// @brief Enqueue an event to be handled by the FSM task.
-    /// Falls back to direct processing when queueing is unavailable.
+    ///
     ///
     /// @param event Event to enqueue.
     /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if event was queued, false if direct fallback was used.
+    /// @return true if event was queued, false otherwise.
     ///
     bool enqueue_event(definitions::SystemEvent event, uint32_t timeout_ms = 0);
 
     ///
     /// @brief Enqueue a command request to be decided and executed by the FSM task.
-    /// Falls back to direct processing when queueing is unavailable.
+    ///
     ///
     /// @param request Command request.
     /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if request was queued, false if direct fallback was used.
+    /// @return true if request was queued, false otherwise.
     ///
     bool enqueue_command(const definitions::CommandRequest& request, uint32_t timeout_ms = 0);
+
+    ///
+    /// @brief Enqueue an executed action report to be handled by the FSM task.
+    ///
+    /// @param action Executed action payload.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if action was queued, false otherwise.
+    ///
+    bool enqueue_action(const definitions::CommandRequest& action, uint32_t timeout_ms = 0);
 
     ///
     /// @brief Route a command name through the state-machine command path.
@@ -126,6 +143,20 @@ class StateMachine {
     /// @brief Start the dedicated FSM FreeRTOS task and event queue.
     ///
     void start_task();
+
+    ///
+    /// @brief Query whether there is a command pending execution confirmation.
+    ///
+    /// @return true if waiting for a matching module action report.
+    ///
+    bool is_command_pending() const;
+
+    ///
+    /// @brief Query whether the most recently dispatched command was confirmed as executed.
+    ///
+    /// @return true when a matching module action report has been received.
+    ///
+    bool was_last_command_confirmed() const;
 
     ///
     /// @brief Get the Current State object
@@ -198,6 +229,28 @@ class StateMachine {
     ///
     void execute_command(const definitions::CommandRequest& request);
 
+    ///
+    /// @brief Dispatch a command request to its corresponding module queue/task.
+    ///
+    /// @param request Command request.
+    /// @return true when dispatch path was accepted.
+    ///
+    bool dispatch_to_module(const definitions::CommandRequest& request);
+
+    ///
+    /// @brief Compare command intent against an executed command report.
+    ///
+    /// @param request Pending command request.
+    /// @param command Reported executed command.
+    /// @return true when report confirms the pending command execution.
+    ///
+    bool action_matches_command(const definitions::CommandRequest& request, const definitions::CommandRequest& command) const;
+
+    ///
+    /// @brief Monitor pending command confirmation timeout.
+    ///
+    void handle_command_feedback_timeout();
+
     // State handlers for SystemState enum class
     void handle_startup();
     void handle_checkup();
@@ -206,11 +259,16 @@ class StateMachine {
     void handle_soft_error();
     void handle_critical_error();
 
-    definitions::SystemState currentState_;
-    definitions::SystemState previousState_;
-    unsigned long stateEntryTime_;  ///< Timestamp of when the current state was entered
-    bool stateChanged_;             ///< Flag indicating if the state has changed since the last tick
-    static const std::map<definitions::SystemState, std::string> stateNames_;
+    static const std::map<definitions::SystemState, std::string> stateNames_;  ///< Mapping of SystemState values to human-readable names
+    definitions::SystemState currentState_;                                    ///< Current state of the system
+    definitions::SystemState previousState_;                                   ///< Previous state of the system
+    unsigned long stateEntryTime_;                                             ///< Timestamp of when the current state was entered
+    bool stateChanged_;                           ///< Flag indicating if the state has changed since the last tick
+    definitions::CommandRequest lastAction_;      ///< Last executed action
+    definitions::CommandRequest pendingCommand_;  ///< Last command request pending execution confirmation
+    unsigned long pendingCommandTimeMs_;          ///< Timestamp of when the pending command was sent
+    bool commandPending_;                         ///< Flag indicating if there is a command pending execution confirmation
+    bool lastCommandConfirmed_;                   ///< Flag indicating if the last command was confirmed as executed by a module
 };
 
 }  // namespace modules

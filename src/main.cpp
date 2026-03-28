@@ -7,6 +7,4 @@ void setup() {
     modules::App::instance().begin();
 }
 
-void loop() {
-    vTaskDelay(pdMS_TO_TICKS(1000));
-}
+void loop() {}

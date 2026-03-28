@@ -3,6 +3,7 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "StateMachine.hpp"
 
 constexpr UBaseType_t kChillerTaskPriority = 2;
 
@@ -12,11 +13,7 @@ void modules::Chiller::task_entry(void* param) {
 
     while (true) {
         if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            if (command == definitions::CommandType::kChillerOn) {
-                self->on();
-            } else {
-                self->off();
-            }
+            self->process_command(command);
         }
     }
 }
@@ -71,25 +68,7 @@ void modules::Chiller::start_task() {
 }
 
 bool modules::Chiller::send_command(definitions::CommandType command, uint32_t timeout_ms) {
-    if (command != definitions::CommandType::kChillerOn && command != definitions::CommandType::kChillerOff) {
-        return false;
-    }
-
-    if (queue_ == nullptr) {
-        if (command == definitions::CommandType::kChillerOn) {
-            on();
-        } else {
-            off();
-        }
-        return false;
-    }
-
-    if (xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
-        if (command == definitions::CommandType::kChillerOn) {
-            on();
-        } else {
-            off();
-        }
+    if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
 
@@ -97,5 +76,22 @@ bool modules::Chiller::send_command(definitions::CommandType command, uint32_t t
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+bool modules::Chiller::process_command(definitions::CommandType command) {
+    switch (command) {
+        case definitions::CommandType::kChillerOn:
+            on();
+            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kChillerOn, 0}, 10);
+            return true;
+
+        case definitions::CommandType::kChillerOff:
+            off();
+            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kChillerOff, 0}, 10);
+            return true;
+
+        default:
+            return false;
+    }
+}
 
 modules::Chiller::Chiller() : pin_(0), status_(false), queue_(nullptr) {}

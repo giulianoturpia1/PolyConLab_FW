@@ -104,12 +104,11 @@ class SolenoidValve {
 
     ///
     /// @brief Send a valve command through the module queue.
-    /// Falls back to direct call when queueing is unavailable.
     ///
     /// @param command Command to be sent.
     /// @param pin Pin for valve control.
     /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if command was queued, false if direct fallback was used.
+    /// @return true if command was queued, false otherwise.
     ///
     bool send_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms = 0);
 
@@ -132,6 +131,23 @@ class SolenoidValve {
     uint8_t find_index(uint32_t pin) const;
 
     ///
+    /// @brief Process a valve command directly, without queueing. Used as a fallback when the queue is unavailable.
+    ///
+    /// @param command Command to be processed.
+    /// @param pin Pin for valve control.
+    /// @return true
+    /// @return false
+    ///
+    bool process_command(definitions::CommandType command, uint32_t pin);
+
+    ///
+    /// @brief FreeRTOS task entry point for processing valve commands from the queue.
+    ///
+    /// @param param
+    ///
+    static void task_entry(void* param);
+
+    ///
     /// @brief Internal structure to hold valve information (pin and status).
     ///
     ///
@@ -140,11 +156,9 @@ class SolenoidValve {
         bool status;   //< Current valve status
     };
 
-    std::array<ValveSlot, definitions::kMaxSolenoidValves> valves_;
-    uint8_t valve_count_;
-    QueueHandle_t queue_;
-
-    static void task_entry(void* param);
+    std::array<ValveSlot, definitions::kMaxSolenoidValves> valves_;  ///< Array to hold registered valves
+    uint8_t valve_count_;                                            ///< Current count of registered valves
+    QueueHandle_t queue_;                                            ///< FreeRTOS queue handle for valve commands
 };
 
 }  // namespace modules

@@ -76,9 +76,8 @@ inline const definitions::CommandMap* find_command(const std::string& cmd_name) 
 /// @return const char* Canonical response text
 ///
 inline const char* response(const definitions::ResponseType type) {
-    const auto it =
-        std::find_if(definitions::kResponseMap.begin(), definitions::kResponseMap.end(),
-                     [type](const definitions::ResponseMap& response_entry) { return response_entry.type == type; });
+    const auto it = std::find_if(definitions::kResponseMap.begin(), definitions::kResponseMap.end(),
+                                 [type](const definitions::ResponseMap& response_entry) { return response_entry.type == type; });
     if (it != definitions::kResponseMap.end()) {
         return it->name;
     }

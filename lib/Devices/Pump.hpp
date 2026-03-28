@@ -69,11 +69,10 @@ class Pump {
 
     ///
     /// @brief Send a pump command through the module queue.
-    /// Falls back to direct call when queueing is unavailable.
     ///
     /// @param command Command to be sent.
     /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if command was queued, false if direct fallback was used.
+    /// @return true if command was queued, false otherwise.
     ///
     bool send_command(definitions::CommandType command, uint32_t timeout_ms = 0);
 
@@ -86,11 +85,25 @@ class Pump {
     Pump(Pump&&) = delete;
     Pump& operator=(Pump&&) = delete;
 
-    uint32_t pin_;
-    bool status_;
-    QueueHandle_t queue_;
+    ///
+    /// @brief Process a pump command directly, without queueing. Used as a fallback when the queue is unavailable.
+    ///
+    /// @param command Command to be processed.
+    /// @return true
+    /// @return false
+    ///
+    bool process_command(definitions::CommandType command);
 
+    ///
+    /// @brief FreeRTOS task entrypoint for the pump module. Waits for commands on the queue and processes them.
+    ///
+    /// @param param
+    ///
     static void task_entry(void* param);
+
+    uint32_t pin_;         ///< Pin used for pump control
+    bool status_;          ///< Current pump status (true = ON, false = OFF)
+    QueueHandle_t queue_;  ///< FreeRTOS queue handle for pump commands
 };
 
 }  // namespace modules

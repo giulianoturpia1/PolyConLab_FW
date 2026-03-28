@@ -69,8 +69,7 @@ void App::initialize_devices() {
     pump_.begin(static_cast<uint32_t>(definitions::Pins::kPump));
     chiller_.begin(static_cast<uint32_t>(definitions::Pins::kChiller));
 
-    uint32_t valve_pins[] = {static_cast<uint32_t>(definitions::Pins::kValve1),
-                             static_cast<uint32_t>(definitions::Pins::kValve2)};
+    uint32_t valve_pins[] = {static_cast<uint32_t>(definitions::Pins::kValve1), static_cast<uint32_t>(definitions::Pins::kValve2)};
     valves_.begin(valve_pins, 2);
 }
 

@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "HALGeneral.hpp"
+#include "StateMachine.hpp"
 
 constexpr UBaseType_t kSolenoidValveTaskPriority = 2;
 
@@ -19,11 +20,7 @@ void modules::SolenoidValve::task_entry(void* param) {
 
     while (true) {
         if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            if (command.command == definitions::CommandType::kValveOpen) {
-                self->open(command.pin);
-            } else {
-                self->close(command.pin);
-            }
+            self->process_command(command.command, command.pin);
         }
     }
 }
@@ -45,8 +42,7 @@ void SolenoidValve::begin(const uint32_t* pins, size_t count) {
         return;
     }
 
-    const uint8_t bounded_count =
-        static_cast<uint8_t>(std::min(count, static_cast<size_t>(definitions::kMaxSolenoidValves)));
+    const uint8_t bounded_count = static_cast<uint8_t>(std::min(count, static_cast<size_t>(definitions::kMaxSolenoidValves)));
     for (uint8_t index = 0; index < bounded_count; ++index) {
         add(pins[index]);
     }
@@ -55,8 +51,7 @@ void SolenoidValve::begin(const uint32_t* pins, size_t count) {
 bool SolenoidValve::add(uint32_t pin) {
     uint8_t index = find_index(pin);
     if (valve_count_ >= definitions::kMaxSolenoidValves) {
-        hal_general().log("No se pudo agregar el pin de valvula: " + std::to_string(pin) +
-                          ". Se alcanzo el limite de capacidad.");
+        hal_general().log("No se pudo agregar el pin de valvula: " + std::to_string(pin) + ". Se alcanzo el limite de capacidad.");
         return false;  // Capacity limit reached or pin not already registered
     }
 
@@ -150,26 +145,8 @@ void SolenoidValve::start_task() {
 }
 
 bool SolenoidValve::send_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {
-    if (command != definitions::CommandType::kValveOpen && command != definitions::CommandType::kValveClose) {
-        return false;
-    }
-
-    if (queue_ == nullptr) {
-        if (command == definitions::CommandType::kValveOpen) {
-            open(pin);
-        } else {
-            close(pin);
-        }
-        return false;
-    }
-
     const ValveCommand queue_command = {command, pin};
-    if (xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
-        if (command == definitions::CommandType::kValveOpen) {
-            open(pin);
-        } else {
-            close(pin);
-        }
+    if (queue_ == nullptr || xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
 
@@ -177,6 +154,29 @@ bool SolenoidValve::send_command(definitions::CommandType command, uint32_t pin,
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+bool SolenoidValve::process_command(definitions::CommandType command, uint32_t pin) {
+    switch (command) {
+        case definitions::CommandType::kValveOpen: {
+            const bool executed = open(pin);
+            if (executed) {
+                modules::StateMachine::instance().enqueue_action({definitions::CommandType::kValveOpen, pin}, 10);
+            }
+            return executed;
+        }
+
+        case definitions::CommandType::kValveClose: {
+            const bool executed = close(pin);
+            if (executed) {
+                modules::StateMachine::instance().enqueue_action({definitions::CommandType::kValveClose, pin}, 10);
+            }
+            return executed;
+        }
+
+        default:
+            return false;
+    }
+}
 
 SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0), queue_(nullptr) {}
 
