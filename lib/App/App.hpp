@@ -28,6 +28,11 @@ namespace modules {
 ///
 /// @brief Application orchestrator for startup and main runtime cycle.
 /// Implemented as a singleton class, similar to StateMachine.
+/// The App class is responsible for initializing all modules, starting their tasks, and running the main loop that
+/// polls for communications and dispatches them to the appropriate handlers.
+///
+/// The main loop is implemented in the tick() method, which is called periodically from a dedicated FreeRTOS task. This is implemented
+/// in the task_entry() static method, and the task is started by calling start_task().
 ///
 class App {
    public:
@@ -39,7 +44,7 @@ class App {
     static App& instance();
 
     ///
-    /// @brief Initialize firmware application services and module tasks.
+    /// @brief Initialize firmware application services and module tasks. This serves as the main entry point for the firmware execution.
     ///
     void begin();
 
@@ -97,6 +102,9 @@ class App {
     ///
     void tick();
 
+    // Member variables - References to Modules
+
+    StateMachine& state_machine_;
     HALGeneral& hal_;
     LocalServer& local_server_;
     Communications& communications_;
@@ -104,7 +112,6 @@ class App {
     Pump& pump_;
     Chiller& chiller_;
     SolenoidValve& valves_;
-    StateMachine& state_machine_;
 };
 
 }  // namespace modules

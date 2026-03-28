@@ -5,6 +5,8 @@
 
 void setup() {
     modules::App::instance().begin();
+
+    vTaskStartScheduler();
 }
 
 void loop() {}

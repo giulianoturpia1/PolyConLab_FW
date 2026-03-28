@@ -19,36 +19,14 @@
 #include "PLC19R.hpp"
 #endif
 
-QueueHandle_t g_state_event_queue = nullptr;
-QueueHandle_t g_state_command_queue = nullptr;
-QueueHandle_t g_state_action_queue = nullptr;
+QueueHandle_t gStateEventQueue = nullptr;
+QueueHandle_t gStateCommandQueue = nullptr;
+QueueHandle_t gStateActionQueue = nullptr;
 constexpr uint32_t kStateMachineTaskPeriodMs = 20;
 constexpr UBaseType_t kStateMachineTaskPriority = 3;
-
-////////////////////////////////////// Task Function //////////////////////////////////////
-
-void state_machine_task(void* /*param*/) {
-    definitions::SystemEvent event = definitions::SystemEvent::kPowerOn;
-    definitions::CommandRequest command = {definitions::CommandType::kHeaterOff, 0};
-    definitions::CommandRequest action = {definitions::CommandType::kHeaterOff, 0};
-
-    while (true) {
-        while (xQueueReceive(g_state_event_queue, &event, 0) == pdPASS) {
-            modules::StateMachine::instance().process_event(event);
-        }
-
-        while (xQueueReceive(g_state_command_queue, &command, 0) == pdPASS) {
-            modules::StateMachine::instance().process_command(command);
-        }
-
-        while (xQueueReceive(g_state_action_queue, &action, 0) == pdPASS) {
-            modules::StateMachine::instance().process_action(action);
-        }
-
-        modules::StateMachine::instance().tick();
-        vTaskDelay(pdMS_TO_TICKS(kStateMachineTaskPeriodMs));
-    }
-}
+constexpr UBaseType_t kStateMachineQueueLength = 16;
+constexpr uint32_t kStateMachineTaskStackSize = 4096;
+constexpr char kStateMachineTaskName[] = "state_machine_task";
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -95,6 +73,110 @@ void modules::StateMachine::tick() {
 
     stateChanged_ = false;
 }
+
+void modules::StateMachine::start_task() {
+    if (gStateEventQueue != nullptr) {
+        modules::hal_general().log("La tarea de la maquina de estados ya esta en ejecucion.");
+        return;
+    }
+
+    gStateEventQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::SystemEvent));
+    gStateCommandQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::CommandRequest));
+    gStateActionQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::CommandRequest));
+    if (gStateEventQueue == nullptr || gStateCommandQueue == nullptr || gStateActionQueue == nullptr) {
+        modules::hal_general().log("No se pudo crear la queue de la maquina de estados.");
+        if (gStateEventQueue != nullptr) {
+            vQueueDelete(gStateEventQueue);
+            gStateEventQueue = nullptr;
+        }
+        if (gStateCommandQueue != nullptr) {
+            vQueueDelete(gStateCommandQueue);
+            gStateCommandQueue = nullptr;
+        }
+        if (gStateActionQueue != nullptr) {
+            vQueueDelete(gStateActionQueue);
+            gStateActionQueue = nullptr;
+        }
+        return;
+    }
+
+    if (xTaskCreate(task_entry, kStateMachineTaskName, kStateMachineTaskStackSize, nullptr, kStateMachineTaskPriority, nullptr) != pdPASS) {
+        modules::hal_general().log("No se pudo crear la tarea de la maquina de estados.");
+        vQueueDelete(gStateEventQueue);
+        vQueueDelete(gStateCommandQueue);
+        vQueueDelete(gStateActionQueue);
+        gStateEventQueue = nullptr;
+        gStateCommandQueue = nullptr;
+        gStateActionQueue = nullptr;
+    }
+}
+
+bool modules::StateMachine::enqueue_event(definitions::SystemEvent event, uint32_t timeout_ms) {
+    if (gStateEventQueue == nullptr || xQueueSend(gStateEventQueue, &event, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+        return false;
+    }
+
+    return true;
+}
+
+bool modules::StateMachine::enqueue_command(const definitions::CommandRequest& request, uint32_t timeout_ms) {
+    if (gStateCommandQueue == nullptr || xQueueSend(gStateCommandQueue, &request, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+        return false;
+    }
+
+    return true;
+}
+
+bool modules::StateMachine::enqueue_action(const definitions::CommandRequest& action, uint32_t timeout_ms) {
+    if (gStateActionQueue == nullptr) {
+        return false;
+    }
+
+    if (xQueueSend(gStateActionQueue, &action, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+        return false;
+    }
+
+    return true;
+}
+
+definitions::SystemState modules::StateMachine::get_current_state() const {
+    return currentState_;
+}
+
+definitions::SystemState modules::StateMachine::get_previous_state() const {
+    return previousState_;
+}
+
+bool modules::StateMachine::is_command_pending() const {
+    return commandPending_;
+}
+
+bool modules::StateMachine::was_last_command_confirmed() const {
+    return lastCommandConfirmed_;
+}
+
+bool modules::StateMachine::is_in_state(definitions::SystemState state) const {
+    return currentState_ == state;
+}
+
+const std::string& modules::StateMachine::get_state_name(definitions::SystemState state) {
+    static const std::string unknown = "UNKNOWN";
+    auto it = stateNames_.find(state);
+    return (it != stateNames_.end()) ? it->second : unknown;
+}
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+modules::StateMachine::StateMachine()
+    : currentState_(definitions::SystemState::kStartup),
+      previousState_(definitions::SystemState::kStartup),
+      stateEntryTime_(0),
+      stateChanged_(false),
+      lastAction_({definitions::CommandType::kHeaterOff, 0}),
+      pendingCommand_({definitions::CommandType::kHeaterOff, 0}),
+      pendingCommandTimeMs_(0),
+      commandPending_(false),
+      lastCommandConfirmed_(false) {}
 
 void modules::StateMachine::process_event(definitions::SystemEvent event) {
     definitions::SystemState nextState = currentState_;
@@ -168,155 +250,25 @@ void modules::StateMachine::process_event(definitions::SystemEvent event) {
 }
 
 void modules::StateMachine::process_command(const definitions::CommandRequest& request) {
-    execute_command(request);
-}
-
-bool modules::StateMachine::enqueue_event(definitions::SystemEvent event, uint32_t timeout_ms) {
-    if (g_state_event_queue == nullptr || xQueueSend(g_state_event_queue, &event, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
-        return false;
-    }
-
-    return true;
-}
-
-bool modules::StateMachine::enqueue_command(const definitions::CommandRequest& request, uint32_t timeout_ms) {
-    if (g_state_command_queue == nullptr || xQueueSend(g_state_command_queue, &request, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
-        return false;
-    }
-
-    return true;
-}
-
-bool modules::StateMachine::enqueue_action(const definitions::CommandRequest& action, uint32_t timeout_ms) {
-    if (g_state_action_queue == nullptr) {
-        return false;
-    }
-
-    if (xQueueSend(g_state_action_queue, &action, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
-        return false;
-    }
-
-    return true;
-}
-
-bool modules::StateMachine::route_command_name(const std::string& command_name, uint32_t pin, uint32_t timeout_ms) {
-    const auto it = std::find_if(definitions::kCommandMap.begin(), definitions::kCommandMap.end(),
-                                 [&command_name](const definitions::CommandMap& entry) { return command_name == entry.name; });
-
-    if (it == definitions::kCommandMap.end()) {
-        return false;
-    }
-
-    switch (it->command) {
-        case definitions::CommandType::kHeaterOn:
-        case definitions::CommandType::kHeaterOff:
-        case definitions::CommandType::kPumpOn:
-        case definitions::CommandType::kPumpOff:
-        case definitions::CommandType::kChillerOn:
-        case definitions::CommandType::kChillerOff:
-        case definitions::CommandType::kValveOpen:
-        case definitions::CommandType::kValveClose: {
-            if (!(currentState_ == definitions::SystemState::kManual || currentState_ == definitions::SystemState::kCalibration)) {
-                modules::hal_general().log("Comando rechazado por estado actual: " + command_name + " en estado " +
-                                           get_state_name(currentState_));
-                return false;
-            }
-
-            enqueue_command({it->command, pin}, timeout_ms);
-            return true;
-        }
-        default:
-            return false;
-    }
-}
-
-bool modules::StateMachine::route_event_name(const std::string& event_name, uint32_t timeout_ms) {
-    const auto it = std::find_if(definitions::kEventMap.begin(), definitions::kEventMap.end(),
-                                 [&event_name](const definitions::EventMap& entry) { return event_name == entry.name; });
-
-    if (it == definitions::kEventMap.end()) {
-        return false;
-    }
-
-    enqueue_event(it->event, timeout_ms);
-    return true;
-}
-
-void modules::StateMachine::start_task() {
-    if (g_state_event_queue != nullptr) {
-        modules::hal_general().log("La tarea de la maquina de estados ya esta en ejecucion.");
+    if (!(currentState_ == definitions::SystemState::kManual || currentState_ == definitions::SystemState::kCalibration)) {
+        modules::hal_general().log("Command received but actuation is not allowed in current state: " + get_state_name(currentState_));
+        lastCommandConfirmed_ = false;
+        commandPending_ = false;
         return;
     }
 
-    g_state_event_queue = xQueueCreate(16, sizeof(definitions::SystemEvent));
-    g_state_command_queue = xQueueCreate(16, sizeof(definitions::CommandRequest));
-    g_state_action_queue = xQueueCreate(16, sizeof(definitions::CommandRequest));
-    if (g_state_event_queue == nullptr || g_state_command_queue == nullptr || g_state_action_queue == nullptr) {
-        modules::hal_general().log("No se pudo crear la queue de la maquina de estados.");
-        if (g_state_event_queue != nullptr) {
-            vQueueDelete(g_state_event_queue);
-            g_state_event_queue = nullptr;
-        }
-        if (g_state_command_queue != nullptr) {
-            vQueueDelete(g_state_command_queue);
-            g_state_command_queue = nullptr;
-        }
-        if (g_state_action_queue != nullptr) {
-            vQueueDelete(g_state_action_queue);
-            g_state_action_queue = nullptr;
-        }
+    if (!dispatch_to_module(request)) {
+        modules::hal_general().log("No se pudo despachar el comando solicitado.");
+        lastCommandConfirmed_ = false;
+        commandPending_ = false;
         return;
     }
 
-    if (xTaskCreate(state_machine_task, "state_machine_task", 4096, nullptr, kStateMachineTaskPriority, nullptr) != pdPASS) {
-        modules::hal_general().log("No se pudo crear la tarea de la maquina de estados.");
-        vQueueDelete(g_state_event_queue);
-        vQueueDelete(g_state_command_queue);
-        vQueueDelete(g_state_action_queue);
-        g_state_event_queue = nullptr;
-        g_state_command_queue = nullptr;
-        g_state_action_queue = nullptr;
-    }
+    pendingCommand_ = request;
+    pendingCommandTimeMs_ = modules::hal_general().millis();
+    commandPending_ = true;
+    lastCommandConfirmed_ = false;
 }
-
-definitions::SystemState modules::StateMachine::get_current_state() const {
-    return currentState_;
-}
-
-definitions::SystemState modules::StateMachine::get_previous_state() const {
-    return previousState_;
-}
-
-bool modules::StateMachine::is_command_pending() const {
-    return commandPending_;
-}
-
-bool modules::StateMachine::was_last_command_confirmed() const {
-    return lastCommandConfirmed_;
-}
-
-bool modules::StateMachine::is_in_state(definitions::SystemState state) const {
-    return currentState_ == state;
-}
-
-const std::string& modules::StateMachine::get_state_name(definitions::SystemState state) {
-    static const std::string unknown = "UNKNOWN";
-    auto it = stateNames_.find(state);
-    return (it != stateNames_.end()) ? it->second : unknown;
-}
-
-////////////////////////////////////// Private Methods //////////////////////////////////////
-
-modules::StateMachine::StateMachine()
-    : currentState_(definitions::SystemState::kStartup),
-      previousState_(definitions::SystemState::kStartup),
-      stateEntryTime_(0),
-      stateChanged_(false),
-      lastAction_({definitions::CommandType::kHeaterOff, 0}),
-      pendingCommand_({definitions::CommandType::kHeaterOff, 0}),
-      pendingCommandTimeMs_(0),
-      commandPending_(false),
-      lastCommandConfirmed_(false) {}
 
 void modules::StateMachine::transition_to(definitions::SystemState newState) {
     on_state_exit();
@@ -362,45 +314,27 @@ void modules::StateMachine::on_state_enter() {
     }
 }
 
-void modules::StateMachine::execute_command(const definitions::CommandRequest& request) {
-    if (!(currentState_ == definitions::SystemState::kManual || currentState_ == definitions::SystemState::kCalibration)) {
-        modules::hal_general().log("Command received but actuation is not allowed in current state: " + get_state_name(currentState_));
-        lastCommandConfirmed_ = false;
-        commandPending_ = false;
-        return;
-    }
-
-    if (!dispatch_to_module(request)) {
-        modules::hal_general().log("No se pudo despachar el comando solicitado.");
-        lastCommandConfirmed_ = false;
-        commandPending_ = false;
-        return;
-    }
-
-    pendingCommand_ = request;
-    pendingCommandTimeMs_ = modules::hal_general().millis();
-    commandPending_ = true;
-    lastCommandConfirmed_ = false;
-}
-
 bool modules::StateMachine::dispatch_to_module(const definitions::CommandRequest& request) {
+    static uint32_t acceptableTimeWindowMs = 100;  // Time window to accept command confirmations
     switch (request.command) {
         case definitions::CommandType::kHeaterOn:
-            return modules::Heater::instance().send_command(definitions::CommandType::kHeaterOn, 10);
+            return modules::Heater::instance().send_command(definitions::CommandType::kHeaterOn, acceptableTimeWindowMs);
         case definitions::CommandType::kHeaterOff:
-            return modules::Heater::instance().send_command(definitions::CommandType::kHeaterOff, 10);
+            return modules::Heater::instance().send_command(definitions::CommandType::kHeaterOff, acceptableTimeWindowMs);
         case definitions::CommandType::kPumpOn:
-            return modules::Pump::instance().send_command(definitions::CommandType::kPumpOn, 10);
+            return modules::Pump::instance().send_command(definitions::CommandType::kPumpOn, acceptableTimeWindowMs);
         case definitions::CommandType::kPumpOff:
-            return modules::Pump::instance().send_command(definitions::CommandType::kPumpOff, 10);
+            return modules::Pump::instance().send_command(definitions::CommandType::kPumpOff, acceptableTimeWindowMs);
         case definitions::CommandType::kChillerOn:
-            return modules::Chiller::instance().send_command(definitions::CommandType::kChillerOn, 10);
+            return modules::Chiller::instance().send_command(definitions::CommandType::kChillerOn, acceptableTimeWindowMs);
         case definitions::CommandType::kChillerOff:
-            return modules::Chiller::instance().send_command(definitions::CommandType::kChillerOff, 10);
+            return modules::Chiller::instance().send_command(definitions::CommandType::kChillerOff, acceptableTimeWindowMs);
         case definitions::CommandType::kValveOpen:
-            return modules::SolenoidValve::instance().send_command(definitions::CommandType::kValveOpen, request.pin, 10);
+            return modules::SolenoidValve::instance().send_command(definitions::CommandType::kValveOpen, request.pin,
+                                                                   acceptableTimeWindowMs);
         case definitions::CommandType::kValveClose:
-            return modules::SolenoidValve::instance().send_command(definitions::CommandType::kValveClose, request.pin, 10);
+            return modules::SolenoidValve::instance().send_command(definitions::CommandType::kValveClose, request.pin,
+                                                                   acceptableTimeWindowMs);
         default:
             return false;
     }
@@ -554,6 +488,30 @@ void modules::StateMachine::process_action(const definitions::CommandRequest& ac
 
     // State-specific action processing can be added in state handlers
     // For now, actions are just logged for feedback confirmation
+}
+
+void modules::StateMachine::task_entry(void* param) {
+    definitions::SystemEvent event = definitions::SystemEvent::kPowerOn;
+    definitions::CommandRequest command = {definitions::CommandType::kHeaterOff, 0};
+    definitions::CommandRequest action = {definitions::CommandType::kHeaterOff, 0};
+
+    while (true) {
+        while (xQueueReceive(gStateEventQueue, &event, 0) == pdPASS) {
+            modules::StateMachine::instance().process_event(event);
+        }
+
+        while (xQueueReceive(gStateCommandQueue, &command, 0) == pdPASS) {
+            modules::StateMachine::instance().process_command(command);
+        }
+
+        while (xQueueReceive(gStateActionQueue, &action, 0) == pdPASS) {
+            modules::StateMachine::instance().process_action(action);
+        }
+
+        // Tick the state machine to execute the current state handler
+        modules::StateMachine::instance().tick();
+        vTaskDelay(pdMS_TO_TICKS(kStateMachineTaskPeriodMs));
+    }
 }
 
 ////////////////////////////////////// State Names Mapping //////////////////////////////////////

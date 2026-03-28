@@ -8,22 +8,14 @@
 #include "StateMachine.hpp"
 
 constexpr UBaseType_t kSolenoidValveTaskPriority = 2;
+constexpr UBaseType_t kSolenoidValveQueueLength = 8;
+constexpr uint32_t kSolenoidValveTaskStackSize = 3072;
+constexpr char kSolenoidValveTaskName[] = "valve_task";
 
 struct ValveCommand {
     definitions::CommandType command;
     uint32_t pin;
 };
-
-void modules::SolenoidValve::task_entry(void* param) {
-    SolenoidValve* self = static_cast<SolenoidValve*>(param);
-    ValveCommand command = {definitions::CommandType::kValveClose, 0};
-
-    while (true) {
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command.command, command.pin);
-        }
-    }
-}
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -131,13 +123,13 @@ void SolenoidValve::start_task() {
         return;
     }
 
-    queue_ = xQueueCreate(8, sizeof(ValveCommand));
+    queue_ = xQueueCreate(kSolenoidValveQueueLength, sizeof(ValveCommand));
     if (queue_ == nullptr) {
         modules::hal_general().log("No se pudo crear la cola de valvulas.");
         return;
     }
 
-    if (xTaskCreate(task_entry, "valve_task", 3072, this, kSolenoidValveTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreate(task_entry, kSolenoidValveTaskName, kSolenoidValveTaskStackSize, this, kSolenoidValveTaskPriority, nullptr) != pdPASS) {
         modules::hal_general().log("No se pudo crear la tarea de valvulas.");
         vQueueDelete(queue_);
         queue_ = nullptr;
@@ -154,6 +146,17 @@ bool SolenoidValve::send_command(definitions::CommandType command, uint32_t pin,
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+void modules::SolenoidValve::task_entry(void* param) {
+    SolenoidValve* self = static_cast<SolenoidValve*>(param);
+    ValveCommand command = {definitions::CommandType::kValveClose, 0};
+
+    while (true) {
+        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
+            self->process_command(command.command, command.pin);
+        }
+    }
+}
 
 bool SolenoidValve::process_command(definitions::CommandType command, uint32_t pin) {
     switch (command) {

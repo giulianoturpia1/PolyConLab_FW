@@ -24,23 +24,40 @@ IPAddress ip(192, 168, 1, 1);
 EthernetServer server_(80);
 constexpr uint32_t kAppTaskPeriodMs = 20;
 constexpr UBaseType_t kAppTaskPriority = 2;
+constexpr uint32_t kAppTaskStackSize = 4096;
+constexpr char kAppTaskName[] = "app_task";
 
 namespace modules {
+
+////////////////////////////////////// Public Methods //////////////////////////////////////
 
 App& App::instance() {
     static App instance;
     return instance;
 }
 
+void App::begin() {
+    hal_.serial_begin(115200);
+    hal_.log("Iniciando configuracion...");
+    hal_.delay(1000);
+
+    initialize_modules();
+    start_task();
+
+    hal_.log("Configuracion completada");
+}
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
 App::App()
-    : hal_(modules::hal_general()),
+    : state_machine_(modules::StateMachine::instance()),
+      hal_(modules::hal_general()),
       local_server_(modules::LocalServer::instance()),
       communications_(modules::Communications::instance()),
       heater_(modules::Heater::instance()),
       pump_(modules::Pump::instance()),
       chiller_(modules::Chiller::instance()),
-      valves_(modules::SolenoidValve::instance()),
-      state_machine_(modules::StateMachine::instance()) {}
+      valves_(modules::SolenoidValve::instance()) {}
 
 void App::configure_serial_response_callback() {
     communications_.set_serial_response_callback([this](const std::string& response) { hal_.log(response.c_str()); });
@@ -68,6 +85,7 @@ void App::initialize_modules() {
 void App::initialize_devices() {
     pump_.begin(static_cast<uint32_t>(definitions::Pins::kPump));
     chiller_.begin(static_cast<uint32_t>(definitions::Pins::kChiller));
+    heater_.begin(static_cast<uint32_t>(definitions::Pins::kHeater));
 
     uint32_t valve_pins[] = {static_cast<uint32_t>(definitions::Pins::kValve1), static_cast<uint32_t>(definitions::Pins::kValve2)};
     valves_.begin(valve_pins, 2);
@@ -88,17 +106,6 @@ void App::poll_serial_messages() {
     communications_.handle_serial_message(msg);
 }
 
-void App::begin() {
-    hal_.serial_begin(115200);
-    hal_.log("Iniciando configuracion...");
-    hal_.delay(1000);
-
-    initialize_modules();
-    start_task();
-
-    hal_.log("Configuracion completada");
-}
-
 void App::start_task() {
     static bool task_started = false;
     if (task_started) {
@@ -106,19 +113,12 @@ void App::start_task() {
         return;
     }
 
-    if (xTaskCreate(App::task_entry, "app_task", 4096, nullptr, kAppTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreate(App::task_entry, kAppTaskName, kAppTaskStackSize, nullptr, kAppTaskPriority, nullptr) != pdPASS) {
         hal_.log("No se pudo crear la tarea de App.");
         return;
     }
 
     task_started = true;
-}
-
-void App::task_entry(void* /*param*/) {
-    while (true) {
-        App::instance().tick();
-        vTaskDelay(pdMS_TO_TICKS(kAppTaskPeriodMs));
-    }
 }
 
 void App::tick() {
@@ -128,6 +128,13 @@ void App::tick() {
     });
 
     poll_serial_messages();
+}
+
+void App::task_entry(void* /*param*/) {
+    while (true) {
+        App::instance().tick();
+        vTaskDelay(pdMS_TO_TICKS(kAppTaskPeriodMs));
+    }
 }
 
 }  // namespace modules

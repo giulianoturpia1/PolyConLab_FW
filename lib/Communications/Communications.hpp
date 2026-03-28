@@ -19,12 +19,14 @@ namespace modules {
 ///
 /// @brief Communications manager that routes commands from multiple transports.
 /// Implemented as a singleton.
-/// The class provides methods to set callbacks for sending responses back through the appropriate transport (Ethernet
-/// or Serial), in order to keep the transport layer isolated from the application logic. The main method is
-/// handle_message(), which takes an incoming message and a response callback, and routes the message to the appropriate
-/// handler based on its content (device command or event command). The device command handler processes commands
-/// related to devices (e.g., setting flow rate), while the event command handler processes commands that trigger events
-/// in the state machine (e.g., "EVT:START_CALIBRATION").
+/// The class provides operations to set callbacks for sending responses back through the appropriate transport (Ethernet
+/// or Serial), in order to keep the transport layer isolated from the application logic.
+///
+/// The main operation is handle_message(), which takes an incoming message and a response callback, and routes the message to the
+/// appropriate handler based on its content (device command or event command). The device command handler processes commands related to
+/// devices (e.g., setting flow rate), while the event command handler processes commands that trigger events in the state machine (e.g.,
+/// "EVT:START_CALIBRATION").
+///
 ///
 class Communications {
    public:

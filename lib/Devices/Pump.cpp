@@ -6,19 +6,9 @@
 #include "StateMachine.hpp"
 
 constexpr UBaseType_t kPumpTaskPriority = 2;
-
-////////////////////////////////////// Task Function //////////////////////////////////////
-
-void modules::Pump::task_entry(void* param) {
-    Pump* self = static_cast<Pump*>(param);
-    definitions::CommandType command = definitions::CommandType::kPumpOff;
-
-    while (true) {
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
-        }
-    }
-}
+constexpr UBaseType_t kPumpQueueLength = 8;
+constexpr uint32_t kPumpTaskStackSize = 2048;
+constexpr char kPumpTaskName[] = "pump_task";
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -56,13 +46,13 @@ void modules::Pump::start_task() {
         return;
     }
 
-    queue_ = xQueueCreate(8, sizeof(definitions::CommandType));
+    queue_ = xQueueCreate(kPumpQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
         modules::hal_general().log("No se pudo crear la cola de la bomba.");
         return;
     }
 
-    if (xTaskCreate(task_entry, "pump_task", 2048, this, kPumpTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreate(task_entry, kPumpTaskName, kPumpTaskStackSize, this, kPumpTaskPriority, nullptr) != pdPASS) {
         modules::hal_general().log("No se pudo crear la tarea de la bomba.");
         vQueueDelete(queue_);
         queue_ = nullptr;
@@ -78,6 +68,17 @@ bool modules::Pump::send_command(definitions::CommandType command, uint32_t time
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+void modules::Pump::task_entry(void* param) {
+    Pump* self = static_cast<Pump*>(param);
+    definitions::CommandType command = definitions::CommandType::kPumpOff;
+
+    while (true) {
+        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
+            self->process_command(command);
+        }
+    }
+}
 
 bool modules::Pump::process_command(definitions::CommandType command) {
     switch (command) {
