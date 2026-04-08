@@ -17,8 +17,6 @@ modules::Heater& modules::Heater::instance() {
     return instance;
 }
 
-modules::Heater::Heater() : pin_(0), status_(false), queue_(nullptr) {}
-
 void modules::Heater::begin(uint32_t pin) {
     pin_ = pin;
     modules::hal_general().pin_mode(pin_, modules::PIN_MODE_OUTPUT);
@@ -61,15 +59,38 @@ void modules::Heater::start_task() {
     }
 }
 
-bool modules::Heater::send_command(definitions::CommandType command, uint32_t timeout_ms) {
-    if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+bool modules::Heater::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
+    if (queue_ == nullptr) {
         return false;
     }
 
-    return true;
+    return xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+modules::Heater::Heater() : pin_(0), status_(false), queue_(nullptr) {}
+
+bool modules::Heater::process_command(definitions::CommandType command) {
+    switch (command) {
+        case definitions::CommandType::kHeaterOn:
+            on();
+            modules::StateMachine::instance().queue_action({definitions::CommandType::kHeaterOn, 0}, 10);
+            return true;
+
+        case definitions::CommandType::kHeaterOff:
+            off();
+            modules::StateMachine::instance().queue_action({definitions::CommandType::kHeaterOff, 0}, 10);
+            return true;
+
+        case definitions::CommandType::kHeaterState:
+            modules::StateMachine::instance().queue_action({definitions::CommandType::kHeaterState, 0}, 10);
+            return true;
+
+        default:
+            return false;
+    }
+}
 
 void modules::Heater::task_entry(void* param) {
     Heater* self = static_cast<Heater*>(param);
@@ -79,22 +100,5 @@ void modules::Heater::task_entry(void* param) {
         if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
             self->process_command(command);
         }
-    }
-}
-
-bool modules::Heater::process_command(definitions::CommandType command) {
-    switch (command) {
-        case definitions::CommandType::kHeaterOn:
-            on();
-            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kHeaterOn, 0}, 10);
-            return true;
-
-        case definitions::CommandType::kHeaterOff:
-            off();
-            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kHeaterOff, 0}, 10);
-            return true;
-
-        default:
-            return false;
     }
 }

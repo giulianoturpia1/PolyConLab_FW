@@ -118,7 +118,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
 
     switch (cmd->command) {
         case definitions::CommandType::kHeaterOn: {
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, 0}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
@@ -127,7 +127,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
         }
 
         case definitions::CommandType::kHeaterOff: {
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, 0}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
@@ -144,7 +144,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
         }
 
         case definitions::CommandType::kPumpOn: {
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, 0}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
@@ -153,7 +153,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
         }
 
         case definitions::CommandType::kPumpOff: {
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, 0}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
@@ -170,7 +170,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
         }
 
         case definitions::CommandType::kChillerOn: {
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, 0}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
@@ -179,7 +179,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
         }
 
         case definitions::CommandType::kChillerOff: {
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, 0}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
@@ -200,7 +200,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
             size_t comma_pos = msg.find(',');
             char valve_num =
                 (comma_pos != std::string::npos) ? msg[comma_pos + 1] : '0';  // Assume a single digit valve number for response
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, valve_pin}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, valve_pin}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
@@ -213,7 +213,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
             size_t comma_pos = msg.find(',');
             char valve_num =
                 (comma_pos != std::string::npos) ? msg[comma_pos + 1] : '0';  // Assume a single digit valve number for response
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, valve_pin}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, valve_pin}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
@@ -278,7 +278,7 @@ bool Communications::handle_event(const std::string& msg, const std::function<vo
         return true;
     }
 
-    if (!modules::StateMachine::instance().enqueue_event(it->event, 10)) {
+    if (!modules::StateMachine::instance().queue_event(it->event, 10)) {
         respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownEvent)));
         return true;
     }

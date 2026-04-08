@@ -111,7 +111,7 @@ void modules::StateMachine::start_task() {
     }
 }
 
-bool modules::StateMachine::enqueue_event(definitions::SystemEvent event, uint32_t timeout_ms) {
+bool modules::StateMachine::queue_event(definitions::SystemEvent event, uint32_t timeout_ms) {
     if (gStateEventQueue == nullptr || xQueueSend(gStateEventQueue, &event, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
@@ -119,7 +119,7 @@ bool modules::StateMachine::enqueue_event(definitions::SystemEvent event, uint32
     return true;
 }
 
-bool modules::StateMachine::enqueue_command(const definitions::CommandRequest& request, uint32_t timeout_ms) {
+bool modules::StateMachine::queue_command(const definitions::CommandRequest& request, uint32_t timeout_ms) {
     if (gStateCommandQueue == nullptr || xQueueSend(gStateCommandQueue, &request, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
@@ -127,7 +127,7 @@ bool modules::StateMachine::enqueue_command(const definitions::CommandRequest& r
     return true;
 }
 
-bool modules::StateMachine::enqueue_action(const definitions::CommandRequest& action, uint32_t timeout_ms) {
+bool modules::StateMachine::queue_action(const definitions::CommandRequest& action, uint32_t timeout_ms) {
     if (gStateActionQueue == nullptr) {
         return false;
     }
@@ -147,6 +147,12 @@ definitions::SystemState modules::StateMachine::get_previous_state() const {
     return previousState_;
 }
 
+const std::string& modules::StateMachine::get_state_name(definitions::SystemState state) {
+    static const std::string unknown = "UNKNOWN";
+    auto it = stateNames_.find(state);
+    return (it != stateNames_.end()) ? it->second : unknown;
+}
+
 bool modules::StateMachine::is_command_pending() const {
     return commandPending_;
 }
@@ -157,12 +163,6 @@ bool modules::StateMachine::was_last_command_confirmed() const {
 
 bool modules::StateMachine::is_in_state(definitions::SystemState state) const {
     return currentState_ == state;
-}
-
-const std::string& modules::StateMachine::get_state_name(definitions::SystemState state) {
-    static const std::string unknown = "UNKNOWN";
-    auto it = stateNames_.find(state);
-    return (it != stateNames_.end()) ? it->second : unknown;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
@@ -177,6 +177,47 @@ modules::StateMachine::StateMachine()
       pendingCommandTimeMs_(0),
       commandPending_(false),
       lastCommandConfirmed_(false) {}
+
+bool modules::StateMachine::dispatch_to_module(const definitions::CommandRequest& request) {
+    static uint32_t acceptableTimeWindowMs = 100;  // Time window to accept command confirmations
+    switch (request.command) {
+        case definitions::CommandType::kHeaterOn:
+            return modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOn, acceptableTimeWindowMs);
+        case definitions::CommandType::kHeaterOff:
+            return modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, acceptableTimeWindowMs);
+        case definitions::CommandType::kPumpOn:
+            return modules::Pump::instance().queue_command(definitions::CommandType::kPumpOn, acceptableTimeWindowMs);
+        case definitions::CommandType::kPumpOff:
+            return modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, acceptableTimeWindowMs);
+        case definitions::CommandType::kChillerOn:
+            return modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOn, acceptableTimeWindowMs);
+        case definitions::CommandType::kChillerOff:
+            return modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, acceptableTimeWindowMs);
+        case definitions::CommandType::kValveOpen:
+            return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveOpen, request.pin,
+                                                                    acceptableTimeWindowMs);
+        case definitions::CommandType::kValveClose:
+            return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, request.pin,
+                                                                    acceptableTimeWindowMs);
+        default:
+            return false;
+    }
+}
+
+bool modules::StateMachine::action_matches_command(const definitions::CommandRequest& request,
+                                                   const definitions::CommandRequest& action) const {
+    if (request.command != action.command) {
+        return false;
+    }
+
+    switch (request.command) {
+        case definitions::CommandType::kValveOpen:
+        case definitions::CommandType::kValveClose:
+            return request.pin == action.pin;
+        default:
+            return true;
+    }
+}
 
 void modules::StateMachine::process_event(definitions::SystemEvent event) {
     definitions::SystemState nextState = currentState_;
@@ -270,6 +311,50 @@ void modules::StateMachine::process_command(const definitions::CommandRequest& r
     lastCommandConfirmed_ = false;
 }
 
+void modules::StateMachine::process_action(const definitions::CommandRequest& action) {
+    // Store the last action for state handlers to reference
+    lastAction_ = action;
+
+    if (commandPending_ && action_matches_command(pendingCommand_, action)) {
+        commandPending_ = false;
+        lastCommandConfirmed_ = true;
+        modules::hal_general().log("Comando confirmado como ejecutado por modulo.");
+    }
+
+    // Log the action for debugging
+    switch (action.command) {
+        case definitions::CommandType::kHeaterOn:
+            modules::hal_general().log("Accion: Calentador encendido");
+            break;
+        case definitions::CommandType::kHeaterOff:
+            modules::hal_general().log("Accion: Calentador apagado");
+            break;
+        case definitions::CommandType::kPumpOn:
+            modules::hal_general().log("Accion: Bomba encendida");
+            break;
+        case definitions::CommandType::kPumpOff:
+            modules::hal_general().log("Accion: Bomba apagada");
+            break;
+        case definitions::CommandType::kChillerOn:
+            modules::hal_general().log("Accion: Enfriador encendido");
+            break;
+        case definitions::CommandType::kChillerOff:
+            modules::hal_general().log("Accion: Enfriador apagado");
+            break;
+        case definitions::CommandType::kValveOpen:
+            modules::hal_general().log("Accion: Valvula abierta");
+            break;
+        case definitions::CommandType::kValveClose:
+            modules::hal_general().log("Accion: Valvula cerrada");
+            break;
+        default:
+            break;
+    }
+
+    // State-specific action processing can be added in state handlers
+    // For now, actions are just logged for feedback confirmation
+}
+
 void modules::StateMachine::transition_to(definitions::SystemState newState) {
     on_state_exit();
     previousState_ = currentState_;
@@ -291,20 +376,20 @@ void modules::StateMachine::on_state_enter() {
         case definitions::SystemState::kCheckup:
         case definitions::SystemState::kCalibration:
         case definitions::SystemState::kSoftError: {
-            modules::Heater::instance().send_command(definitions::CommandType::kHeaterOff, 10);
-            modules::Pump::instance().send_command(definitions::CommandType::kPumpOff, 10);
-            modules::Chiller::instance().send_command(definitions::CommandType::kChillerOff, 10);
+            modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
+            modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
+            modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
         } break;
 
         case definitions::SystemState::kCriticalError: {
-            modules::Heater::instance().send_command(definitions::CommandType::kHeaterOff, 10);
-            modules::Pump::instance().send_command(definitions::CommandType::kPumpOff, 10);
-            modules::Chiller::instance().send_command(definitions::CommandType::kChillerOff, 10);
+            modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
+            modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
+            modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
 #if defined(PLC_38AR) || defined(PLC_19R)
-            modules::SolenoidValve::instance().send_command(definitions::CommandType::kValveClose,
-                                                            static_cast<uint32_t>(definitions::Pins::kValve1), 10);
-            modules::SolenoidValve::instance().send_command(definitions::CommandType::kValveClose,
-                                                            static_cast<uint32_t>(definitions::Pins::kValve2), 10);
+            modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose,
+                                                             static_cast<uint32_t>(definitions::Pins::kValve1), 10);
+            modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose,
+                                                             static_cast<uint32_t>(definitions::Pins::kValve2), 10);
 #endif
         } break;
 
@@ -314,46 +399,7 @@ void modules::StateMachine::on_state_enter() {
     }
 }
 
-bool modules::StateMachine::dispatch_to_module(const definitions::CommandRequest& request) {
-    static uint32_t acceptableTimeWindowMs = 100;  // Time window to accept command confirmations
-    switch (request.command) {
-        case definitions::CommandType::kHeaterOn:
-            return modules::Heater::instance().send_command(definitions::CommandType::kHeaterOn, acceptableTimeWindowMs);
-        case definitions::CommandType::kHeaterOff:
-            return modules::Heater::instance().send_command(definitions::CommandType::kHeaterOff, acceptableTimeWindowMs);
-        case definitions::CommandType::kPumpOn:
-            return modules::Pump::instance().send_command(definitions::CommandType::kPumpOn, acceptableTimeWindowMs);
-        case definitions::CommandType::kPumpOff:
-            return modules::Pump::instance().send_command(definitions::CommandType::kPumpOff, acceptableTimeWindowMs);
-        case definitions::CommandType::kChillerOn:
-            return modules::Chiller::instance().send_command(definitions::CommandType::kChillerOn, acceptableTimeWindowMs);
-        case definitions::CommandType::kChillerOff:
-            return modules::Chiller::instance().send_command(definitions::CommandType::kChillerOff, acceptableTimeWindowMs);
-        case definitions::CommandType::kValveOpen:
-            return modules::SolenoidValve::instance().send_command(definitions::CommandType::kValveOpen, request.pin,
-                                                                   acceptableTimeWindowMs);
-        case definitions::CommandType::kValveClose:
-            return modules::SolenoidValve::instance().send_command(definitions::CommandType::kValveClose, request.pin,
-                                                                   acceptableTimeWindowMs);
-        default:
-            return false;
-    }
-}
-
-bool modules::StateMachine::action_matches_command(const definitions::CommandRequest& request,
-                                                   const definitions::CommandRequest& action) const {
-    if (request.command != action.command) {
-        return false;
-    }
-
-    switch (request.command) {
-        case definitions::CommandType::kValveOpen:
-        case definitions::CommandType::kValveClose:
-            return request.pin == action.pin;
-        default:
-            return true;
-    }
-}
+// Handlers for States
 
 void modules::StateMachine::handle_command_feedback_timeout() {
     if (!commandPending_) {
@@ -444,50 +490,6 @@ void modules::StateMachine::handle_critical_error() {
     // TODO: Implement full stop
     // TODO: Lock control
     // TODO: Require reset
-}
-
-void modules::StateMachine::process_action(const definitions::CommandRequest& action) {
-    // Store the last action for state handlers to reference
-    lastAction_ = action;
-
-    if (commandPending_ && action_matches_command(pendingCommand_, action)) {
-        commandPending_ = false;
-        lastCommandConfirmed_ = true;
-        modules::hal_general().log("Comando confirmado como ejecutado por modulo.");
-    }
-
-    // Log the action for debugging
-    switch (action.command) {
-        case definitions::CommandType::kHeaterOn:
-            modules::hal_general().log("Accion: Calentador encendido");
-            break;
-        case definitions::CommandType::kHeaterOff:
-            modules::hal_general().log("Accion: Calentador apagado");
-            break;
-        case definitions::CommandType::kPumpOn:
-            modules::hal_general().log("Accion: Bomba encendida");
-            break;
-        case definitions::CommandType::kPumpOff:
-            modules::hal_general().log("Accion: Bomba apagada");
-            break;
-        case definitions::CommandType::kChillerOn:
-            modules::hal_general().log("Accion: Enfriador encendido");
-            break;
-        case definitions::CommandType::kChillerOff:
-            modules::hal_general().log("Accion: Enfriador apagado");
-            break;
-        case definitions::CommandType::kValveOpen:
-            modules::hal_general().log("Accion: Valvula abierta");
-            break;
-        case definitions::CommandType::kValveClose:
-            modules::hal_general().log("Accion: Valvula cerrada");
-            break;
-        default:
-            break;
-    }
-
-    // State-specific action processing can be added in state handlers
-    // For now, actions are just logged for feedback confirmation
 }
 
 void modules::StateMachine::task_entry(void* param) {

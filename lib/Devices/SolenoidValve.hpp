@@ -103,14 +103,14 @@ class SolenoidValve {
     void start_task();
 
     ///
-    /// @brief Send a valve command through the module queue.
+    /// @brief Queue a valve command in the module's local queue.
     ///
     /// @param command Command to be sent.
     /// @param pin Pin for valve control.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
-    bool send_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms = 0);
+    bool queue_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms = 0);
 
    private:
     SolenoidValve();

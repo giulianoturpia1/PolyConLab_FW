@@ -59,15 +59,38 @@ void modules::Chiller::start_task() {
     }
 }
 
-bool modules::Chiller::send_command(definitions::CommandType command, uint32_t timeout_ms) {
-    if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+bool modules::Chiller::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
+    if (queue_ == nullptr) {
         return false;
     }
 
-    return true;
+    return xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+modules::Chiller::Chiller() : pin_(0), status_(false), queue_(nullptr) {}
+
+bool modules::Chiller::process_command(definitions::CommandType command) {
+    switch (command) {
+        case definitions::CommandType::kChillerOn:
+            on();
+            modules::StateMachine::instance().queue_action({definitions::CommandType::kChillerOn, 0}, 10);
+            return true;
+
+        case definitions::CommandType::kChillerOff:
+            off();
+            modules::StateMachine::instance().queue_action({definitions::CommandType::kChillerOff, 0}, 10);
+            return true;
+
+        case definitions::CommandType::kChillerState:
+            modules::StateMachine::instance().queue_action({definitions::CommandType::kChillerState, 0}, 10);
+            return true;
+
+        default:
+            return false;
+    }
+}
 
 void modules::Chiller::task_entry(void* param) {
     Chiller* self = static_cast<Chiller*>(param);
@@ -79,22 +102,3 @@ void modules::Chiller::task_entry(void* param) {
         }
     }
 }
-
-bool modules::Chiller::process_command(definitions::CommandType command) {
-    switch (command) {
-        case definitions::CommandType::kChillerOn:
-            on();
-            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kChillerOn, 0}, 10);
-            return true;
-
-        case definitions::CommandType::kChillerOff:
-            off();
-            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kChillerOff, 0}, 10);
-            return true;
-
-        default:
-            return false;
-    }
-}
-
-modules::Chiller::Chiller() : pin_(0), status_(false), queue_(nullptr) {}

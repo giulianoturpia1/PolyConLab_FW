@@ -136,50 +136,16 @@ void SolenoidValve::start_task() {
     }
 }
 
-bool SolenoidValve::send_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {
+bool SolenoidValve::queue_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {
     const ValveCommand queue_command = {command, pin};
-    if (queue_ == nullptr || xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+    if (queue_ == nullptr) {
         return false;
     }
 
-    return true;
+    return xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
-
-void modules::SolenoidValve::task_entry(void* param) {
-    SolenoidValve* self = static_cast<SolenoidValve*>(param);
-    ValveCommand command = {definitions::CommandType::kValveClose, 0};
-
-    while (true) {
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command.command, command.pin);
-        }
-    }
-}
-
-bool SolenoidValve::process_command(definitions::CommandType command, uint32_t pin) {
-    switch (command) {
-        case definitions::CommandType::kValveOpen: {
-            const bool executed = open(pin);
-            if (executed) {
-                modules::StateMachine::instance().enqueue_action({definitions::CommandType::kValveOpen, pin}, 10);
-            }
-            return executed;
-        }
-
-        case definitions::CommandType::kValveClose: {
-            const bool executed = close(pin);
-            if (executed) {
-                modules::StateMachine::instance().enqueue_action({definitions::CommandType::kValveClose, pin}, 10);
-            }
-            return executed;
-        }
-
-        default:
-            return false;
-    }
-}
 
 SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0), queue_(nullptr) {}
 
@@ -191,6 +157,44 @@ uint8_t SolenoidValve::find_index(uint32_t pin) const {
     }
 
     return definitions::kMaxSolenoidValves;  // Return an out-of-range index to indicate not found
+}
+
+bool SolenoidValve::process_command(definitions::CommandType command, uint32_t pin) {
+    switch (command) {
+        case definitions::CommandType::kValveOpen: {
+            const bool executed = open(pin);
+            if (executed) {
+                modules::StateMachine::instance().queue_action({definitions::CommandType::kValveOpen, pin}, 10);
+            }
+            return executed;
+        }
+
+        case definitions::CommandType::kValveClose: {
+            const bool executed = close(pin);
+            if (executed) {
+                modules::StateMachine::instance().queue_action({definitions::CommandType::kValveClose, pin}, 10);
+            }
+            return executed;
+        }
+
+        case definitions::CommandType::kValveState:
+            modules::StateMachine::instance().queue_action({definitions::CommandType::kValveState, pin}, 10);
+            return find_index(pin) < definitions::kMaxSolenoidValves;
+
+        default:
+            return false;
+    }
+}
+
+void modules::SolenoidValve::task_entry(void* param) {
+    SolenoidValve* self = static_cast<SolenoidValve*>(param);
+    ValveCommand command = {definitions::CommandType::kValveClose, 0};
+
+    while (true) {
+        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
+            self->process_command(command.command, command.pin);
+        }
+    }
 }
 
 }  // namespace modules

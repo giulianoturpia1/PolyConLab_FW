@@ -79,7 +79,7 @@ class StateMachine {
     void start_task();
 
     ///
-    /// @brief Enqueue an event to be handled by the FSM task.
+    /// @brief Queue an event in the FSM task's local queue.
     ///
     /// @note This is the intended method to trigger state transitions from other tasks or ISRs.
     ///
@@ -87,10 +87,10 @@ class StateMachine {
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if event was queued, false otherwise.
     ///
-    bool enqueue_event(definitions::SystemEvent event, uint32_t timeout_ms = 0);
+    bool queue_event(definitions::SystemEvent event, uint32_t timeout_ms = 0);
 
     ///
-    /// @brief Enqueue a command request to be decided and executed by the FSM task.
+    /// @brief Queue a command request in the FSM task's local queue to be decided and executed.
     ///
     /// @note This is the intended method to send commands from other tasks or ISRs.
     ///
@@ -98,33 +98,19 @@ class StateMachine {
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if request was queued, false otherwise.
     ///
-    bool enqueue_command(const definitions::CommandRequest& request, uint32_t timeout_ms = 0);
+    bool queue_command(const definitions::CommandRequest& request, uint32_t timeout_ms = 0);
 
     ///
-    /// @brief Enqueue an executed action report to be handled by the FSM task.
+    /// @brief Queue an executed action report in the FSM task's local queue.
     ///
     /// @note This is the intended method to send action reports from other tasks or ISRs. For non-RTOS paths.
     /// @param action Executed action payload.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if action was queued, false otherwise.
     ///
-    bool enqueue_action(const definitions::CommandRequest& action, uint32_t timeout_ms = 0);
+    bool queue_action(const definitions::CommandRequest& action, uint32_t timeout_ms = 0);
 
     // Getters
-
-    ///
-    /// @brief Query whether there is a command pending execution confirmation.
-    ///
-    /// @return true if waiting for a matching module action report.
-    ///
-    bool is_command_pending() const;
-
-    ///
-    /// @brief Query whether the most recently dispatched command was confirmed as executed.
-    ///
-    /// @return true when a matching module action report has been received.
-    ///
-    bool was_last_command_confirmed() const;
 
     ///
     /// @brief Get the Current State object
@@ -141,6 +127,28 @@ class StateMachine {
     definitions::SystemState get_previous_state() const;
 
     ///
+    /// @brief Get the State Name object as a string
+    ///
+    /// @param state The state to get the name for
+    /// @return const char*
+    ///
+    static const std::string& get_state_name(definitions::SystemState state);
+
+    ///
+    /// @brief Query whether there is a command pending execution confirmation.
+    ///
+    /// @return true if waiting for a matching module action report.
+    ///
+    bool is_command_pending() const;
+
+    ///
+    /// @brief Query whether the most recently dispatched command was confirmed as executed.
+    ///
+    /// @return true when a matching module action report has been received.
+    ///
+    bool was_last_command_confirmed() const;
+
+    ///
     /// @brief Check if the state machine is in a specific state
     ///
     /// @param state The state to check
@@ -148,14 +156,6 @@ class StateMachine {
     /// @return false
     ///
     bool is_in_state(definitions::SystemState state) const;
-
-    ///
-    /// @brief Get the State Name object as a string
-    ///
-    /// @param state The state to get the name for
-    /// @return const char*
-    ///
-    static const std::string& get_state_name(definitions::SystemState state);
 
    private:
     StateMachine();
@@ -165,6 +165,23 @@ class StateMachine {
     StateMachine& operator=(const StateMachine&) = delete;
     StateMachine(StateMachine&&) = delete;
     StateMachine& operator=(StateMachine&&) = delete;
+
+    ///
+    /// @brief Dispatch a command request to its corresponding module queue/task.
+    ///
+    /// @param request Command request.
+    /// @return true when dispatch path was accepted.
+    ///
+    bool dispatch_to_module(const definitions::CommandRequest& request);
+
+    ///
+    /// @brief Compare command intent against an executed command report.
+    ///
+    /// @param request Pending command request.
+    /// @param command Reported executed command.
+    /// @return true when report confirms the pending command execution.
+    ///
+    bool action_matches_command(const definitions::CommandRequest& request, const definitions::CommandRequest& command) const;
 
     ///
     /// @brief Process an event of SystemEvent type, in a running state machine.
@@ -215,27 +232,22 @@ class StateMachine {
     ///
     void on_state_enter();
 
-    ///
-    /// @brief Dispatch a command request to its corresponding module queue/task.
-    ///
-    /// @param request Command request.
-    /// @return true when dispatch path was accepted.
-    ///
-    bool dispatch_to_module(const definitions::CommandRequest& request);
-
-    ///
-    /// @brief Compare command intent against an executed command report.
-    ///
-    /// @param request Pending command request.
-    /// @param command Reported executed command.
-    /// @return true when report confirms the pending command execution.
-    ///
-    bool action_matches_command(const definitions::CommandRequest& request, const definitions::CommandRequest& command) const;
+    // State handlers for SystemState enum class
 
     ///
     /// @brief Monitor pending command confirmation timeout.
     ///
+    /// Used by all states to check if a pending command has not been confirmed as executed within a reasonable time window, which could
+    /// indicate a fault or communication issue with the modules.
+    ///
     void handle_command_feedback_timeout();
+
+    void handle_startup();
+    void handle_checkup();
+    void handle_calibration();
+    void handle_manual();
+    void handle_soft_error();
+    void handle_critical_error();
 
     // FreeRTOS task
 
@@ -245,14 +257,6 @@ class StateMachine {
     /// @param param
     ///
     static void task_entry(void* param);
-
-    // State handlers for SystemState enum class
-    void handle_startup();
-    void handle_checkup();
-    void handle_calibration();
-    void handle_manual();
-    void handle_soft_error();
-    void handle_critical_error();
 
     static const std::map<definitions::SystemState, std::string> stateNames_;  ///< Mapping of SystemState values to human-readable names
     definitions::SystemState currentState_;                                    ///< Current state of the system
