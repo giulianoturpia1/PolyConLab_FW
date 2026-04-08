@@ -11,7 +11,11 @@
 
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <stdint.h>
+
+#include "Definitions.hpp"
 
 namespace modules {
 
@@ -28,9 +32,9 @@ class Pump {
     static Pump& instance();
 
     ///
-    /// @brief Initialize the pump controller with the relay pin.
+    /// @brief Initialize the pump controller with the pin.
     ///
-    /// @param pin Relay pin for pump control.
+    /// @param pin Pin for pump control.
     ///
     void begin(uint32_t pin);
 
@@ -52,11 +56,25 @@ class Pump {
     bool status() const;
 
     ///
-    /// @brief Get the pump relay pin.
+    /// @brief Get the pump pin.
     ///
     /// @return uint32_t
     ///
     uint32_t pin() const;
+
+    ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    void start_task();
+
+    ///
+    /// @brief Send a pump command through the module queue.
+    ///
+    /// @param command Command to be sent.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if command was queued, false otherwise.
+    ///
+    bool send_command(definitions::CommandType command, uint32_t timeout_ms = 0);
 
    private:
     Pump();
@@ -67,8 +85,25 @@ class Pump {
     Pump(Pump&&) = delete;
     Pump& operator=(Pump&&) = delete;
 
-    uint32_t pin_;
-    bool status_;
+    ///
+    /// @brief Process a pump command directly, without queueing. Used as a fallback when the queue is unavailable.
+    ///
+    /// @param command Command to be processed.
+    /// @return true
+    /// @return false
+    ///
+    bool process_command(definitions::CommandType command);
+
+    ///
+    /// @brief FreeRTOS task entrypoint for the pump module. Waits for commands on the queue and processes them.
+    ///
+    /// @param param
+    ///
+    static void task_entry(void* param);
+
+    uint32_t pin_;         ///< Pin used for pump control
+    bool status_;          ///< Current pump status (true = ON, false = OFF)
+    QueueHandle_t queue_;  ///< FreeRTOS queue handle for pump commands
 };
 
 }  // namespace modules

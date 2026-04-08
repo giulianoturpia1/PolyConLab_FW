@@ -11,7 +11,11 @@
 
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <stdint.h>
+
+#include "Definitions.hpp"
 
 namespace modules {
 
@@ -28,9 +32,9 @@ class Chiller {
     static Chiller& instance();
 
     ///
-    /// @brief Initialize the chiller controller with the relay pin.
+    /// @brief Initialize the chiller controller with the pin.
     ///
-    /// @param pin Relay pin for chiller control.
+    /// @param pin Pin for chiller control.
     ///
     void begin(uint32_t pin);
 
@@ -52,11 +56,25 @@ class Chiller {
     bool status() const;
 
     ///
-    /// @brief Get the chiller relay pin.
+    /// @brief Get the chiller pin.
     ///
     /// @return uint32_t
     ///
     uint32_t pin() const;
+
+    ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    void start_task();
+
+    ///
+    /// @brief Send a chiller command through the module queue.
+    ///
+    /// @param command Command to be sent.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if command was queued, false otherwise.
+    ///
+    bool send_command(definitions::CommandType command, uint32_t timeout_ms = 0);
 
    private:
     Chiller();
@@ -67,8 +85,25 @@ class Chiller {
     Chiller(Chiller&&) = delete;
     Chiller& operator=(Chiller&&) = delete;
 
-    uint32_t pin_;
-    bool status_;
+    ///
+    /// @brief Process a chiller command directly, without queueing. Used as a fallback when the queue is unavailable.
+    ///
+    /// @param command
+    /// @return true
+    /// @return false
+    ///
+    bool process_command(definitions::CommandType command);
+
+    ///
+    /// @brief
+    ///
+    /// @param param
+    ///
+    static void task_entry(void* param);
+
+    uint32_t pin_;         ///< Pin used for chiller control
+    bool status_;          ///< Current chiller status
+    QueueHandle_t queue_;  ///< FreeRTOS queue handle for chiller commands
 };
 
 }  // namespace modules

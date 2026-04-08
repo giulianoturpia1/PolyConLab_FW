@@ -1,11 +1,10 @@
 # PolyConLab_FW
 
-Repository that holds all the firmware and utilities related to the ESP32-based PLC from Arduino Shields. Part of a Final Degree Project for Facultad de Ingeniería, UDELAR.
-This project is part of a Final Degree Project for the Facultad de Ingeniería, UDELAR. For more information about the project, please refer to the documentation provided in the repository or contact the authors directly.
+Repository that holds all the firmware and utilities related to the ESP32-based PLC from Arduino Shields. This project is part of a Final Degree Project for the Facultad de Ingeniería, UDELAR. For more information about the project, please refer to the documentation provided in the repository or contact the authors directly.
 
 ## Table of Contents
 
-- [1. Prerequisites and Introduction](#1-prerequisites-and-introduction)
+- [1. Introduction and Prerequisites](#1-introduction-and-prerequisites)
 - [2. Setting Up the Project](#2-setting-up-the-project)
 - [3. Building the Firmware](#3-building-the-firmware)
 - [4. Flashing the Firmware](#4-flashing-the-firmware)
@@ -17,11 +16,20 @@ This project is part of a Final Degree Project for the Facultad de Ingeniería, 
 - [6. Known Issues](#6-known-issues)
   - [6.1. Unable to find COM Port on Windows](#61-unable-to-find-com-port-on-windows)
   - [6.2. Industrial Shields Library Issues](#62-industrial-shields-library-issues)
-  - [6.3. Testing and Simulation](#63-testing-and-simulation)
-    - [6.3.1. Arduino Header Dependencies](#631-arduino-header-dependencies)
+  - [6.3. Ethernet Arduino Library Issues](#63-ethernet-arduino-library-issues)
+  - [6.4. Testing and Simulation](#64-testing-and-simulation)
+    - [6.4.1. Arduino Header Dependencies](#641-arduino-header-dependencies)
 - [7. Contact Information](#7-contact-information)
 
-## 1. Prerequisites and Introduction
+## 1. Introduction and Prerequisites
+
+### 1.1. Introduction
+
+PolyConLab_FW is a state-machine driven firmware for an ESP32-based Programmable Logic Controller (PLC) designed to manage industrial automation workflows. The firmware implements a modular, asynchronous architecture using FreeRTOS queues and tasks to coordinate multiple actuators (heaters, pumps, chillers, solenoid valves) and sensors across different operational states. It supports both manual control and autonomous calibration modes, with robust state management and feedback tracking. This project uses PlatformIO as the build system to manage dependencies and facilitate cross-platform development.
+
+For detailed information about the firmware implementation, architecture, and design patterns, please refer to [lib/README.md](lib/README.md).
+
+### 1.2. Prerequisites
 
 Before you begin, ensure you have met the following requirements, regarding your development environment:
 
@@ -35,7 +43,7 @@ Before you begin, ensure you have met the following requirements, regarding your
   - Doxygen Documentation Generator by Christoph Schlosser.
 
 Other extensions may be useful, but these are essential for development.
-Refering to the Industrial Shields library, it is only available through PlatformIO or directly from Arduino IDE. For this reason, PlatformIO is the recommended IDE for this project on top of Visual Studio Code. It is also recommended to have the Utilities installed that we recommend for the project, as described in the [Utilities](#5-utilities) section.
+Refering to the Industrial Shields library, it is only available through PlatformIO or directly from Arduino IDE. For this reason, PlatformIO is the recommended IDE for this project on top of Visual Studio Code. It is also recommended to have the utilities installed that we recommend for the project, as described in the [Utilities](#5-utilities) section.
 Furthermore, since the library was initially designed for Arduino IDE, the PlatformIO project configuration file (`platformio.ini`) needs to use the Arduino framework for ESP32.
 Across the root folders of the repository, you will find `README.md` files that provide additional information about the structure and usage of each folder. It is recommended to read these files to gain a better understanding of the project organization and functionality.
 
@@ -167,9 +175,9 @@ class Server: public Print
 
 After doing the previous modification, delete the local build files by deleting the `.pio` folder in the project directory folder.
 
-### 6.3. Testing and Simulation
+### 6.4. Testing and Simulation
 
-#### 6.3.1. Arduino Header Dependencies
+#### 6.4.1. Arduino Header Dependencies
 
 If you encounter compilation errors related to missing Arduino.h or Arduino libraries during tests:
 
@@ -178,7 +186,7 @@ If you encounter compilation errors related to missing Arduino.h or Arduino libr
 3. Use conditional compilation (`#ifdef ARDUINO`) to conditionally include Arduino-specific code
 4. For pure unit tests (host simulation), use mock objects or pure C++ implementations
 
-### 7. Contact Information
+## 7. Contact Information
 
 For any questions or further information, please reach out to:
 
