@@ -24,6 +24,11 @@ namespace definitions {
 constexpr uint8_t kMaxSolenoidValves = 8;
 
 ///
+/// @brief Maximum number of Thermocouple Amplifiers supported by the system.
+///
+constexpr uint8_t kMaxThermocouples = 5;
+
+///
 /// @brief System states for the Finite State Machine. Refer to the design documentation for details.
 ///
 ///
@@ -193,7 +198,7 @@ struct ResponseMap {
     ResponseType type;  //< Response identifier
 };
 
-constexpr std::array<CommandMap, 16> kCommandMap = {{
+constexpr std::array<CommandMap, 20> kCommandMap = {{
     {("HEATER_ON"), CommandType::kHeaterOn},
     {("HEATER_OFF"), CommandType::kHeaterOff},
     {("HEATER_STATE"), CommandType::kHeaterState},
@@ -206,6 +211,10 @@ constexpr std::array<CommandMap, 16> kCommandMap = {{
     {("VALVE_OPEN"), CommandType::kValveOpen},
     {("VALVE_CLOSE"), CommandType::kValveClose},
     {("VALVE_STATE"), CommandType::kValveState},
+    {("LEER_TEMP_INCAMISA"), CommandType::kTempInRead},
+    {("LEER_TEMP_OUTCAMISA"), CommandType::kTempOutRead},
+    {("LEER_TEMP_CAMISA"), CommandType::kTempBathRead},
+    {("LEER_TEMP_MEZCLA"), CommandType::kTempMixRead},
     {("READ_FLOW"), CommandType::kFlowRead},
     {("PING"), CommandType::kPing},
     {("STATE"), CommandType::kStateQuery},

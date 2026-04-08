@@ -12,6 +12,7 @@
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
+#include "Thermocouple.hpp"
 
 #if defined(PLC_38AR)
 #include "PLC38AR.hpp"
@@ -57,7 +58,8 @@ App::App()
       heater_(modules::Heater::instance()),
       pump_(modules::Pump::instance()),
       chiller_(modules::Chiller::instance()),
-      valves_(modules::SolenoidValve::instance()) {}
+      valves_(modules::SolenoidValve::instance()),
+      thermocouples_(modules::Thermocouple::instance()) {}
 
 void App::configure_serial_response_callback() {
     communications_.set_serial_response_callback([this](const std::string& response) { hal_.log(response.c_str()); });
@@ -76,6 +78,7 @@ void App::initialize_modules() {
     pump_.start_task();
     chiller_.start_task();
     valves_.start_task();
+    thermocouples_.start_task();
     state_machine_.start_task();
 
     initialize_network_server();
@@ -89,6 +92,11 @@ void App::initialize_devices() {
 
     uint32_t valve_pins[] = {static_cast<uint32_t>(definitions::Pins::kValve1), static_cast<uint32_t>(definitions::Pins::kValve2)};
     valves_.begin(valve_pins, 2);
+
+    uint32_t i2c_addresses[] = {
+        static_cast<uint32_t>(definitions::Addresses::kTempSensor1), static_cast<uint32_t>(definitions::Addresses::kTempSensor2),
+        static_cast<uint32_t>(definitions::Addresses::kTempSensor3), static_cast<uint32_t>(definitions::Addresses::kTempSensor4)};
+    thermocouples_.begin(i2c_addresses, 4);
 }
 
 void App::poll_serial_messages() {

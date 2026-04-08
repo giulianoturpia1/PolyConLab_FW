@@ -12,20 +12,11 @@
 #else
 #endif
 
-bool heaterStatusFlag = false;
-
 volatile uint32_t flow_pulses = 0;
 portMUX_TYPE flowMux = portMUX_INITIALIZER_UNLOCKED;
 hw_timer_t* timer = NULL;
 const float pulsesPerLiter = 450.0;  // A configurar segun el sensor
 volatile float flow_rate = 0;
-
-// -------- TEMPERATURE SENSOR FUNCTIONS ---------
-float readTempSensor(uint32_t sensor_) {
-    // TODO: Implement actual sensor reading logic based on the specific temperature sensor used (e.g., DS18B20,
-    // thermocouple, etc.) This is a placeholder implementation that returns a dummy value.
-    return 25.0;  // Placeholder value - replace with actual sensor reading
-}
 
 // -------- FLOW METER FUNCTIONS ---------
 
