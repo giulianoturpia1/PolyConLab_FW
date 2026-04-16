@@ -75,16 +75,16 @@ bool modules::Heater::process_command(definitions::CommandType command) {
     switch (command) {
         case definitions::CommandType::kHeaterOn:
             on();
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kHeaterOn, 0}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kHeaterOn, 0}, 10);
             return true;
 
         case definitions::CommandType::kHeaterOff:
             off();
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kHeaterOff, 0}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kHeaterOff, 0}, 10);
             return true;
 
         case definitions::CommandType::kHeaterState:
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kHeaterState, 0}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kHeaterState, 0}, 10);
             return true;
 
         default:

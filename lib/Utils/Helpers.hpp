@@ -85,4 +85,20 @@ inline const char* response(const definitions::ResponseType type) {
     return "";
 }
 
+///
+/// @brief Resolve canonical response text for command acknowledgements.
+///
+/// @param command Command identifier
+/// @return const char* Canonical response text, or nullptr if unsupported
+///
+inline const char* response_for_command(const definitions::CommandType command) {
+    const auto it = std::find_if(definitions::kCommandResponseMap.begin(), definitions::kCommandResponseMap.end(),
+                                 [command](const definitions::CommandResponseMap& entry) { return entry.command == command; });
+    if (it == definitions::kCommandResponseMap.end()) {
+        return nullptr;
+    }
+
+    return response(it->response);
+}
+
 }  // namespace utils

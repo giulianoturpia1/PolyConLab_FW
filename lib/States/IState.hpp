@@ -33,13 +33,13 @@ class IState {
     virtual definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) = 0;
 
     ///
-    /// @brief Handle a command request while this state is active.
+    /// @brief Validate and dispatch a command request while this state is active.
     ///
     /// @param context FSM runtime context.
     /// @param request Command request to evaluate/dispatch.
     /// @return true if command was accepted and dispatched; false otherwise.
     ///
-    virtual bool handle_command(StateMachine* context, const definitions::CommandRequest& request);
+    virtual bool dispatch_command(StateMachine* context, const definitions::CommandRequest& request);
 
     ///
     /// @brief Optional callback executed when entering the state. Can be used for actions like applying safe outputs, logging, etc.

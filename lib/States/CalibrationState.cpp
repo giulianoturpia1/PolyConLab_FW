@@ -26,7 +26,7 @@ definitions::SystemState modules::CalibrationState::handle_event(StateMachine* c
     }
 }
 
-bool modules::CalibrationState::handle_command(StateMachine* context, const definitions::CommandRequest& request) {
+bool modules::CalibrationState::dispatch_command(StateMachine* context, const definitions::CommandRequest& request) {
     (void) context;
 
     constexpr uint32_t kAcceptableTimeWindowMs = 100;

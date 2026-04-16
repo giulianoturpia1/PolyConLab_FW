@@ -75,16 +75,16 @@ bool modules::Chiller::process_command(definitions::CommandType command) {
     switch (command) {
         case definitions::CommandType::kChillerOn:
             on();
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kChillerOn, 0}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kChillerOn, 0}, 10);
             return true;
 
         case definitions::CommandType::kChillerOff:
             off();
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kChillerOff, 0}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kChillerOff, 0}, 10);
             return true;
 
         case definitions::CommandType::kChillerState:
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kChillerState, 0}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kChillerState, 0}, 10);
             return true;
 
         default:

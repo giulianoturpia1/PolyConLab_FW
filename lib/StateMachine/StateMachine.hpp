@@ -28,7 +28,7 @@ class IState;
 ///
 /// The current implementation utilizes a FreeRTOS task to run the state machine loop, which processes events and commands from queues.
 /// The main loop is implemented in the tick() method, which executes the handler for the current state.
-/// The StateMachine task constantly polls for events, commands, and action reports from the respective queues. Which represent the
+/// The StateMachine task constantly polls for events, commands, and response reports from the respective queues. Which represent the
 /// following:
 ///
 /// + Events are used to trigger state transitions.
@@ -36,7 +36,7 @@ class IState;
 /// + Commands are used to request actions to be executed by the modules, which may or may not trigger state transitions depending on the
 /// current state and command logic.
 ///
-/// + Action reports are used by modules to report back the execution of commands, which can be used for feedback confirmation and to
+/// + Response reports are used by modules to report back the execution of commands, which can be used for feedback confirmation and to
 /// trigger further actions or transitions if needed.
 ///
 /// The StateMachine acts as a "Mediator" as in the Mediator design pattern, coordinating interactions between different modules.
@@ -44,8 +44,8 @@ class IState;
 /// @note The task calling tick() should have a high priority to ensure timely state handling, and the tick() method should be called at a
 /// regular interval (e.g. every 20ms) to maintain system responsiveness.
 ///
-/// Events are enqueued via queue_event() and processed internally by the FSM task.
-/// tick() only executes the current state's handler.
+/// Events are enqueued via queue_event() and consumed by tick() each FSM cycle.
+/// tick() performs bounded queue intake and executes the current state's handler.
 ///
 class StateMachine {
    public:
@@ -90,19 +90,19 @@ class StateMachine {
     bool queue_command(const definitions::CommandRequest& request, uint32_t timeout_ms = 0);
 
     ///
-    /// @brief Queue an executed action report in the FSM task's local queue.
+    /// @brief Queue an executed response report in the FSM task's local queue.
     ///
-    /// @note This is the intended method to send action reports from other tasks or ISRs. For non-RTOS paths.
-    /// @param action Executed action payload.
+    /// @note This is the intended method to send response reports from other tasks or ISRs. For non-RTOS paths.
+    /// @param response Executed response payload.
     /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if action was queued, false otherwise.
+    /// @return true if response was queued, false otherwise.
     ///
-    bool queue_action(const definitions::CommandRequest& action, uint32_t timeout_ms = 0);
+    bool queue_response(const definitions::CommandRequest& response, uint32_t timeout_ms = 0);
 
     ///
     /// @brief Execute one state-machine cycle (to be called repeatedly in a loop).
-    /// This executes the handler for the current state and does not directly dequeue event/command/action
-    /// queues, which are handled by the internal FSM task loop.
+    /// This consumes a bounded number of queued event/command/response messages and then executes the
+    /// handler for the current state.
     ///
     ///
     void tick();
@@ -134,7 +134,7 @@ class StateMachine {
     ///
     /// @brief Query whether there is a command pending execution confirmation.
     ///
-    /// @return true if waiting for a matching module action report.
+    /// @return true if waiting for a matching module response report.
     ///
     bool is_command_pending() const;
 
@@ -189,7 +189,7 @@ class StateMachine {
     /// @param command Reported executed command.
     /// @return true when report confirms the pending command execution.
     ///
-    bool action_matches_command(const definitions::CommandRequest& request, const definitions::CommandRequest& command) const;
+    bool response_matches_command(const definitions::CommandRequest& request, const definitions::CommandRequest& response) const;
 
     ///
     /// @brief Process an event of SystemEvent type.
@@ -201,21 +201,26 @@ class StateMachine {
     void process_event(definitions::SystemEvent event);
 
     ///
-    /// @brief Process a command request immediately.
+    /// @brief Dispatch a command request immediately.
     /// Intended for internal scheduler/task use and non-RTOS fallback paths.
     /// The active state's handler decides command acceptance/dispatch.
     ///
     /// @param request Command request.
     ///
-    void process_command(const definitions::CommandRequest& request);
+    void dispatch_command_request(const definitions::CommandRequest& request);
 
     ///
-    /// @brief Process an executed action report.
+    /// @brief Process an executed response report.
     /// Intended for internal scheduler/task use and non-RTOS fallback paths.
     ///
-    /// @param action Executed action report.
+    /// @param response Executed response report.
     ///
-    void process_action(const definitions::CommandRequest& action);
+    void process_response(const definitions::CommandRequest& response);
+
+    ///
+    /// @brief Consume a bounded number of different queue messages in one FSM cycle.
+    ///
+    void attend_queues();
 
     // Auxiliary operations
 
@@ -265,7 +270,7 @@ class StateMachine {
     definitions::SystemState previousState_;                                     ///< Previous state of the system
     unsigned long stateEntryTime_;                                               ///< Timestamp of when the current state was entered
     bool stateChanged_;                           ///< Flag indicating if the state has changed since the last tick
-    definitions::CommandRequest lastAction_;      ///< Last executed action
+    definitions::CommandRequest lastResponse_;    ///< Last executed response
     definitions::CommandRequest pendingCommand_;  ///< Last command request pending execution confirmation
     unsigned long pendingCommandTimeMs_;          ///< Timestamp of when the pending command was sent
     bool commandPending_;                         ///< Flag indicating if there is a command pending execution confirmation

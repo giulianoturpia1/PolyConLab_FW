@@ -2,7 +2,7 @@
 
 #include "StateMachine.hpp"
 
-bool modules::IState::handle_command(StateMachine* context, const definitions::CommandRequest& request) {
+bool modules::IState::dispatch_command(StateMachine* context, const definitions::CommandRequest& request) {
     (void) context;
     (void) request;
     return false;

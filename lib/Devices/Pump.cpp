@@ -75,16 +75,16 @@ bool modules::Pump::process_command(definitions::CommandType command) {
     switch (command) {
         case definitions::CommandType::kPumpOn:
             on();
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kPumpOn, 0}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kPumpOn, 0}, 10);
             return true;
 
         case definitions::CommandType::kPumpOff:
             off();
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kPumpOff, 0}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kPumpOff, 0}, 10);
             return true;
 
         case definitions::CommandType::kPumpState:
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kPumpState, 0}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kPumpState, 0}, 10);
             return true;
 
         default:

@@ -164,7 +164,7 @@ bool SolenoidValve::process_command(definitions::CommandType command, uint32_t p
         case definitions::CommandType::kValveOpen: {
             const bool executed = open(pin);
             if (executed) {
-                modules::StateMachine::instance().queue_action({definitions::CommandType::kValveOpen, pin}, 10);
+                modules::StateMachine::instance().queue_response({definitions::CommandType::kValveOpen, pin}, 10);
             }
             return executed;
         }
@@ -172,13 +172,13 @@ bool SolenoidValve::process_command(definitions::CommandType command, uint32_t p
         case definitions::CommandType::kValveClose: {
             const bool executed = close(pin);
             if (executed) {
-                modules::StateMachine::instance().queue_action({definitions::CommandType::kValveClose, pin}, 10);
+                modules::StateMachine::instance().queue_response({definitions::CommandType::kValveClose, pin}, 10);
             }
             return executed;
         }
 
         case definitions::CommandType::kValveState:
-            modules::StateMachine::instance().queue_action({definitions::CommandType::kValveState, pin}, 10);
+            modules::StateMachine::instance().queue_response({definitions::CommandType::kValveState, pin}, 10);
             return find_index(pin) < definitions::kMaxSolenoidValves;
 
         default:

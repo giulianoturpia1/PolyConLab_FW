@@ -30,7 +30,7 @@ definitions::SystemState modules::ManualState::handle_event(StateMachine* contex
     }
 }
 
-bool modules::ManualState::handle_command(StateMachine* context, const definitions::CommandRequest& request) {
+bool modules::ManualState::dispatch_command(StateMachine* context, const definitions::CommandRequest& request) {
     (void) context;
 
     switch (request.command) {

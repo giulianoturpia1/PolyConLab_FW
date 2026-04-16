@@ -197,6 +197,14 @@ struct ResponseMap {
     ResponseType type;  //< Response identifier
 };
 
+///
+/// @brief Mapping of command enums to canonical response identifiers.
+///
+struct CommandResponseMap {
+    CommandType command;
+    ResponseType response;
+};
+
 constexpr std::array<CommandMap, 16> kCommandMap = {{
     {("HEATER_ON"), CommandType::kHeaterOn},
     {("HEATER_OFF"), CommandType::kHeaterOff},
@@ -276,6 +284,17 @@ constexpr std::array<ResponseMap, 27> kResponseMap = {{
     {"OFF", ResponseType::kStatusOff},
     {"OPEN", ResponseType::kStatusOpen},
     {"CLOSE", ResponseType::kStatusClosed},
+}};
+
+constexpr std::array<CommandResponseMap, 8> kCommandResponseMap = {{
+    {CommandType::kHeaterOn, ResponseType::kHeaterOn},
+    {CommandType::kHeaterOff, ResponseType::kHeaterOff},
+    {CommandType::kPumpOn, ResponseType::kPumpOn},
+    {CommandType::kPumpOff, ResponseType::kPumpOff},
+    {CommandType::kChillerOn, ResponseType::kChillerOn},
+    {CommandType::kChillerOff, ResponseType::kChillerOff},
+    {CommandType::kValveOpen, ResponseType::kValveOpen},
+    {CommandType::kValveClose, ResponseType::kValveClosed},
 }};
 
 enum class ErrorCode {
