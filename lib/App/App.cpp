@@ -6,6 +6,7 @@
 
 #include "Chiller.hpp"
 #include "Communications.hpp"
+#include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
 #include "LocalServer.hpp"
@@ -59,7 +60,8 @@ App::App()
       pump_(modules::Pump::instance()),
       chiller_(modules::Chiller::instance()),
       valves_(modules::SolenoidValve::instance()),
-      thermocouples_(modules::Thermocouple::instance()) {}
+      thermocouples_(modules::Thermocouple::instance()),
+      flowmeter_(modules::Flowmeter::instance()) {}
 
 void App::configure_serial_response_callback() {
     communications_.set_serial_response_callback([this](const std::string& response) { hal_.log(response.c_str()); });
@@ -79,6 +81,7 @@ void App::initialize_modules() {
     chiller_.start_task();
     valves_.start_task();
     thermocouples_.start_task();
+    flowmeter_.start_task();
     state_machine_.start_task();
 
     initialize_network_server();
@@ -97,6 +100,8 @@ void App::initialize_devices() {
         static_cast<uint32_t>(definitions::Addresses::kTempSensor1), static_cast<uint32_t>(definitions::Addresses::kTempSensor2),
         static_cast<uint32_t>(definitions::Addresses::kTempSensor3), static_cast<uint32_t>(definitions::Addresses::kTempSensor4)};
     thermocouples_.begin(i2c_addresses, 4);
+
+    flowmeter_.begin(static_cast<uint32_t>(definitions::Pins::kFlowmeter));
 }
 
 void App::poll_serial_messages() {

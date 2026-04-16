@@ -4,7 +4,7 @@
 
 #include "Chiller.hpp"
 #include "Definitions.hpp"
-#include "Devices.hpp"
+#include "Flowmeter.hpp"
 #include "Heater.hpp"
 #include "Helpers.hpp"
 #include "Pump.hpp"
@@ -240,9 +240,35 @@ bool Communications::handle_command(const std::string& msg, const std::function<
             return true;
         }
 
+        case definitions::CommandType::kFlowBegin: {
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
+            respond(std::string(utils::response(definitions::ResponseType::kFlowBegin)));
+            return true;
+        }
+
+        case definitions::CommandType::kFlowStop: {
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
+            respond(std::string(utils::response(definitions::ResponseType::kFlowStop)));
+            return true;
+        }
+
         case definitions::CommandType::kFlowRead: {
-            float flow_rate = readFlowMeter();
+            float flow_rate = modules::Flowmeter::instance().readFlow();
             respond(std::string(utils::response(definitions::ResponseType::kFlowPrefix)) + utils::format_float(flow_rate, 2));
+            return true;
+        }
+
+        case definitions::CommandType::kFlowStatus: {
+            const bool state = modules::Flowmeter::instance().status();
+            respond(
+                std::string(utils::response(definitions::ResponseType::kFlowStatePrefix)) +
+                (state ? utils::response(definitions::ResponseType::kStatusOn) : utils::response(definitions::ResponseType::kStatusOff)));
             return true;
         }
 

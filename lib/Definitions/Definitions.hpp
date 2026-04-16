@@ -132,7 +132,10 @@ enum class CommandType {
     kTempMixRead,
 
     // Flow meter command
+    kFlowBegin,
+    kFlowStop,
     kFlowRead,
+    kFlowStatus,
 
     // Diagnostics/Status
     kPing,
@@ -180,7 +183,11 @@ enum class ResponseType {
     kValveOpen,
     kValveClosed,
     kValveStatePrefix,
+    kFlowBegin,
+    kFlowStop,
     kFlowPrefix,
+    kFlowStatePrefix,
+    kFlowPin,
     kPingOk,
     kStatePrefix,
     kStatusOn,
