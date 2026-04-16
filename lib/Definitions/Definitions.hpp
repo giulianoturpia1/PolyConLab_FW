@@ -14,6 +14,7 @@
 #include <stdint.h>
 
 #include <array>
+#include <map>
 #include <string>
 
 namespace definitions {
@@ -28,12 +29,14 @@ constexpr uint8_t kMaxSolenoidValves = 8;
 ///
 ///
 enum class SystemState {
-    kStartup,       ///< Initial state: Initialize HW/RTOS, Init TCP/BLE, Init lights
-    kCheckup,       ///< Automatic checkup: Health-check sensors, Handshake SCADA/BLE, Analogic checks
-    kCalibration,   ///< Calibration: Ordered stop, Execute calibration protocol, Return to Automatic Checkups
-    kManual,        ///< Manual/Wait state: Commands 1 and 1, Active interfaces, User waiting
-    kSoftError,     ///< Soft error: Partial stop, HMI warning + LED/Buzzer, Retry/Ack
-    kCriticalError  ///< Critical error (latched): Full stop, Control locked, Requires reset
+    kStartup,      ///< Initial state: Initialize HW/RTOS, Init TCP/BLE, Init lights
+    kCheckup,      ///< Automatic checkup: Health-check sensors, Handshake SCADA/BLE, Analogic checks
+    kCalibration,  ///< Calibration: Ordered stop, Execute calibration protocol, Return to Automatic Checkups
+    kManual,       ///< Manual/Wait state: Commands 1 and 1, Active interfaces, User waiting
+    kPause,        ///< Pause: Freeze timers, safe partial exit, allow resume/abort
+    kSoftError,    ///< Soft error: Partial stop, HMI warning + LED/Buzzer, Retry/Ack
+    kHardError,    ///< Critical error (latched): Full stop, Control locked, Requires reset
+    kShutdown      ///< Safe stop: Ordered stop, save state, return to Startup
 };
 
 ///
@@ -73,6 +76,7 @@ enum class SystemEvent {
 
     // Retry/check events
     kCmdRetryCheck,
+    kCmdAckFault,
     kCmdSeqReset,
     kConditionCleared,
     kSeqDone,
@@ -212,7 +216,7 @@ constexpr std::array<CommandMap, 16> kCommandMap = {{
     {("STATE?"), CommandType::kStateQuery},
 }};
 
-constexpr std::array<EventMap, 28> kEventMap = {{
+constexpr std::array<EventMap, 29> kEventMap = {{
     {("POWER_ON"), SystemEvent::kPowerOn},
     {("INIT_OK"), SystemEvent::kInitOk},
     {("CHECKUP_OK"), SystemEvent::kCheckupOk},
@@ -231,6 +235,7 @@ constexpr std::array<EventMap, 28> kEventMap = {{
     {("FAULT_RECOVERABLE"), SystemEvent::kFaultRecoverable},
     {("FAULT_CRITICAL"), SystemEvent::kFaultCritical},
     {("CMD_RETRY_CHECK"), SystemEvent::kCmdRetryCheck},
+    {("CMD_ACK_FAULT"), SystemEvent::kCmdAckFault},
     {("CMD_SEQ_RESET"), SystemEvent::kCmdSeqReset},
     {("CONDITION_CLEARED"), SystemEvent::kConditionCleared},
     {("SEQ_DONE"), SystemEvent::kSeqDone},
@@ -280,5 +285,24 @@ enum class ErrorCode {
 enum class Constants {
     kTempIntervalMs = 2000,  ///< Interval for temperature readings in milliseconds
 };
+
+///
+/// @brief Mapping of SystemState enums to human-readable state names.
+///
+struct StateNameMap {
+    SystemState state;  ///< System state enum value
+    const char* name;   ///< Human-readable state name (e.g., "STARTUP")
+};
+
+constexpr std::array<StateNameMap, 8> kStateNameMap = {{
+    {SystemState::kStartup, "STARTUP"},
+    {SystemState::kCheckup, "CHECKUP"},
+    {SystemState::kCalibration, "CALIBRATION"},
+    {SystemState::kManual, "MANUAL"},
+    {SystemState::kPause, "PAUSE"},
+    {SystemState::kSoftError, "SOFT_ERROR"},
+    {SystemState::kHardError, "HARD_ERROR"},
+    {SystemState::kShutdown, "SHUTDOWN"},
+}};
 
 }  // namespace definitions

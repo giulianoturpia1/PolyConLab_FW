@@ -11,13 +11,16 @@
 
 #pragma once
 
-#include <functional>
 #include <map>
+#include <memory>
 #include <string>
 
 #include "Definitions.hpp"
 
 namespace modules {
+
+// Forward declaration.
+class IState;
 
 ///
 /// @brief Finite State Machine for system state management. It handles state transitions and is
@@ -41,17 +44,11 @@ namespace modules {
 /// @note The task calling tick() should have a high priority to ensure timely state handling, and the tick() method should be called at a
 /// regular interval (e.g. every 20ms) to maintain system responsiveness.
 ///
-/// process_event() is the one to execute the state transitions,
-/// while tick() only executes the current state's handler.
+/// Events are enqueued via queue_event() and processed internally by the FSM task.
+/// tick() only executes the current state's handler.
 ///
 class StateMachine {
    public:
-    ///
-    /// @brief Type definition for state handler functions
-    ///
-    ///
-    using StateHandler = std::function<void()>;
-
     ///
     /// @brief Get the singleton instance of the StateMachine
     ///
@@ -64,14 +61,6 @@ class StateMachine {
     ///
     ///
     void initialize();
-
-    ///
-    /// @brief Execute one state-machine cycle (to be called repeatedly in a loop).
-    /// This executes the handler for the current state and does not handle event logic transition, that
-    /// should be done via process_event().
-    ///
-    ///
-    void tick();
 
     ///
     /// @brief Start the dedicated FSM FreeRTOS task and event queue.
@@ -90,9 +79,9 @@ class StateMachine {
     bool queue_event(definitions::SystemEvent event, uint32_t timeout_ms = 0);
 
     ///
-    /// @brief Queue a command request in the FSM task's local queue to be decided and executed.
+    /// @brief Queue a command request in the FSM task's local queue.
     ///
-    /// @note This is the intended method to send commands from other tasks or ISRs.
+    /// @note The active state decides whether and how to execute the queued command.
     ///
     /// @param request Command request.
     /// @param timeout_ms Queue send timeout in milliseconds.
@@ -109,6 +98,14 @@ class StateMachine {
     /// @return true if action was queued, false otherwise.
     ///
     bool queue_action(const definitions::CommandRequest& action, uint32_t timeout_ms = 0);
+
+    ///
+    /// @brief Execute one state-machine cycle (to be called repeatedly in a loop).
+    /// This executes the handler for the current state and does not directly dequeue event/command/action
+    /// queues, which are handled by the internal FSM task loop.
+    ///
+    ///
+    void tick();
 
     // Getters
 
@@ -167,12 +164,23 @@ class StateMachine {
     StateMachine& operator=(StateMachine&&) = delete;
 
     ///
-    /// @brief Dispatch a command request to its corresponding module queue/task.
+    /// @brief Get the state handler object for a given SystemState.
     ///
-    /// @param request Command request.
-    /// @return true when dispatch path was accepted.
+    /// This is used internally to delegate event handling and state logic execution to the appropriate state handler.
     ///
-    bool dispatch_to_module(const definitions::CommandRequest& request);
+    /// @param state The SystemState to get the handler for.
+    /// @return IState*
+    ///
+    IState* get_state_handler(definitions::SystemState state);
+    ///
+    /// @brief Get the state handler object for a given SystemState.
+    ///
+    /// This is used internally to delegate event handling and state logic execution to the appropriate state handler.
+    ///
+    /// @param state The SystemState to get the handler for.
+    /// @return const IState*
+    ///
+    const IState* get_state_handler(definitions::SystemState state) const;
 
     ///
     /// @brief Compare command intent against an executed command report.
@@ -184,17 +192,18 @@ class StateMachine {
     bool action_matches_command(const definitions::CommandRequest& request, const definitions::CommandRequest& command) const;
 
     ///
-    /// @brief Process an event of SystemEvent type, in a running state machine.
-    /// This checks the current state and certain events to determine if a state transition is needed or
-    /// not.
+    /// @brief Process an event of SystemEvent type.
     ///
-    /// @param event The event to process
+    /// Intended for internal scheduler/task use and non-RTOS fallback paths.
+    ///
+    /// @param event The event to process.
     ///
     void process_event(definitions::SystemEvent event);
 
     ///
     /// @brief Process a command request immediately.
     /// Intended for internal scheduler/task use and non-RTOS fallback paths.
+    /// The active state's handler decides command acceptance/dispatch.
     ///
     /// @param request Command request.
     ///
@@ -242,13 +251,6 @@ class StateMachine {
     ///
     void handle_command_feedback_timeout();
 
-    void handle_startup();
-    void handle_checkup();
-    void handle_calibration();
-    void handle_manual();
-    void handle_soft_error();
-    void handle_critical_error();
-
     // FreeRTOS task
 
     ///
@@ -258,10 +260,10 @@ class StateMachine {
     ///
     static void task_entry(void* param);
 
-    static const std::map<definitions::SystemState, std::string> stateNames_;  ///< Mapping of SystemState values to human-readable names
-    definitions::SystemState currentState_;                                    ///< Current state of the system
-    definitions::SystemState previousState_;                                   ///< Previous state of the system
-    unsigned long stateEntryTime_;                                             ///< Timestamp of when the current state was entered
+    std::map<definitions::SystemState, std::unique_ptr<IState>> stateHandlers_;  ///< Map of state handlers for each SystemState
+    definitions::SystemState currentState_;                                      ///< Current state of the system
+    definitions::SystemState previousState_;                                     ///< Previous state of the system
+    unsigned long stateEntryTime_;                                               ///< Timestamp of when the current state was entered
     bool stateChanged_;                           ///< Flag indicating if the state has changed since the last tick
     definitions::CommandRequest lastAction_;      ///< Last executed action
     definitions::CommandRequest pendingCommand_;  ///< Last command request pending execution confirmation
