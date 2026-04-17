@@ -98,7 +98,7 @@ class Thermocouple {
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
-    bool send_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms = 0);
+    bool send_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
 
    private:
     Thermocouple();
