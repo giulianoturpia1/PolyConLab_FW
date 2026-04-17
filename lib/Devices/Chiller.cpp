@@ -1,6 +1,14 @@
 #include "Chiller.hpp"
 
+#include <freertos/task.h>
+
 #include "HALGeneral.hpp"
+#include "StateMachine.hpp"
+
+constexpr UBaseType_t kChillerTaskPriority = 2;
+constexpr UBaseType_t kChillerQueueLength = 8;
+constexpr uint32_t kChillerTaskStackSize = 2048;
+constexpr char kChillerTaskName[] = "chiller_task";
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -33,6 +41,60 @@ uint32_t modules::Chiller::pin() const {
     return pin_;
 }
 
+void modules::Chiller::start_task() {
+    if (queue_ != nullptr) {
+        return;
+    }
+
+    queue_ = xQueueCreate(kChillerQueueLength, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        modules::hal_general().log("No se pudo crear la cola del chiller.");
+        return;
+    }
+
+    if (xTaskCreate(task_entry, kChillerTaskName, kChillerTaskStackSize, this, kChillerTaskPriority, nullptr) != pdPASS) {
+        modules::hal_general().log("No se pudo crear la tarea del chiller.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+    }
+}
+
+bool modules::Chiller::send_command(definitions::CommandType command, uint32_t timeout_ms) {
+    if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+        return false;
+    }
+
+    return true;
+}
+
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-modules::Chiller::Chiller() : pin_(0), status_(false) {}
+void modules::Chiller::task_entry(void* param) {
+    Chiller* self = static_cast<Chiller*>(param);
+    definitions::CommandType command = definitions::CommandType::kChillerOff;
+
+    while (true) {
+        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
+            self->process_command(command);
+        }
+    }
+}
+
+bool modules::Chiller::process_command(definitions::CommandType command) {
+    switch (command) {
+        case definitions::CommandType::kChillerOn:
+            on();
+            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kChillerOn, 0}, 10);
+            return true;
+
+        case definitions::CommandType::kChillerOff:
+            off();
+            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kChillerOff, 0}, 10);
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+modules::Chiller::Chiller() : pin_(0), status_(false), queue_(nullptr) {}

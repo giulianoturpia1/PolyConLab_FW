@@ -30,12 +30,12 @@ enum class Pins : uint32_t {
     kChiller = Q0_2,  ///< Chiller
     kValve1 = R1_1,   ///< Valve 1
     kValve2 = R1_2,   ///< Valve 2
-
-    // Sensors
-    kTempSensor1 = I0_2,  ///< Temperature Sensor 1
-    kTempSensor2 = I0_3,  ///< Temperature Sensor 2
-    kTempSensor3 = I0_4,  ///< Temperature Sensor 3
-    kTempSensor4 = I0_5,  ///< Temperature Sensor 4
 };
 
+enum class Addresses : uint32_t {
+    kTempSensor1 = 0x60,  ///< I2C address for Temperature Sensor 1
+    kTempSensor2 = 0x61,  ///< I2C address for Temperature Sensor 2
+    kTempSensor3 = 0x62,  ///< I2C address for Temperature Sensor 3
+    kTempSensor4 = 0x63   ///< I2C address for Temperature Sensor 4
+};
 }  // namespace definitions

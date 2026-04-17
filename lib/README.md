@@ -18,14 +18,74 @@ lib/
 
 Some libraries may contain additional files, such as configuration files, examples, or tests, which are also organized within their respective subdirectories. To simply utilize each Module, you can include the "main" header file for each respective Module.
 
-## 1. Hardware Abstraction Layer (HAL)
+## 1. Firmware Implementation Details
 
-### 1.1. Overview
+This section summarizes how the firmware is assembled and executed at runtime. The core idea is simple: `App` boots and wires the system, `StateMachine` coordinates decisions, and device modules execute actions asynchronously through FreeRTOS queues/tasks.
+
+The runtime is organized around two central components:
+
+- `App` as the main entry point and startup orchestrator.
+- `StateMachine` as the state controller and mediator between modules.
+
+### 1.1. Firmware Architecture
+
+The firmware architecture can be grouped into three layers that clarify ownership and simplify maintenance.
+
+1. **High Level Logic (`App`, `StateMachine`)**
+   - `App` acts as the entry point and orchestration root: startup order and task startup.
+   - `StateMachine` defines system behavior: state transitions, decisions, and command mediation.
+
+2. **Middle Level Logic (Device Modules)**
+   - `Communications` connects protocol inputs to this layer by parsing serial/ethernet messages and forwarding requests.
+   - Modules implement domain-level actuator and sensor behavior.
+   - Each module owns its queue/task and executes accepted commands asynchronously.
+   - Modules report executed actions back to `StateMachine` for confirmation and feedback tracking.
+
+3. **System Utilities (`FreeRTOS`, `HAL`)**
+   - `FreeRTOS` provides scheduler, task model, delays, and queue primitives used by upper layers.
+   - `HAL` abstracts platform-specific I/O (GPIO, timing, logging, etc.) behind stable interfaces.
+
+### 1.2. FreeRTOS
+
+FreeRTOS is used to make the firmware responsive, modular, and safe under concurrent I/O and control workloads. Instead of running all logic in a single loop, the system assigns independent responsibilities to dedicated tasks and communicates through queues. It allows
+
+- Each actuator module owns its own queue and task.
+- Control loops (`StateMachine` and `App`) run periodically and concurrently by utilizing the FreeRTOS scheduler.
+- Producers enqueue commands/events; consumers process asynchronously.
+
+### 1.3. Startup and Runtime Flow
+
+At boot, `src/main.cpp` calls `App::instance().begin()`. From there, `App` performs the high-level initialization sequence:
+
+1. Initializes core services and HAL-backed utilities.
+2. Initializes device modules.
+3. Initializes the `StateMachine`.
+4. Starts module tasks/queues and the `StateMachine` task.
+5. Starts networking/local server and communications callbacks.
+6. Starts the `App` task, which periodically executes the application tick to poll for incoming external messages.
+
+### 1.4. StateMachine as "Mediator"
+
+`StateMachine` plays a dual role:
+
+- **Finite State Machine (FSM):** manages states and transitions.
+- **Mediator:** centralizes coordination between communications and actuator modules.
+
+Commands, events and actions are enqueued into the `StateMachine` queues. The state machine task consumes these queues, validates behavior against current state, and dispatches accepted commands to the corresponding module queue/task. This keeps module-to-module coupling low: modules do not need to call each other directly. Instead, `StateMachine` decides when actions are allowed and how they are routed.
+
+### 1.5. Communications Interaction
+
+This separation is what allows protocol handling to evolve without changing actuator logic, and vice versa.
+`Communications` parses incoming commands/events (serial/ethernet) and forwards them to `StateMachine` through basic enqueue methods. It does not execute actuator logic directly.
+
+### 1.6. Hardware Abstraction Layer (HAL)
+
+#### 1.6.1. Overview
 
 The Hardware Abstraction Layer (HAL) provides a platform-independent interface to abstract specific calls, in particular, Arduino specific calls for this project. This enables code portability and easier testing on different platforms. It automatically detects your platform at compile-time and initializes the correct implementation without any manual setup required. For each important part of a system (e.g., GPIO, I2C, Network, Storage), there is a corresponding HAL module.
 The reason for using several HAL modules instead of a single monolithic HAL is to promote modularity and separation of concerns. Each HAL module focuses on a specific aspect of hardware interaction, making it easier to maintain, extend, and test individual components without affecting the entire system.
 
-### 1.2. Details
+#### 1.6.2. Details
 
 Each platform-specific implementation inherits from this base class which is purely virtual and provides concrete implementations for the defined methods, by being a singleton. This is controlled through polymorphism, and by using a HAL Manager to handle the selection of the appropriate HAL implementation at runtime. For this reason, each HAL module consists of:
 

@@ -15,10 +15,6 @@
 #include <Arduino.h>
 #include <stdint.h>
 
-void setupDevices();
-
-float readTempSensor(uint32_t sensor_);
-
 void IRAM_ATTR isrFlowMeter();
 void IRAM_ATTR isrTimerFlow();
 void initFlowMeter(uint32_t pinFlow_);

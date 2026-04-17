@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -95,6 +97,21 @@ class SolenoidValve {
     ///
     uint8_t count() const;
 
+    ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    void start_task();
+
+    ///
+    /// @brief Send a valve command through the module queue.
+    ///
+    /// @param command Command to be sent.
+    /// @param pin Pin for valve control.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if command was queued, false otherwise.
+    ///
+    bool send_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms = 0);
+
    private:
     SolenoidValve();
 
@@ -114,6 +131,23 @@ class SolenoidValve {
     uint8_t find_index(uint32_t pin) const;
 
     ///
+    /// @brief Process a valve command directly, without queueing. Used as a fallback when the queue is unavailable.
+    ///
+    /// @param command Command to be processed.
+    /// @param pin Pin for valve control.
+    /// @return true
+    /// @return false
+    ///
+    bool process_command(definitions::CommandType command, uint32_t pin);
+
+    ///
+    /// @brief FreeRTOS task entry point for processing valve commands from the queue.
+    ///
+    /// @param param
+    ///
+    static void task_entry(void* param);
+
+    ///
     /// @brief Internal structure to hold valve information (pin and status).
     ///
     ///
@@ -122,8 +156,9 @@ class SolenoidValve {
         bool status;   //< Current valve status
     };
 
-    std::array<ValveSlot, definitions::kMaxSolenoidValves> valves_;
-    uint8_t valve_count_;
+    std::array<ValveSlot, definitions::kMaxSolenoidValves> valves_;  ///< Array to hold registered valves
+    uint8_t valve_count_;                                            ///< Current count of registered valves
+    QueueHandle_t queue_;                                            ///< FreeRTOS queue handle for valve commands
 };
 
 }  // namespace modules

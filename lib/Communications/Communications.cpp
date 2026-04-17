@@ -1,5 +1,7 @@
 #include "Communications.hpp"
 
+#include <cmath>
+
 #include "Chiller.hpp"
 #include "Definitions.hpp"
 #include "Devices.hpp"
@@ -8,15 +10,13 @@
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
+#include "Thermocouple.hpp"
 
 #if defined(PLC_38AR)
 #include "PLC38AR.hpp"
 #elif defined(PLC_19R)
 #include "PLC19R.hpp"
 #endif
-
-#include <algorithm>
-#include <array>
 
 namespace modules {
 
@@ -58,19 +58,18 @@ void Communications::handle_message(const std::string& msg, const std::function<
         return;
     }
 
-    if (handle_device_command(msg, respond)) {
+    if (handle_command(msg, respond)) {
         return;
     }
 
-    if (handle_event_command(msg, respond)) {
+    if (handle_event(msg, respond)) {
         return;
     }
 
     respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
 }
 
-bool Communications::handle_device_command(const std::string& msg,
-                                           const std::function<void(const std::string&)>& respond) {
+bool Communications::handle_command(const std::string& msg, const std::function<void(const std::string&)>& respond) {
     // Extract base command (before comma, if present, as some commands have format "DEVICE_CMD,N")
     std::string base_command = msg;
     size_t comma_pos = msg.find(',');
@@ -80,101 +79,97 @@ bool Communications::handle_device_command(const std::string& msg,
 
     const definitions::CommandMap* cmd = utils::find_command(base_command);
     if (!cmd) {
-        // Check for temperature commands that aren't in the map
-        if (msg == "LEER_TEMP_INCAMISA") {
-            float temp = readTempSensor(static_cast<uint32_t>(definitions::Pins::kTempSensor1));
-            respond(std::string(utils::response(definitions::ResponseType::kTempInPrefix)) +
-                    utils::format_float(temp, 2));
-            return true;
-        }
-        if (msg == "LEER_TEMP_OUTCAMISA") {
-            float temp = readTempSensor(static_cast<uint32_t>(definitions::Pins::kTempSensor2));
-            respond(std::string(utils::response(definitions::ResponseType::kTempOutPrefix)) +
-                    utils::format_float(temp, 2));
-            return true;
-        }
-        if (msg == "LEER_TEMP_CAMISA") {
-            float temp = readTempSensor(static_cast<uint32_t>(definitions::Pins::kTempSensor3));
-            respond(std::string(utils::response(definitions::ResponseType::kTempBathPrefix)) +
-                    utils::format_float(temp, 2));
-            return true;
-        }
-        if (msg == "LEER_TEMP_MEZCLA") {
-            float temp = readTempSensor(static_cast<uint32_t>(definitions::Pins::kTempSensor4));
-            respond(std::string(utils::response(definitions::ResponseType::kTempMixPrefix)) +
-                    utils::format_float(temp, 2));
-            return true;
-        }
         return false;
     }
 
     switch (cmd->command) {
         case definitions::CommandType::kHeaterOn: {
-            modules::Heater::instance().on();
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
             respond(utils::response(definitions::ResponseType::kHeaterOn));
             return true;
         }
 
         case definitions::CommandType::kHeaterOff: {
-            modules::Heater::instance().off();
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
             respond(utils::response(definitions::ResponseType::kHeaterOff));
             return true;
         }
 
         case definitions::CommandType::kHeaterState: {
-            bool state = modules::Heater::instance().status();
-            respond(std::string(utils::response(definitions::ResponseType::kHeaterStatePrefix)) +
-                    (state ? utils::response(definitions::ResponseType::kStatusOn)
-                           : utils::response(definitions::ResponseType::kStatusOff)));
+            const bool state = modules::Heater::instance().status();
+            respond(
+                std::string(utils::response(definitions::ResponseType::kHeaterStatePrefix)) +
+                (state ? utils::response(definitions::ResponseType::kStatusOn) : utils::response(definitions::ResponseType::kStatusOff)));
             return true;
         }
 
         case definitions::CommandType::kPumpOn: {
-            modules::Pump::instance().on();
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
             respond(std::string(utils::response(definitions::ResponseType::kPumpOn)));
             return true;
         }
 
         case definitions::CommandType::kPumpOff: {
-            modules::Pump::instance().off();
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
             respond(std::string(utils::response(definitions::ResponseType::kPumpOff)));
             return true;
         }
 
         case definitions::CommandType::kPumpState: {
-            bool state = modules::Pump::instance().status();
-            respond(std::string(utils::response(definitions::ResponseType::kPumpStatePrefix)) +
-                    (state ? utils::response(definitions::ResponseType::kStatusOn)
-                           : utils::response(definitions::ResponseType::kStatusOff)));
+            const bool state = modules::Pump::instance().status();
+            respond(
+                std::string(utils::response(definitions::ResponseType::kPumpStatePrefix)) +
+                (state ? utils::response(definitions::ResponseType::kStatusOn) : utils::response(definitions::ResponseType::kStatusOff)));
             return true;
         }
 
         case definitions::CommandType::kChillerOn: {
-            modules::Chiller::instance().on();
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
             respond(std::string(utils::response(definitions::ResponseType::kChillerOn)));
             return true;
         }
 
         case definitions::CommandType::kChillerOff: {
-            modules::Chiller::instance().off();
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
             respond(std::string(utils::response(definitions::ResponseType::kChillerOff)));
             return true;
         }
 
         case definitions::CommandType::kChillerState: {
-            bool state = modules::Chiller::instance().status();
-            respond(std::string(utils::response(definitions::ResponseType::kChillerStatePrefix)) +
-                    (state ? utils::response(definitions::ResponseType::kStatusOn)
-                           : utils::response(definitions::ResponseType::kStatusOff)));
+            const bool state = modules::Chiller::instance().status();
+            respond(
+                std::string(utils::response(definitions::ResponseType::kChillerStatePrefix)) +
+                (state ? utils::response(definitions::ResponseType::kStatusOn) : utils::response(definitions::ResponseType::kStatusOff)));
             return true;
         }
 
         case definitions::CommandType::kValveOpen: {
             uint32_t valve_pin = parse_valve_pin(msg);
             size_t comma_pos = msg.find(',');
-            char valve_num = (comma_pos != std::string::npos) ? msg[comma_pos + 1]
-                                                              : '0';  // Assume a single digit valve number for response
-            modules::SolenoidValve::instance().open(valve_pin);
+            char valve_num =
+                (comma_pos != std::string::npos) ? msg[comma_pos + 1] : '0';  // Assume a single digit valve number for response
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, valve_pin}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
             respond(std::string(utils::response(definitions::ResponseType::kValveOpen)) + std::string(1, valve_num));
             return true;
         }
@@ -182,9 +177,12 @@ bool Communications::handle_device_command(const std::string& msg,
         case definitions::CommandType::kValveClose: {
             uint32_t valve_pin = parse_valve_pin(msg);
             size_t comma_pos = msg.find(',');
-            char valve_num = (comma_pos != std::string::npos) ? msg[comma_pos + 1]
-                                                              : '0';  // Assume a single digit valve number for response
-            modules::SolenoidValve::instance().close(valve_pin);
+            char valve_num =
+                (comma_pos != std::string::npos) ? msg[comma_pos + 1] : '0';  // Assume a single digit valve number for response
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, valve_pin}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
             respond(std::string(utils::response(definitions::ResponseType::kValveClosed)) + std::string(1, valve_num));
             return true;
         }
@@ -192,9 +190,9 @@ bool Communications::handle_device_command(const std::string& msg,
         case definitions::CommandType::kValveState: {
             uint32_t valve_pin = parse_valve_pin(msg);
             size_t comma_pos = msg.find(',');
-            char valve_num = (comma_pos != std::string::npos) ? msg[comma_pos + 1]
-                                                              : '0';  // Assume a single digit valve number for response
-            bool state = modules::SolenoidValve::instance().status(valve_pin);
+            char valve_num =
+                (comma_pos != std::string::npos) ? msg[comma_pos + 1] : '0';  // Assume a single digit valve number for response
+            const bool state = modules::SolenoidValve::instance().status(valve_pin);
             respond(std::string(utils::response(definitions::ResponseType::kValveStatePrefix)) +
                     (state ? utils::response(definitions::ResponseType::kStatusOpen)
                            : utils::response(definitions::ResponseType::kStatusClosed)) +
@@ -202,10 +200,49 @@ bool Communications::handle_device_command(const std::string& msg,
             return true;
         }
 
+        case definitions::CommandType::kTempInRead: {
+            float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempSensor1));
+            if (std::isnan(temp)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+            } else {
+                respond(std::string(utils::response(definitions::ResponseType::kTempInPrefix)) + utils::format_float(temp, 2));
+            }
+            return true;
+        }
+
+        case definitions::CommandType::kTempOutRead: {
+            float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempSensor2));
+            if (std::isnan(temp)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+            } else {
+                respond(std::string(utils::response(definitions::ResponseType::kTempOutPrefix)) + utils::format_float(temp, 2));
+            }
+            return true;
+        }
+
+        case definitions::CommandType::kTempBathRead: {
+            float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempSensor3));
+            if (std::isnan(temp)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+            } else {
+                respond(std::string(utils::response(definitions::ResponseType::kTempBathPrefix)) + utils::format_float(temp, 2));
+            }
+            return true;
+        }
+
+        case definitions::CommandType::kTempMixRead: {
+            float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempSensor4));
+            if (std::isnan(temp)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+            } else {
+                respond(std::string(utils::response(definitions::ResponseType::kTempMixPrefix)) + utils::format_float(temp, 2));
+            }
+            return true;
+        }
+
         case definitions::CommandType::kFlowRead: {
             float flow_rate = readFlowMeter();
-            respond(std::string(utils::response(definitions::ResponseType::kFlowPrefix)) +
-                    utils::format_float(flow_rate, 2));
+            respond(std::string(utils::response(definitions::ResponseType::kFlowPrefix)) + utils::format_float(flow_rate, 2));
             return true;
         }
 
@@ -216,8 +253,7 @@ bool Communications::handle_device_command(const std::string& msg,
 
         case definitions::CommandType::kStateQuery: {
             auto state = modules::StateMachine::instance().get_current_state();
-            respond(std::string(utils::response(definitions::ResponseType::kStatePrefix)) +
-                    modules::StateMachine::get_state_name(state));
+            respond(std::string(utils::response(definitions::ResponseType::kStatePrefix)) + modules::StateMachine::get_state_name(state));
             return true;
         }
 
@@ -228,8 +264,7 @@ bool Communications::handle_device_command(const std::string& msg,
     }
 }
 
-bool Communications::handle_event_command(const std::string& msg,
-                                          const std::function<void(const std::string&)>& respond) {
+bool Communications::handle_event(const std::string& msg, const std::function<void(const std::string&)>& respond) {
     if (!utils::starts_with(msg, "EVT:") && !utils::starts_with(msg, "EVENT:")) {
         return false;
     }
@@ -242,26 +277,20 @@ bool Communications::handle_event_command(const std::string& msg,
         return true;
     }
 
-    if (!dispatch_event(event_name)) {
+    const auto it = std::find_if(definitions::kEventMap.begin(), definitions::kEventMap.end(),
+                                 [&event_name](const definitions::EventMap& entry) { return event_name == entry.name; });
+    if (it == definitions::kEventMap.end()) {
+        respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownEvent)));
+        return true;
+    }
+
+    if (!modules::StateMachine::instance().enqueue_event(it->event, 10)) {
         respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownEvent)));
         return true;
     }
 
     respond(std::string(utils::response(definitions::ResponseType::kEventOkPrefix)) + event_name);
     return true;
-}
-
-bool Communications::dispatch_event(const std::string& event_name) {
-    const auto it =
-        std::find_if(definitions::kEventMap.begin(), definitions::kEventMap.end(),
-                     [&event_name](const definitions::EventMap& entry) { return event_name == entry.name; });
-
-    if (it != definitions::kEventMap.end()) {
-        modules::StateMachine::instance().process_event(it->event);
-        return true;
-    }
-
-    return false;
 }
 
 Communications::Communications() : ethernet_response_callback_(nullptr), serial_response_callback_(nullptr) {}
@@ -273,6 +302,7 @@ uint32_t Communications::parse_valve_pin(const std::string& msg) const {
     }
 
     char valve_num = msg[comma_pos + 1];
+#if defined(PLC_38AR) || defined(PLC_19R)
     switch (valve_num) {
         case '1': {
             return static_cast<uint32_t>(definitions::Pins::kValve1);
@@ -284,6 +314,10 @@ uint32_t Communications::parse_valve_pin(const std::string& msg) const {
             return 0;  // Invalid valve number
         }
     }
+#else
+    (void) valve_num;
+    return 0;
+#endif
 }
 
 }  // namespace modules
