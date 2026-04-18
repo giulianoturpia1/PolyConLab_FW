@@ -23,6 +23,8 @@ class Heater;
 class Pump;
 class Chiller;
 class SolenoidValve;
+class Thermocouple;
+class Flowmeter;
 class StateMachine;
 }  // namespace modules
 
@@ -115,6 +117,8 @@ class App {
     Pump& pump_;
     Chiller& chiller_;
     SolenoidValve& valves_;
+    Thermocouple& thermocouples_;
+    Flowmeter& flowmeter_;
 };
 
 }  // namespace modules

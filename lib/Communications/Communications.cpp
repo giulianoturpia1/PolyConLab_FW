@@ -1,13 +1,16 @@
 #include "Communications.hpp"
 
+#include <cmath>
+
 #include "Chiller.hpp"
 #include "Definitions.hpp"
-#include "Devices.hpp"
+#include "Flowmeter.hpp"
 #include "Heater.hpp"
 #include "Helpers.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
+#include "Thermocouple.hpp"
 
 #if defined(PLC_38AR)
 #include "PLC38AR.hpp"
@@ -76,43 +79,6 @@ bool Communications::handle_command(const std::string& msg, const std::function<
 
     const definitions::CommandMap* cmd = utils::find_command(base_command);
     if (!cmd) {
-        // Check for temperature commands that aren't in the map
-        if (msg == "LEER_TEMP_INCAMISA") {
-#if defined(PLC_38AR) || defined(PLC_19R)
-            float temp = readTempSensor(static_cast<uint32_t>(definitions::Pins::kTempSensor1));
-            respond(std::string(utils::response(definitions::ResponseType::kTempInPrefix)) + utils::format_float(temp, 2));
-#else
-            respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
-#endif
-            return true;
-        }
-        if (msg == "LEER_TEMP_OUTCAMISA") {
-#if defined(PLC_38AR) || defined(PLC_19R)
-            float temp = readTempSensor(static_cast<uint32_t>(definitions::Pins::kTempSensor2));
-            respond(std::string(utils::response(definitions::ResponseType::kTempOutPrefix)) + utils::format_float(temp, 2));
-#else
-            respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
-#endif
-            return true;
-        }
-        if (msg == "LEER_TEMP_CAMISA") {
-#if defined(PLC_38AR) || defined(PLC_19R)
-            float temp = readTempSensor(static_cast<uint32_t>(definitions::Pins::kTempSensor3));
-            respond(std::string(utils::response(definitions::ResponseType::kTempBathPrefix)) + utils::format_float(temp, 2));
-#else
-            respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
-#endif
-            return true;
-        }
-        if (msg == "LEER_TEMP_MEZCLA") {
-#if defined(PLC_38AR) || defined(PLC_19R)
-            float temp = readTempSensor(static_cast<uint32_t>(definitions::Pins::kTempSensor4));
-            respond(std::string(utils::response(definitions::ResponseType::kTempMixPrefix)) + utils::format_float(temp, 2));
-#else
-            respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
-#endif
-            return true;
-        }
         return false;
     }
 
@@ -122,7 +88,6 @@ bool Communications::handle_command(const std::string& msg, const std::function<
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
-            respond(utils::response(definitions::ResponseType::kHeaterOn));
             return true;
         }
 
@@ -131,15 +96,13 @@ bool Communications::handle_command(const std::string& msg, const std::function<
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
-            respond(utils::response(definitions::ResponseType::kHeaterOff));
             return true;
         }
 
         case definitions::CommandType::kHeaterState: {
             const bool state = modules::Heater::instance().status();
-            respond(
-                std::string(utils::response(definitions::ResponseType::kHeaterStatePrefix)) +
-                (state ? utils::response(definitions::ResponseType::kStatusOn) : utils::response(definitions::ResponseType::kStatusOff)));
+            respond(std::string(state ? utils::response(definitions::ResponseType::kStatusOn)
+                                      : utils::response(definitions::ResponseType::kStatusOff)));
             return true;
         }
 
@@ -148,7 +111,6 @@ bool Communications::handle_command(const std::string& msg, const std::function<
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
-            respond(std::string(utils::response(definitions::ResponseType::kPumpOn)));
             return true;
         }
 
@@ -157,15 +119,13 @@ bool Communications::handle_command(const std::string& msg, const std::function<
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
-            respond(std::string(utils::response(definitions::ResponseType::kPumpOff)));
             return true;
         }
 
         case definitions::CommandType::kPumpState: {
             const bool state = modules::Pump::instance().status();
-            respond(
-                std::string(utils::response(definitions::ResponseType::kPumpStatePrefix)) +
-                (state ? utils::response(definitions::ResponseType::kStatusOn) : utils::response(definitions::ResponseType::kStatusOff)));
+            respond(std::string(state ? utils::response(definitions::ResponseType::kStatusOn)
+                                      : utils::response(definitions::ResponseType::kStatusOff)));
             return true;
         }
 
@@ -174,7 +134,6 @@ bool Communications::handle_command(const std::string& msg, const std::function<
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
-            respond(std::string(utils::response(definitions::ResponseType::kChillerOn)));
             return true;
         }
 
@@ -183,15 +142,13 @@ bool Communications::handle_command(const std::string& msg, const std::function<
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
-            respond(std::string(utils::response(definitions::ResponseType::kChillerOff)));
             return true;
         }
 
         case definitions::CommandType::kChillerState: {
             const bool state = modules::Chiller::instance().status();
-            respond(
-                std::string(utils::response(definitions::ResponseType::kChillerStatePrefix)) +
-                (state ? utils::response(definitions::ResponseType::kStatusOn) : utils::response(definitions::ResponseType::kStatusOff)));
+            respond(std::string(state ? utils::response(definitions::ResponseType::kStatusOn)
+                                      : utils::response(definitions::ResponseType::kStatusOff)));
             return true;
         }
 
@@ -204,7 +161,6 @@ bool Communications::handle_command(const std::string& msg, const std::function<
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
-            respond(std::string(utils::response(definitions::ResponseType::kValveOpen)) + std::string(1, valve_num));
             return true;
         }
 
@@ -217,7 +173,6 @@ bool Communications::handle_command(const std::string& msg, const std::function<
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
-            respond(std::string(utils::response(definitions::ResponseType::kValveClosed)) + std::string(1, valve_num));
             return true;
         }
 
@@ -227,16 +182,78 @@ bool Communications::handle_command(const std::string& msg, const std::function<
             char valve_num =
                 (comma_pos != std::string::npos) ? msg[comma_pos + 1] : '0';  // Assume a single digit valve number for response
             const bool state = modules::SolenoidValve::instance().status(valve_pin);
-            respond(std::string(utils::response(definitions::ResponseType::kValveStatePrefix)) +
-                    (state ? utils::response(definitions::ResponseType::kStatusOpen)
-                           : utils::response(definitions::ResponseType::kStatusClosed)) +
+            respond(std::string(state ? utils::response(definitions::ResponseType::kStatusOpen)
+                                      : utils::response(definitions::ResponseType::kStatusClosed)) +
                     std::string(1, valve_num));
             return true;
         }
 
+        case definitions::CommandType::kTempInRead: {
+            float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempSensor1));
+            if (std::isnan(temp)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+            } else {
+                respond(std::string(utils::format_float(temp, 2)));
+            }
+            return true;
+        }
+
+        case definitions::CommandType::kTempOutRead: {
+            float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempSensor2));
+            if (std::isnan(temp)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+            } else {
+                respond(std::string(utils::format_float(temp, 2)));
+            }
+            return true;
+        }
+
+        case definitions::CommandType::kTempBathRead: {
+            float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempSensor3));
+            if (std::isnan(temp)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+            } else {
+                respond(std::string(utils::format_float(temp, 2)));
+            }
+            return true;
+        }
+
+        case definitions::CommandType::kTempMixRead: {
+            float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempSensor4));
+            if (std::isnan(temp)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+            } else {
+                respond(std::string(utils::format_float(temp, 2)));
+            }
+            return true;
+        }
+
+        case definitions::CommandType::kFlowBegin: {
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
+            return true;
+        }
+
+        case definitions::CommandType::kFlowStop: {
+            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+                respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+                return true;
+            }
+            return true;
+        }
+
         case definitions::CommandType::kFlowRead: {
-            float flow_rate = readFlowMeter();
-            respond(std::string(utils::response(definitions::ResponseType::kFlowPrefix)) + utils::format_float(flow_rate, 2));
+            float flow_rate = modules::Flowmeter::instance().readFlow();
+            respond(std::string(utils::format_float(flow_rate, 2)));
+            return true;
+        }
+
+        case definitions::CommandType::kFlowStatus: {
+            const bool state = modules::Flowmeter::instance().status();
+            respond(std::string(state ? utils::response(definitions::ResponseType::kStatusOn)
+                                      : utils::response(definitions::ResponseType::kStatusOff)));
             return true;
         }
 
@@ -247,7 +264,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
 
         case definitions::CommandType::kStateQuery: {
             auto state = modules::StateMachine::instance().get_current_state();
-            respond(std::string(utils::response(definitions::ResponseType::kStatePrefix)) + modules::StateMachine::get_state_name(state));
+            respond(std::string(modules::StateMachine::get_state_name(state)));
             return true;
         }
 
@@ -283,7 +300,6 @@ bool Communications::handle_event(const std::string& msg, const std::function<vo
         return true;
     }
 
-    respond(std::string(utils::response(definitions::ResponseType::kEventOkPrefix)) + event_name);
     return true;
 }
 

@@ -25,6 +25,11 @@ namespace definitions {
 constexpr uint8_t kMaxSolenoidValves = 8;
 
 ///
+/// @brief Maximum number of Thermocouple Amplifiers supported by the system.
+///
+constexpr uint8_t kMaxThermocouples = 5;
+
+///
 /// @brief System states for the Finite State Machine. Refer to the design documentation for details.
 ///
 ///
@@ -131,7 +136,10 @@ enum class CommandType {
     kTempMixRead,
 
     // Flow meter command
+    kFlowBegin,
+    kFlowStop,
     kFlowRead,
+    kFlowStatus,
 
     // Diagnostics/Status
     kPing,
@@ -162,26 +170,7 @@ enum class ResponseType {
     kErrorUnknownCommand,
     kErrorEmptyEvent,
     kErrorUnknownEvent,
-    kEventOkPrefix,
-    kTempInPrefix,
-    kTempOutPrefix,
-    kTempBathPrefix,
-    kTempMixPrefix,
-    kHeaterOn,
-    kHeaterOff,
-    kHeaterStatePrefix,
-    kPumpOn,
-    kPumpOff,
-    kPumpStatePrefix,
-    kChillerOn,
-    kChillerOff,
-    kChillerStatePrefix,
-    kValveOpen,
-    kValveClosed,
-    kValveStatePrefix,
-    kFlowPrefix,
     kPingOk,
-    kStatePrefix,
     kStatusOn,
     kStatusOff,
     kStatusOpen,
@@ -205,22 +194,28 @@ struct CommandResponseMap {
     ResponseType response;
 };
 
-constexpr std::array<CommandMap, 16> kCommandMap = {{
-    {("HEATER_ON"), CommandType::kHeaterOn},
-    {("HEATER_OFF"), CommandType::kHeaterOff},
-    {("HEATER_STATE"), CommandType::kHeaterState},
-    {("PUMP_ON"), CommandType::kPumpOn},
-    {("PUMP_OFF"), CommandType::kPumpOff},
-    {("PUMP_STATE"), CommandType::kPumpState},
-    {("CHILLER_ON"), CommandType::kChillerOn},
-    {("CHILLER_OFF"), CommandType::kChillerOff},
-    {("CHILLER_STATE"), CommandType::kChillerState},
-    {("VALVE_OPEN"), CommandType::kValveOpen},
-    {("VALVE_CLOSE"), CommandType::kValveClose},
-    {("VALVE_STATE"), CommandType::kValveState},
-    {("READ_FLOW"), CommandType::kFlowRead},
+constexpr std::array<CommandMap, 23> kCommandMap = {{
+    {("OUTP:HEAT ON"), CommandType::kHeaterOn},
+    {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
+    {("OUTP:HEAT?"), CommandType::kHeaterState},
+    {("OUTP:PUMP ON"), CommandType::kPumpOn},
+    {("OUTP:PUMP OFF"), CommandType::kPumpOff},
+    {("OUTP:PUMP?"), CommandType::kPumpState},
+    {("OUTP:CHILL ON"), CommandType::kChillerOn},
+    {("OUTP:CHILL OFF"), CommandType::kChillerOff},
+    {("OUTP:CHILL?"), CommandType::kChillerState},
+    {("OUTP:VALV OPEN"), CommandType::kValveOpen},
+    {("OUTP:VALV CLOSE"), CommandType::kValveClose},
+    {("OUTP:VALV?"), CommandType::kValveState},
+    {("MEAS:TEMP:IN?"), CommandType::kTempInRead},
+    {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead},
+    {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
+    {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
+    {("OUTP:FLOW ON"), CommandType::kFlowBegin},
+    {("OUTP:FLOW OFF"), CommandType::kFlowStop},
+    {("OUTP:FLOW?"), CommandType::kFlowStatus},
+    {("MEAS:FLOW?"), CommandType::kFlowRead},
     {("PING"), CommandType::kPing},
-    {("STATE"), CommandType::kStateQuery},
     {("STATE?"), CommandType::kStateQuery},
 }};
 
@@ -257,29 +252,10 @@ constexpr std::array<EventMap, 29> kEventMap = {{
 }};
 
 constexpr std::array<ResponseMap, 27> kResponseMap = {{
-    {"ERROR:UNKNOWN_COMMAND", ResponseType::kErrorUnknownCommand},
-    {"ERROR:EMPTY_EVENT", ResponseType::kErrorEmptyEvent},
-    {"ERROR:UNKNOWN_EVENT", ResponseType::kErrorUnknownEvent},
-    {"EVENT:OK,", ResponseType::kEventOkPrefix},
-    {"TEMP_IN: ", ResponseType::kTempInPrefix},
-    {"TEMP_OUT: ", ResponseType::kTempOutPrefix},
-    {"TEMP_BATH: ", ResponseType::kTempBathPrefix},
-    {"TEMP_MIX: ", ResponseType::kTempMixPrefix},
-    {"HEATER: ON", ResponseType::kHeaterOn},
-    {"HEATER: OFF", ResponseType::kHeaterOff},
-    {"HEATER: STATE,", ResponseType::kHeaterStatePrefix},
-    {"PUMP: ON", ResponseType::kPumpOn},
-    {"PUMP: OFF", ResponseType::kPumpOff},
-    {"PUMP: STATE,", ResponseType::kPumpStatePrefix},
-    {"CHILLER: ON", ResponseType::kChillerOn},
-    {"CHILLER: OFF", ResponseType::kChillerOff},
-    {"CHILLER: STATE,", ResponseType::kChillerStatePrefix},
-    {"VALVE: OPEN ", ResponseType::kValveOpen},
-    {"VALVE: CLOSE ", ResponseType::kValveClosed},
-    {"VALVE: STATE ,", ResponseType::kValveStatePrefix},
-    {"FLOW: ", ResponseType::kFlowPrefix},
+    {"-100,'Command error'", ResponseType::kErrorUnknownCommand},
+    {"-200,’Execution error’", ResponseType::kErrorEmptyEvent},
+    {"-300,’Device-specific error’", ResponseType::kErrorUnknownEvent},
     {"PONG", ResponseType::kPingOk},
-    {"STATE: ", ResponseType::kStatePrefix},
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},
     {"OPEN", ResponseType::kStatusOpen},
@@ -287,14 +263,14 @@ constexpr std::array<ResponseMap, 27> kResponseMap = {{
 }};
 
 constexpr std::array<CommandResponseMap, 8> kCommandResponseMap = {{
-    {CommandType::kHeaterOn, ResponseType::kHeaterOn},
-    {CommandType::kHeaterOff, ResponseType::kHeaterOff},
-    {CommandType::kPumpOn, ResponseType::kPumpOn},
-    {CommandType::kPumpOff, ResponseType::kPumpOff},
-    {CommandType::kChillerOn, ResponseType::kChillerOn},
-    {CommandType::kChillerOff, ResponseType::kChillerOff},
-    {CommandType::kValveOpen, ResponseType::kValveOpen},
-    {CommandType::kValveClose, ResponseType::kValveClosed},
+    {CommandType::kHeaterOn, ResponseType::kStatusOn},
+    {CommandType::kHeaterOff, ResponseType::kStatusOff},
+    {CommandType::kPumpOn, ResponseType::kStatusOn},
+    {CommandType::kPumpOff, ResponseType::kStatusOff},
+    {CommandType::kChillerOn, ResponseType::kStatusOn},
+    {CommandType::kChillerOff, ResponseType::kStatusOff},
+    {CommandType::kValveOpen, ResponseType::kStatusOpen},
+    {CommandType::kValveClose, ResponseType::kStatusClosed},
 }};
 
 enum class ErrorCode {
