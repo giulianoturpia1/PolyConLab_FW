@@ -97,6 +97,8 @@ void App::initialize_modules() {
     pump_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     chiller_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     valves_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    thermocouples_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    flowmeter_.set_response_queue(&modules::StateMachineResponseQueue::instance());
 
     initialize_network_server();
     configure_serial_response_callback();

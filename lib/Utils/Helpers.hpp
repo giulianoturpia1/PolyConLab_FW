@@ -40,6 +40,10 @@ inline std::string trim(const std::string& str) {
 /// @return bool True if value starts with prefix
 ///
 inline bool starts_with(const std::string& value, const char* prefix) {
+    if (prefix == nullptr) {
+        return false;
+    }
+
     size_t prefix_len = std::strlen(prefix);
     return value.size() >= prefix_len && value.compare(0, prefix_len, prefix) == 0;
 }
@@ -64,8 +68,9 @@ inline std::string format_float(float value, int precision) {
 /// @return const definitions::CommandMap*
 ///
 inline const definitions::CommandMap* find_command(const std::string& cmd_name) {
-    const auto it = std::find_if(definitions::kCommandMap.begin(), definitions::kCommandMap.end(),
-                                 [&cmd_name](const definitions::CommandMap& entry) { return cmd_name == entry.name; });
+    const auto it =
+        std::find_if(definitions::kCommandMap.begin(), definitions::kCommandMap.end(),
+                     [&cmd_name](const definitions::CommandMap& entry) { return entry.name != nullptr && cmd_name == entry.name; });
     return it != definitions::kCommandMap.end() ? &(*it) : nullptr;
 }
 
@@ -76,8 +81,9 @@ inline const definitions::CommandMap* find_command(const std::string& cmd_name) 
 /// @return const char* Canonical response text
 ///
 inline const char* response(const definitions::ResponseType type) {
-    const auto it = std::find_if(definitions::kResponseMap.begin(), definitions::kResponseMap.end(),
-                                 [type](const definitions::ResponseMap& response_entry) { return response_entry.type == type; });
+    const auto it = std::find_if(
+        definitions::kResponseMap.begin(), definitions::kResponseMap.end(),
+        [type](const definitions::ResponseMap& response_entry) { return response_entry.name != nullptr && response_entry.type == type; });
     if (it != definitions::kResponseMap.end()) {
         return it->name;
     }
@@ -93,9 +99,11 @@ inline const char* response(const definitions::ResponseType type) {
 ///
 inline const char* response_for_command(const definitions::CommandType command) {
     const auto it = std::find_if(definitions::kCommandResponseMap.begin(), definitions::kCommandResponseMap.end(),
-                                 [command](const definitions::CommandResponseMap& entry) { return entry.command == command; });
+                                 [command](const definitions::CommandResponseMap& entry) {
+                                     return response(entry.response)[0] != '\0' && entry.command == command;
+                                 });
     if (it == definitions::kCommandResponseMap.end()) {
-        return nullptr;
+        return "";
     }
 
     return response(it->response);

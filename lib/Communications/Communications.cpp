@@ -154,9 +154,6 @@ bool Communications::handle_command(const std::string& msg, const std::function<
 
         case definitions::CommandType::kValveOpen: {
             uint32_t valve_pin = parse_valve_pin(msg);
-            size_t comma_pos = msg.find(',');
-            char valve_num =
-                (comma_pos != std::string::npos) ? msg[comma_pos + 1] : '0';  // Assume a single digit valve number for response
             if (!modules::StateMachine::instance().queue_command({cmd->command, valve_pin}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
@@ -166,9 +163,6 @@ bool Communications::handle_command(const std::string& msg, const std::function<
 
         case definitions::CommandType::kValveClose: {
             uint32_t valve_pin = parse_valve_pin(msg);
-            size_t comma_pos = msg.find(',');
-            char valve_num =
-                (comma_pos != std::string::npos) ? msg[comma_pos + 1] : '0';  // Assume a single digit valve number for response
             if (!modules::StateMachine::instance().queue_command({cmd->command, valve_pin}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
@@ -229,7 +223,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
         }
 
         case definitions::CommandType::kFlowBegin: {
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, 0}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }
@@ -237,7 +231,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
         }
 
         case definitions::CommandType::kFlowStop: {
-            if (!modules::StateMachine::instance().enqueue_command({cmd->command, 0}, 10)) {
+            if (!modules::StateMachine::instance().queue_command({cmd->command, 0}, 10)) {
                 respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
                 return true;
             }

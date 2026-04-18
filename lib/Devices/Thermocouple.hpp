@@ -23,6 +23,7 @@
 
 #include "Adafruit_MCP9600.h"
 #include "Definitions.hpp"
+#include "ICommandResponseQueue.hpp"
 
 namespace modules {
 
@@ -38,6 +39,13 @@ class Thermocouple {
     /// @return Thermocouple&
     ///
     static Thermocouple& instance();
+
+    ///
+    /// @brief Set the sink used to publish command execution responses.
+    ///
+    /// @param queue Response queue implementation. If nullptr, response publishing is disabled.
+    ///
+    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
     ///
     /// @brief Initialize controller with an array of I2C addresses.
@@ -129,6 +137,14 @@ class Thermocouple {
     bool process_command(definitions::CommandType command, uint32_t address);
 
     ///
+    /// @brief Publish a response through the configured sink.
+    ///
+    /// @param response Response payload.
+    /// @return true if the sink accepted the response.
+    ///
+    bool publish_response(const definitions::CommandRequest& response);
+
+    ///
     /// @brief FreeRTOS task entry point for processing valve commands from the queue.
     ///
     /// @param param
@@ -145,9 +161,10 @@ class Thermocouple {
     };
 
     std::array<ThermocoupleSlot, definitions::kMaxThermocouples>
-        thermocouples_;      ///< Array of registered thermocouples and their MCP devices
-    uint8_t thermoc_count_;  ///< Current count of registered thermocouples
-    QueueHandle_t queue_;    ///< FreeRTOS queue handle for thermocouple commands
+        thermocouples_;                                  ///< Array of registered thermocouples and their MCP devices
+    uint8_t thermoc_count_;                              ///< Current count of registered thermocouples
+    QueueHandle_t queue_;                                ///< FreeRTOS queue handle for thermocouple commands
+    interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
 };
 
 }  // namespace modules

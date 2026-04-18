@@ -5,8 +5,8 @@
 #include <cstring>
 
 #include "HALGeneral.hpp"
-#include "StateMachine.hpp"
 
+constexpr uint32_t kFlowmeterTimeoutMs = 20;
 constexpr UBaseType_t kFlowmeterTaskPriority = 2;
 constexpr UBaseType_t kFlowmeterQueueLength = 8;
 constexpr uint32_t kFlowmeterTaskStackSize = 3072;
@@ -25,7 +25,11 @@ modules::Flowmeter& modules::Flowmeter::instance() {
     return instance;
 }
 
-modules::Flowmeter::Flowmeter() : pin_(0), status_(false), queue_(nullptr) {}
+void modules::Flowmeter::set_response_queue(interfaces::ICommandResponseQueue* queue) {
+    response_queue_ = queue;
+}
+
+modules::Flowmeter::Flowmeter() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
 
 //////////////////////////////////// Flow Meter Interrupt Service Routines //////////////////////////////
 void IRAM_ATTR isrFlowMeter() {
@@ -129,19 +133,19 @@ bool modules::Flowmeter::process_command(definitions::CommandType command) {
     switch (command) {
         case definitions::CommandType::kFlowBegin: {
             begin(pin_);
-            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kFlowBegin, 0}, 10);
+            publish_response({definitions::CommandType::kFlowBegin, 0});
             return true;
         }
 
         case definitions::CommandType::kFlowStop: {
             stop(pin_);
-            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kFlowStop, 0}, 10);
+            publish_response({definitions::CommandType::kFlowStop, 0});
             return true;
         }
 
         case definitions::CommandType::kFlowStatus: {
             bool current_status = status();
-            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kFlowStatus, current_status}, 10);
+            publish_response({definitions::CommandType::kFlowStatus, current_status});
             return true;
         }
 
@@ -149,11 +153,19 @@ bool modules::Flowmeter::process_command(definitions::CommandType command) {
             float flow_rate = readFlow();
             uint32_t flow_rate_bits;
             std::memcpy(&flow_rate_bits, &flow_rate, sizeof(float));
-            modules::StateMachine::instance().enqueue_action({definitions::CommandType::kFlowRead, flow_rate_bits}, 10);
+            publish_response({definitions::CommandType::kFlowRead, flow_rate_bits});
             return true;
         }
 
         default:
             return false;
     }
+}
+
+bool modules::Flowmeter::publish_response(const definitions::CommandRequest& response) {
+    if (response_queue_ == nullptr) {
+        return false;
+    }
+
+    return response_queue_->publish(response, kFlowmeterTimeoutMs);
 }

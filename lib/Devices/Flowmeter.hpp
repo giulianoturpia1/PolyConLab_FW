@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include "Definitions.hpp"
+#include "ICommandResponseQueue.hpp"
 
 namespace modules {
 
@@ -33,6 +34,13 @@ class Flowmeter {
     /// @return Flowmeter&
     ///
     static Flowmeter& instance();
+
+    ///
+    /// @brief Set the sink used to publish command execution responses.
+    ///
+    /// @param queue Response queue implementation. If nullptr, response publishing is disabled.
+    ///
+    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
     ///
     /// @brief Initialize flowmeter with the sensor pin and necessary hardware setup. Attach interrupts and timer.
@@ -102,15 +110,24 @@ class Flowmeter {
     bool process_command(definitions::CommandType command);
 
     ///
+    /// @brief Publish a response through the configured sink.
+    ///
+    /// @param response Response payload.
+    /// @return true if the sink accepted the response.
+    ///
+    bool publish_response(const definitions::CommandRequest& response);
+
+    ///
     /// @brief FreeRTOS task entry point for processing valve commands from the queue.
     ///
     /// @param param
     ///
     static void task_entry(void* param);
 
-    uint32_t pin_;         ///< Pin used for flowmeter control
-    bool status_;          ///< Current flowmeter status
-    QueueHandle_t queue_;  ///< FreeRTOS queue handle for flowmeter commands
+    uint32_t pin_;                                       ///< Pin used for flowmeter control
+    bool status_;                                        ///< Current flowmeter status
+    QueueHandle_t queue_;                                ///< FreeRTOS queue handle for flowmeter commands
+    interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
 };
 
 }  // namespace modules

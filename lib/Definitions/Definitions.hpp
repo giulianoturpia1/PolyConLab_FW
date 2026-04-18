@@ -194,7 +194,7 @@ struct CommandResponseMap {
     ResponseType response;
 };
 
-constexpr std::array<CommandMap, 23> kCommandMap = {{
+constexpr std::array<CommandMap, 22> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
     {("OUTP:HEAT?"), CommandType::kHeaterState},

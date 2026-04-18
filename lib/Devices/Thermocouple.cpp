@@ -6,8 +6,8 @@
 #include <cmath>
 
 #include "HALGeneral.hpp"
-#include "StateMachine.hpp"
 
+constexpr uint32_t kThermocoupleTimeoutMs = 20;
 constexpr UBaseType_t kThermocoupleTaskPriority = 2;
 constexpr UBaseType_t kThermocoupleQueueLength = 8;
 constexpr uint32_t kThermocoupleTaskStackSize = 3072;
@@ -25,6 +25,10 @@ namespace modules {
 Thermocouple& Thermocouple::instance() {
     static Thermocouple instance;
     return instance;
+}
+
+void Thermocouple::set_response_queue(interfaces::ICommandResponseQueue* queue) {
+    response_queue_ = queue;
 }
 
 void Thermocouple::begin(const uint32_t* adds, size_t count) {
@@ -160,12 +164,20 @@ bool Thermocouple::process_command(definitions::CommandType command, uint32_t ad
     }
 
     if (!std::isnan(temperature)) {
-        modules::StateMachine::instance().enqueue_action({command, sensor_address}, 10);
+        publish_response({command, sensor_address});
     }
     return !std::isnan(temperature);
 }
 
-Thermocouple::Thermocouple() : thermocouples_({}), thermoc_count_(0), queue_(nullptr) {}
+bool Thermocouple::publish_response(const definitions::CommandRequest& response) {
+    if (response_queue_ == nullptr) {
+        return false;
+    }
+
+    return response_queue_->publish(response, kThermocoupleTimeoutMs);
+}
+
+Thermocouple::Thermocouple() : thermocouples_({}), thermoc_count_(0), queue_(nullptr), response_queue_(nullptr) {}
 
 uint8_t Thermocouple::find_index(uint32_t address) const {
     for (uint8_t index = 0; index < thermoc_count_; ++index) {
