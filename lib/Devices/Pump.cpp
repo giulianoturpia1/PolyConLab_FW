@@ -3,8 +3,8 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
-#include "StateMachine.hpp"
 
+constexpr uint32_t kPumpTimeoutMs = 20;
 constexpr UBaseType_t kPumpTaskPriority = 2;
 constexpr UBaseType_t kPumpQueueLength = 8;
 constexpr uint32_t kPumpTaskStackSize = 2048;
@@ -15,6 +15,10 @@ constexpr char kPumpTaskName[] = "pump_task";
 modules::Pump& modules::Pump::instance() {
     static Pump instance;
     return instance;
+}
+
+void modules::Pump::set_response_queue(interfaces::ICommandResponseQueue* queue) {
+    response_queue_ = queue;
 }
 
 void modules::Pump::begin(uint32_t pin) {
@@ -69,27 +73,35 @@ bool modules::Pump::queue_command(definitions::CommandType command, uint32_t tim
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-modules::Pump::Pump() : pin_(0), status_(false), queue_(nullptr) {}
+modules::Pump::Pump() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
 
 bool modules::Pump::process_command(definitions::CommandType command) {
     switch (command) {
         case definitions::CommandType::kPumpOn:
             on();
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kPumpOn, 0}, 10);
+            publish_response({definitions::CommandType::kPumpOn, 0});
             return true;
 
         case definitions::CommandType::kPumpOff:
             off();
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kPumpOff, 0}, 10);
+            publish_response({definitions::CommandType::kPumpOff, 0});
             return true;
 
         case definitions::CommandType::kPumpState:
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kPumpState, 0}, 10);
+            publish_response({definitions::CommandType::kPumpState, 0});
             return true;
 
         default:
             return false;
     }
+}
+
+bool modules::Pump::publish_response(const definitions::CommandRequest& response) {
+    if (response_queue_ == nullptr) {
+        return false;
+    }
+
+    return response_queue_->publish(response, kPumpTimeoutMs);
 }
 
 void modules::Pump::task_entry(void* param) {

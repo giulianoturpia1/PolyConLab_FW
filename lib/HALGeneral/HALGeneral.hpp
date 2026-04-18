@@ -17,7 +17,7 @@
 #include <cstdint>
 #include <string>
 
-namespace modules {
+namespace interfaces {
 
 ///
 /// @brief General Hardware Abstraction Layer interface
@@ -186,6 +186,12 @@ class HALGeneral {
     virtual std::string get_chip_id() = 0;
 };
 
+}  // namespace interfaces
+
+namespace modules {
+
+using interfaces::HALGeneral;
+
 // Pin mode constants
 constexpr uint8_t PIN_MODE_INPUT = 0x00;
 constexpr uint8_t PIN_MODE_OUTPUT = 0x01;
@@ -216,14 +222,14 @@ class HALGeneralManager {
     ///
     /// @return HALGeneral& Reference to the active HAL implementation
     ///
-    HALGeneral& get();
+    interfaces::HALGeneral& get();
 
     ///
     /// @brief Set a custom HALGeneral implementation (for dependency injection)
     ///
     /// @param hal Pointer to custom HAL implementation
     ///
-    void set(HALGeneral* hal);
+    void set(interfaces::HALGeneral* hal);
 
    private:
     HALGeneralManager();
@@ -234,7 +240,7 @@ class HALGeneralManager {
     HALGeneralManager(HALGeneralManager&&) = delete;
     HALGeneralManager& operator=(HALGeneralManager&&) = delete;
 
-    HALGeneral* hal_;  ///< Pointer to the active HAL implementation (initialized in constructor)
+    interfaces::HALGeneral* hal_;  ///< Pointer to the active HAL implementation (initialized in constructor)
 };
 
 ///
@@ -242,7 +248,7 @@ class HALGeneralManager {
 ///
 /// @return HALGeneral& Reference to the active HAL implementation
 ///
-inline HALGeneral& hal_general() {
+inline interfaces::HALGeneral& hal_general() {
     return HALGeneralManager::instance().get();
 }
 

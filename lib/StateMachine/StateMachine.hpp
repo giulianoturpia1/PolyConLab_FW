@@ -17,10 +17,12 @@
 
 #include "Definitions.hpp"
 
-namespace modules {
-
-// Forward declaration.
+namespace interfaces {
 class IState;
+}
+
+namespace modules {
+using interfaces::IState;
 
 ///
 /// @brief Finite State Machine for system state management. It handles state transitions and is

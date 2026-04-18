@@ -3,8 +3,8 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
-#include "StateMachine.hpp"
 
+constexpr uint32_t kChillerTimeoutMs = 20;
 constexpr UBaseType_t kChillerTaskPriority = 2;
 constexpr UBaseType_t kChillerQueueLength = 8;
 constexpr uint32_t kChillerTaskStackSize = 2048;
@@ -15,6 +15,10 @@ constexpr char kChillerTaskName[] = "chiller_task";
 modules::Chiller& modules::Chiller::instance() {
     static Chiller instance;
     return instance;
+}
+
+void modules::Chiller::set_response_queue(interfaces::ICommandResponseQueue* queue) {
+    response_queue_ = queue;
 }
 
 void modules::Chiller::begin(uint32_t pin) {
@@ -69,27 +73,35 @@ bool modules::Chiller::queue_command(definitions::CommandType command, uint32_t 
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-modules::Chiller::Chiller() : pin_(0), status_(false), queue_(nullptr) {}
+modules::Chiller::Chiller() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
 
 bool modules::Chiller::process_command(definitions::CommandType command) {
     switch (command) {
         case definitions::CommandType::kChillerOn:
             on();
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kChillerOn, 0}, 10);
+            publish_response({definitions::CommandType::kChillerOn, 0});
             return true;
 
         case definitions::CommandType::kChillerOff:
             off();
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kChillerOff, 0}, 10);
+            publish_response({definitions::CommandType::kChillerOff, 0});
             return true;
 
         case definitions::CommandType::kChillerState:
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kChillerState, 0}, 10);
+            publish_response({definitions::CommandType::kChillerState, 0});
             return true;
 
         default:
             return false;
     }
+}
+
+bool modules::Chiller::publish_response(const definitions::CommandRequest& response) {
+    if (response_queue_ == nullptr) {
+        return false;
+    }
+
+    return response_queue_->publish(response, kChillerTimeoutMs);
 }
 
 void modules::Chiller::task_entry(void* param) {

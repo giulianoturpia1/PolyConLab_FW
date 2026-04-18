@@ -23,7 +23,7 @@ namespace modules {
 /// This class provides the concrete implementation of HALGeneral for
 /// Arduino platforms, wrapping Arduino library calls.
 ///
-class HALGeneralArduino : public HALGeneral {
+class HALGeneralArduino : public interfaces::HALGeneral {
    public:
     // ==================== Time Functions ====================
 

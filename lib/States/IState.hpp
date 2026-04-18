@@ -18,6 +18,9 @@ namespace modules {
 
 // Forward declaration.
 class StateMachine;
+}  // namespace modules
+
+namespace interfaces {
 
 class IState {
    public:
@@ -30,7 +33,7 @@ class IState {
     /// @param event Incoming event.
     /// @return definitions::SystemState Next state to apply.
     ///
-    virtual definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) = 0;
+    virtual definitions::SystemState handle_event(modules::StateMachine* context, definitions::SystemEvent event) = 0;
 
     ///
     /// @brief Validate and dispatch a command request while this state is active.
@@ -39,21 +42,21 @@ class IState {
     /// @param request Command request to evaluate/dispatch.
     /// @return true if command was accepted and dispatched; false otherwise.
     ///
-    virtual bool dispatch_command(StateMachine* context, const definitions::CommandRequest& request);
+    virtual bool dispatch_command(modules::StateMachine* context, const definitions::CommandRequest& request);
 
     ///
     /// @brief Optional callback executed when entering the state. Can be used for actions like applying safe outputs, logging, etc.
     ///
     /// @param context FSM runtime context.
     ///
-    virtual void on_enter(StateMachine* context);
+    virtual void on_enter(modules::StateMachine* context);
 
     ///
     /// @brief Optional callback executed when exiting the state. Can be used for cleanup actions if needed.
     ///
     /// @param context FSM runtime context.
     ///
-    virtual void on_exit(StateMachine* context);
+    virtual void on_exit(modules::StateMachine* context);
 
     ///
     /// @brief Human-readable constant state label.
@@ -66,7 +69,7 @@ class IState {
     /// @param context FSM runtime context.
     /// @return definitions::SystemState Next state to apply.
     ///
-    virtual definitions::SystemState tick(StateMachine* context);
+    virtual definitions::SystemState tick(modules::StateMachine* context);
 
    protected:
     IState() = default;  // Prevent direct instantiation of the interface
@@ -76,5 +79,11 @@ class IState {
     IState(IState&&) = delete;
     IState& operator=(IState&&) = delete;
 };
+
+}  // namespace interfaces
+
+namespace modules {
+
+using interfaces::IState;
 
 }  // namespace modules

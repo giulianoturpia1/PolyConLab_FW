@@ -25,11 +25,11 @@ namespace definitions {
 ///
 enum class Pins : uint32_t {
     // Actuators
-    kHeater = Q0_1,   ///< Heating Resistor
+    kHeater = Q0_4,   ///< Heating Resistor
     kPump = Q0_0,     ///< Circulation Pump
-    kChiller = Q0_2,  ///< Chiller
-    kValve1 = R1_1,   ///< Valve 1
-    kValve2 = R1_2,   ///< Valve 2
+    kChiller = Q0_7,  ///< Chiller | PLACEHOLDER, no actual connection to it
+    kValve1 = Q0_1,   ///< Valve 1
+    kValve2 = Q0_3,   ///< Valve 2
 
     // Sensors
     kTempSensor1 = I0_2,  ///< Temperature Sensor 1

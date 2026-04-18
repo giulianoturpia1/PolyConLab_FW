@@ -3,8 +3,8 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
-#include "StateMachine.hpp"
 
+constexpr uint32_t kHeaterTimeoutMs = 20;
 constexpr UBaseType_t kHeaterTaskPriority = 2;
 constexpr UBaseType_t kHeaterQueueLength = 8;
 constexpr uint32_t kHeaterTaskStackSize = 2048;
@@ -15,6 +15,10 @@ constexpr char kHeaterTaskName[] = "heater_task";
 modules::Heater& modules::Heater::instance() {
     static Heater instance;
     return instance;
+}
+
+void modules::Heater::set_response_queue(interfaces::ICommandResponseQueue* queue) {
+    response_queue_ = queue;
 }
 
 void modules::Heater::begin(uint32_t pin) {
@@ -69,27 +73,35 @@ bool modules::Heater::queue_command(definitions::CommandType command, uint32_t t
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-modules::Heater::Heater() : pin_(0), status_(false), queue_(nullptr) {}
+modules::Heater::Heater() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
 
 bool modules::Heater::process_command(definitions::CommandType command) {
     switch (command) {
         case definitions::CommandType::kHeaterOn:
             on();
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kHeaterOn, 0}, 10);
+            publish_response({definitions::CommandType::kHeaterOn, 0});
             return true;
 
         case definitions::CommandType::kHeaterOff:
             off();
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kHeaterOff, 0}, 10);
+            publish_response({definitions::CommandType::kHeaterOff, 0});
             return true;
 
         case definitions::CommandType::kHeaterState:
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kHeaterState, 0}, 10);
+            publish_response({definitions::CommandType::kHeaterState, 0});
             return true;
 
         default:
             return false;
     }
+}
+
+bool modules::Heater::publish_response(const definitions::CommandRequest& response) {
+    if (response_queue_ == nullptr) {
+        return false;
+    }
+
+    return response_queue_->publish(response, kHeaterTimeoutMs);
 }
 
 void modules::Heater::task_entry(void* param) {

@@ -2,21 +2,21 @@
 
 #include "StateMachine.hpp"
 
-bool modules::IState::dispatch_command(StateMachine* context, const definitions::CommandRequest& request) {
+bool interfaces::IState::dispatch_command(modules::StateMachine* context, const definitions::CommandRequest& request) {
     (void) context;
     (void) request;
     return false;
 }
 
-void modules::IState::on_enter(StateMachine* context) {
+void interfaces::IState::on_enter(modules::StateMachine* context) {
     (void) context;
 }
 
-void modules::IState::on_exit(StateMachine* context) {
+void interfaces::IState::on_exit(modules::StateMachine* context) {
     (void) context;
 }
 
-definitions::SystemState modules::IState::tick(StateMachine* context) {
+definitions::SystemState interfaces::IState::tick(modules::StateMachine* context) {
     if (context == nullptr) {
         return definitions::SystemState::kHardError;
     }

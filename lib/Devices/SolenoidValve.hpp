@@ -19,6 +19,7 @@
 #include <array>
 
 #include "Definitions.hpp"
+#include "ICommandResponseQueue.hpp"
 
 namespace modules {
 
@@ -34,6 +35,13 @@ class SolenoidValve {
     /// @return SolenoidValve&
     ///
     static SolenoidValve& instance();
+
+    ///
+    /// @brief Set the sink used to publish command execution responses.
+    ///
+    /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
+    ///
+    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
     ///
     /// @brief Initialize controller with an array of valve pins.
@@ -141,6 +149,14 @@ class SolenoidValve {
     bool process_command(definitions::CommandType command, uint32_t pin);
 
     ///
+    /// @brief Publish a response through the configured sink.
+    ///
+    /// @param response Response payload.
+    /// @return true if the sink accepted the response.
+    ///
+    bool publish_response(const definitions::CommandRequest& response);
+
+    ///
     /// @brief FreeRTOS task entry point for processing valve commands from the queue.
     ///
     /// @param param
@@ -159,6 +175,7 @@ class SolenoidValve {
     std::array<ValveSlot, definitions::kMaxSolenoidValves> valves_;  ///< Array to hold registered valves
     uint8_t valve_count_;                                            ///< Current count of registered valves
     QueueHandle_t queue_;                                            ///< FreeRTOS queue handle for valve commands
+    interfaces::ICommandResponseQueue* response_queue_;              ///< Queue used to publish command responses
 };
 
 }  // namespace modules

@@ -5,8 +5,8 @@
 #include <algorithm>
 
 #include "HALGeneral.hpp"
-#include "StateMachine.hpp"
 
+constexpr uint32_t kSolenoidValveTimeoutMs = 20;
 constexpr UBaseType_t kSolenoidValveTaskPriority = 2;
 constexpr UBaseType_t kSolenoidValveQueueLength = 8;
 constexpr uint32_t kSolenoidValveTaskStackSize = 3072;
@@ -24,6 +24,10 @@ namespace modules {
 SolenoidValve& SolenoidValve::instance() {
     static SolenoidValve instance;
     return instance;
+}
+
+void SolenoidValve::set_response_queue(interfaces::ICommandResponseQueue* queue) {
+    response_queue_ = queue;
 }
 
 void SolenoidValve::begin(const uint32_t* pins, size_t count) {
@@ -147,7 +151,7 @@ bool SolenoidValve::queue_command(definitions::CommandType command, uint32_t pin
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0), queue_(nullptr) {}
+SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0), queue_(nullptr), response_queue_(nullptr) {}
 
 uint8_t SolenoidValve::find_index(uint32_t pin) const {
     for (uint8_t index = 0; index < valve_count_; ++index) {
@@ -164,7 +168,7 @@ bool SolenoidValve::process_command(definitions::CommandType command, uint32_t p
         case definitions::CommandType::kValveOpen: {
             const bool executed = open(pin);
             if (executed) {
-                modules::StateMachine::instance().queue_response({definitions::CommandType::kValveOpen, pin}, 10);
+                publish_response({definitions::CommandType::kValveOpen, pin});
             }
             return executed;
         }
@@ -172,18 +176,26 @@ bool SolenoidValve::process_command(definitions::CommandType command, uint32_t p
         case definitions::CommandType::kValveClose: {
             const bool executed = close(pin);
             if (executed) {
-                modules::StateMachine::instance().queue_response({definitions::CommandType::kValveClose, pin}, 10);
+                publish_response({definitions::CommandType::kValveClose, pin});
             }
             return executed;
         }
 
         case definitions::CommandType::kValveState:
-            modules::StateMachine::instance().queue_response({definitions::CommandType::kValveState, pin}, 10);
+            publish_response({definitions::CommandType::kValveState, pin});
             return find_index(pin) < definitions::kMaxSolenoidValves;
 
         default:
             return false;
     }
+}
+
+bool SolenoidValve::publish_response(const definitions::CommandRequest& response) {
+    if (response_queue_ == nullptr) {
+        return false;
+    }
+
+    return response_queue_->publish(response, kSolenoidValveTimeoutMs);
 }
 
 void modules::SolenoidValve::task_entry(void* param) {
