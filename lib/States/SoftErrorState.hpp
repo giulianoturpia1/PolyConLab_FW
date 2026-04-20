@@ -24,8 +24,8 @@ class SoftErrorState final : public IState {
 
    private:
     bool retryRequested_ = false;
-    bool conditionCleared_ = false;
     bool ackRequested_ = false;
+    bool conditionCleared_ = false;
 
     void apply_safe_outputs();
 };

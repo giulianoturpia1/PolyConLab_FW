@@ -8,31 +8,30 @@
 
 definitions::SystemState modules::SoftErrorState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     switch (event) {
-        case definitions::SystemEvent::kCmdRetryCheck:
+        case definitions::SystemEvent::kRetryCheckup:
             retryRequested_ = true;
             break;
-        case definitions::SystemEvent::kCmdAckFault:
+        case definitions::SystemEvent::kAckFault:
             ackRequested_ = true;
             break;
         case definitions::SystemEvent::kConditionCleared:
             conditionCleared_ = true;
             break;
         case definitions::SystemEvent::kFaultCritical:
+        case definitions::SystemEvent::kShutdownButton:
+        case definitions::SystemEvent::kEStop:
+        case definitions::SystemEvent::kFaultEscalates:
         case definitions::SystemEvent::kTooManyRetries:
             return definitions::SystemState::kHardError;
         default:
             break;
     }
 
-    if (!conditionCleared_) {
-        return definitions::SystemState::kSoftError;
-    }
-
     if (retryRequested_) {
         return definitions::SystemState::kCheckup;
     }
 
-    if (ackRequested_) {
+    if (ackRequested_ && conditionCleared_) {
         const definitions::SystemState previousState = context->get_previous_state();
         if (previousState == definitions::SystemState::kManual || previousState == definitions::SystemState::kPause) {
             return definitions::SystemState::kManual;
@@ -47,8 +46,8 @@ definitions::SystemState modules::SoftErrorState::handle_event(StateMachine* con
 void modules::SoftErrorState::on_enter(StateMachine* context) {
     (void) context;
     retryRequested_ = false;
-    conditionCleared_ = false;
     ackRequested_ = false;
+    conditionCleared_ = false;
     modules::hal_general().log("Iniciando Estado: SOFT_ERROR - Error recuperable");
     apply_safe_outputs();
 }

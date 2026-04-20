@@ -50,50 +50,35 @@ enum class SystemState {
 /// @note These are arbitrary events and may not define all possible events in the system.
 ///
 enum class SystemEvent {
-    // Power and initialization
+    // Startup and shutdown events
     kPowerOn,
     kInitOk,
-
-    // Checkup events
-    kCheckupOk,
-    kScadaLinkOk,
-    kSensorsOk,
-
-    // Calibration events
-    kStartCalibration,
-    kFinishCalibration,
-
-    // Manual mode events
-    kCmdStartAuto,
-    kSeqLoaded,
-    kCmdStartDemo,
-    kDemoEnabled,
-
-    // Command events
-    kCmdPause,
-    kCmdResume,
-    kCmdAbort,
-    kCmdShutdown,
-
-    // Error events
-    kFaultRecoverable,
-    kFaultCritical,
-
-    // Retry/check events
-    kCmdRetryCheck,
-    kCmdAckFault,
-    kCmdSeqReset,
-    kConditionCleared,
-    kSeqDone,
-
-    // Reset event
-    kCmdResetFault,
-    kShutdownComplete,
-    kShutdownButton,
     kInitFatal,
     kWatchdogFatal,
+    kShutdown,
+    kShutdownComplete,
+
+    // Runtime control events
+    kPause,
+    kUnpause,
+    kScadaOk,
+    kSensorOk,
+    kFaultRecoverable,
+    kRetryCheckup,
+    kAckFault,
+    kConditionCleared,
+
+    // Fault handling events
+    kFaultCritical,
+    kShutdownButton,
+    kEStop,
+    kFaultEscalates,
     kTooManyRetries,
-    kStop
+
+    // Hard error reset event
+    kResetFault,
+    kConditionsOk,
+    kPhysicalReset
 };
 
 ///
@@ -219,42 +204,35 @@ constexpr std::array<CommandMap, 22> kCommandMap = {{
     {("STATE?"), CommandType::kStateQuery},
 }};
 
-constexpr std::array<EventMap, 29> kEventMap = {{
-    {("POWER_ON"), SystemEvent::kPowerOn},
-    {("INIT_OK"), SystemEvent::kInitOk},
-    {("CHECKUP_OK"), SystemEvent::kCheckupOk},
-    {("SCADA_LINK_OK"), SystemEvent::kScadaLinkOk},
-    {("SENSORS_OK"), SystemEvent::kSensorsOk},
-    {("START_CALIBRATION"), SystemEvent::kStartCalibration},
-    {("FINISH_CALIBRATION"), SystemEvent::kFinishCalibration},
-    {("CMD_START_AUTO"), SystemEvent::kCmdStartAuto},
-    {("SEQ_LOADED"), SystemEvent::kSeqLoaded},
-    {("CMD_START_DEMO"), SystemEvent::kCmdStartDemo},
-    {("DEMO_ENABLED"), SystemEvent::kDemoEnabled},
-    {("CMD_PAUSE"), SystemEvent::kCmdPause},
-    {("CMD_RESUME"), SystemEvent::kCmdResume},
-    {("CMD_ABORT"), SystemEvent::kCmdAbort},
-    {("CMD_SHUTDOWN"), SystemEvent::kCmdShutdown},
-    {("FAULT_RECOVERABLE"), SystemEvent::kFaultRecoverable},
-    {("FAULT_CRITICAL"), SystemEvent::kFaultCritical},
-    {("CMD_RETRY_CHECK"), SystemEvent::kCmdRetryCheck},
-    {("CMD_ACK_FAULT"), SystemEvent::kCmdAckFault},
-    {("CMD_SEQ_RESET"), SystemEvent::kCmdSeqReset},
-    {("CONDITION_CLEARED"), SystemEvent::kConditionCleared},
-    {("SEQ_DONE"), SystemEvent::kSeqDone},
-    {("CMD_RESET_FAULT"), SystemEvent::kCmdResetFault},
-    {("SHUTDOWN_COMPLETE"), SystemEvent::kShutdownComplete},
-    {("SHUTDOWN_BUTTON"), SystemEvent::kShutdownButton},
-    {("INIT_FATAL"), SystemEvent::kInitFatal},
-    {("WATCHDOG_FATAL"), SystemEvent::kWatchdogFatal},
-    {("TOO_MANY_RETRIES"), SystemEvent::kTooManyRetries},
-    {("STOP"), SystemEvent::kStop},
+constexpr std::array<EventMap, 22> kEventMap = {{
+    {("POWER ON"), SystemEvent::kPowerOn},
+    {("INIT OK"), SystemEvent::kInitOk},
+    {("INIT FATAL"), SystemEvent::kInitFatal},
+    {("WATCHDOG FATAL"), SystemEvent::kWatchdogFatal},
+    {("SHUTDOWN"), SystemEvent::kShutdown},
+    {("SHUTDOWN COMPLETE"), SystemEvent::kShutdownComplete},
+    {("PAUSE"), SystemEvent::kPause},
+    {("UNPAUSE"), SystemEvent::kUnpause},
+    {("SCADA OK"), SystemEvent::kScadaOk},
+    {("SENSOR OK"), SystemEvent::kSensorOk},
+    {("FAULT RECOVERABLE"), SystemEvent::kFaultRecoverable},
+    {("RETRY CHECKUP"), SystemEvent::kRetryCheckup},
+    {("ACK FAULT"), SystemEvent::kAckFault},
+    {("CONDITION CLEARED"), SystemEvent::kConditionCleared},
+    {("FAULT CRITICAL"), SystemEvent::kFaultCritical},
+    {("SHUTDOWN BUTTON"), SystemEvent::kShutdownButton},
+    {("E STOP"), SystemEvent::kEStop},
+    {("FAULT ESCALATES"), SystemEvent::kFaultEscalates},
+    {("TOO MANY RETRIES"), SystemEvent::kTooManyRetries},
+    {("RESET FAULT"), SystemEvent::kResetFault},
+    {("CONDITIONS OK"), SystemEvent::kConditionsOk},
+    {("RESET FISICO"), SystemEvent::kPhysicalReset},
 }};
 
 constexpr std::array<ResponseMap, 27> kResponseMap = {{
-    {"-100,'Command error'", ResponseType::kErrorUnknownCommand},
-    {"-200,’Execution error’", ResponseType::kErrorEmptyEvent},
-    {"-300,’Device-specific error’", ResponseType::kErrorUnknownEvent},
+    {"-100,’COMANDO DESCONOCIDO’", ResponseType::kErrorUnknownCommand},
+    {"-200,’EVENTO VACIO’", ResponseType::kErrorEmptyEvent},
+    {"-300,’EVENTO DESCONOCIDO’", ResponseType::kErrorUnknownEvent},
     {"PONG", ResponseType::kPingOk},
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},

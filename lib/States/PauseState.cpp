@@ -5,15 +5,13 @@
 
 definitions::SystemState modules::PauseState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     switch (event) {
-        case definitions::SystemEvent::kCmdResume:
-        case definitions::SystemEvent::kCmdAbort:
+        case definitions::SystemEvent::kUnpause:
             return context->get_previous_state() == definitions::SystemState::kPause ? definitions::SystemState::kManual
                                                                                      : context->get_previous_state();
-        case definitions::SystemEvent::kCmdShutdown:
+        case definitions::SystemEvent::kShutdown:
             return definitions::SystemState::kShutdown;
         case definitions::SystemEvent::kFaultCritical:
         case definitions::SystemEvent::kShutdownButton:
-        case definitions::SystemEvent::kStop:
             return definitions::SystemState::kHardError;
         default:
             return definitions::SystemState::kPause;

@@ -23,8 +23,8 @@ class CheckupState final : public IState {
     definitions::SystemState tick(StateMachine* context);
 
    private:
-    bool scadaLinkOk_ = false;
-    bool sensorsOk_ = false;
+    bool scadaOk_ = false;
+    bool sensorOk_ = false;
 
     void apply_safe_outputs();
 };

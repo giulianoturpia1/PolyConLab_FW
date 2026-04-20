@@ -22,7 +22,6 @@ definitions::SystemState modules::ShutdownState::handle_event(StateMachine* cont
             return definitions::SystemState::kStartup;
         case definitions::SystemEvent::kFaultCritical:
         case definitions::SystemEvent::kShutdownButton:
-        case definitions::SystemEvent::kStop:
             return definitions::SystemState::kHardError;
         default:
             return definitions::SystemState::kShutdown;

@@ -23,6 +23,9 @@ class HardErrorState final : public IState {
     definitions::SystemState tick(StateMachine* context);
 
    private:
+    bool resetFaultRequested_ = false;
+    bool conditionsOk_ = false;
+
     void apply_safe_outputs();
     void close_all_valves_if_supported();
 };

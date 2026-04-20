@@ -15,7 +15,7 @@ definitions::SystemState modules::StartupState::handle_event(StateMachine* conte
         case definitions::SystemEvent::kInitFatal:
         case definitions::SystemEvent::kWatchdogFatal:
             return definitions::SystemState::kHardError;
-        case definitions::SystemEvent::kCmdShutdown:
+        case definitions::SystemEvent::kShutdown:
             return definitions::SystemState::kShutdown;
         default:
             return definitions::SystemState::kStartup;

@@ -13,18 +13,15 @@ definitions::SystemState modules::ManualState::handle_event(StateMachine* contex
     (void) context;
 
     switch (event) {
-        case definitions::SystemEvent::kCmdPause:
+        case definitions::SystemEvent::kPause:
             return definitions::SystemState::kPause;
-        case definitions::SystemEvent::kCmdShutdown:
+        case definitions::SystemEvent::kShutdown:
             return definitions::SystemState::kShutdown;
         case definitions::SystemEvent::kFaultRecoverable:
             return definitions::SystemState::kSoftError;
         case definitions::SystemEvent::kFaultCritical:
         case definitions::SystemEvent::kShutdownButton:
-        case definitions::SystemEvent::kStop:
             return definitions::SystemState::kHardError;
-        case definitions::SystemEvent::kStartCalibration:
-            return definitions::SystemState::kCalibration;
         default:
             return definitions::SystemState::kManual;
     }

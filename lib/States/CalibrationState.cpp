@@ -11,15 +11,14 @@ definitions::SystemState modules::CalibrationState::handle_event(StateMachine* c
     (void) context;
 
     switch (event) {
-        case definitions::SystemEvent::kFinishCalibration:
+        case definitions::SystemEvent::kRetryCheckup:
             return definitions::SystemState::kCheckup;
         case definitions::SystemEvent::kFaultRecoverable:
             return definitions::SystemState::kSoftError;
         case definitions::SystemEvent::kFaultCritical:
         case definitions::SystemEvent::kShutdownButton:
-        case definitions::SystemEvent::kStop:
             return definitions::SystemState::kHardError;
-        case definitions::SystemEvent::kCmdShutdown:
+        case definitions::SystemEvent::kShutdown:
             return definitions::SystemState::kShutdown;
         default:
             return definitions::SystemState::kCalibration;
