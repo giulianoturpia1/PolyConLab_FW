@@ -126,6 +126,9 @@ enum class CommandType {
     kFlowRead,
     kFlowStatus,
 
+    // Level switch command
+    kLevelSwitchState,
+
     // Diagnostics/Status
     kPing,
     kStateQuery
@@ -159,7 +162,9 @@ enum class ResponseType {
     kStatusOn,
     kStatusOff,
     kStatusOpen,
-    kStatusClosed
+    kStatusClosed,
+    kStatusHigh,
+    kStatusLow
 };
 
 ///
@@ -179,7 +184,7 @@ struct CommandResponseMap {
     ResponseType response;
 };
 
-constexpr std::array<CommandMap, 22> kCommandMap = {{
+constexpr std::array<CommandMap, 23> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
     {("OUTP:HEAT?"), CommandType::kHeaterState},
@@ -200,6 +205,7 @@ constexpr std::array<CommandMap, 22> kCommandMap = {{
     {("OUTP:FLOW OFF"), CommandType::kFlowStop},
     {("OUTP:FLOW?"), CommandType::kFlowStatus},
     {("MEAS:FLOW?"), CommandType::kFlowRead},
+    {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
     {("PING"), CommandType::kPing},
     {("STATE?"), CommandType::kStateQuery},
 }};

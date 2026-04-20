@@ -25,12 +25,13 @@ namespace definitions {
 ///
 enum class Pins : uint32_t {
     // Actuators
-    kHeater = Q0_4,     ///< Heating Resistor - Output Digital Pin
-    kPump = Q0_0,       ///< Circulation Pump - Output Digital Pin
-    kChiller = Q0_7,    ///< Chiller | PLACEHOLDER, no actual connection to it - Output Digital Pin
-    kValve1 = Q0_1,     ///< Valve 1 -  Output Digital Pin
-    kValve2 = Q0_3,     ///< Valve 2 - Output Digital Pin
-    kFlowmeter = I0_5,  ///< Flowmeter Sensor - Input  Digital Pin (Interrupt Capable)
+    kHeater = Q0_4,       ///< Heating Resistor - Output Digital Pin
+    kPump = Q0_0,         ///< Circulation Pump - Output Digital Pin
+    kChiller = Q0_7,      ///< Chiller | PLACEHOLDER, no actual connection to it - Output Digital Pin
+    kValve1 = Q0_1,       ///< Valve 1 -  Output Digital Pin
+    kValve2 = Q0_3,       ///< Valve 2 - Output Digital Pin
+    kFlowmeter = I0_5,    ///< Flowmeter Sensor - Input  Digital Pin (Interrupt Capable)
+    kLevelSwitch = Q0_2,  ///< Level Switch - Output Digital Pin
 };
 
 enum class Addresses : uint32_t {

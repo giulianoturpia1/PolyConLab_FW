@@ -9,6 +9,7 @@
 #include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
+#include "LevelSwitch.hpp"
 #include "LocalServer.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
@@ -65,7 +66,8 @@ App::App()
       chiller_(modules::Chiller::instance()),
       valves_(modules::SolenoidValve::instance()),
       thermocouples_(modules::Thermocouple::instance()),
-      flowmeter_(modules::Flowmeter::instance()) {}
+      flowmeter_(modules::Flowmeter::instance()),
+      level_switch_(modules::LevelSwitch::instance()) {}
 
 void App::configure_serial_response_callback() {
     communications_.set_serial_response_callback([this](const std::string& response) { hal_.log(response.c_str()); });
