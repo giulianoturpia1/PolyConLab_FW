@@ -103,7 +103,7 @@ void modules::Flowmeter::start_task() {
     }
 }
 
-bool modules::Flowmeter::send_command(definitions::CommandType command, uint32_t timeout_ms) {
+bool modules::Flowmeter::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
     if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }

@@ -128,7 +128,7 @@ void Thermocouple::start_task() {
     }
 }
 
-bool Thermocouple::send_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms) {
+bool Thermocouple::queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms) {
     const ThermocoupleCommand queue_command = {command, address};
     if (queue_ == nullptr || xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;

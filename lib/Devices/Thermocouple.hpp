@@ -99,14 +99,14 @@ class Thermocouple {
     void start_task();
 
     ///
-    /// @brief Send a Thermocouple Amplifier command through the module queue.
+    /// @brief Queue a Thermocouple Amplifier command in the module's local queue.
     ///
     /// @param command Command to be sent.
     /// @param address Address of the Thermocouple Amplifier.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
-    bool send_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
+    bool queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
 
    private:
     Thermocouple();

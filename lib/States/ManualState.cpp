@@ -1,11 +1,14 @@
 #include "ManualState.hpp"
 
 #include "Chiller.hpp"
+#include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
+#include "LevelSwitch.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
+#include "Thermocouple.hpp"
 
 constexpr uint32_t kAcceptableTimeWindowMs = 100;
 
@@ -33,22 +36,55 @@ bool modules::ManualState::dispatch_command(StateMachine* context, const definit
     switch (request.command) {
         case definitions::CommandType::kHeaterOn:
             return modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOn, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kHeaterOff:
             return modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kPumpOn:
             return modules::Pump::instance().queue_command(definitions::CommandType::kPumpOn, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kPumpOff:
             return modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kChillerOn:
             return modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOn, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kChillerOff:
             return modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kValveOpen:
             return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveOpen, request.pin,
                                                                     kAcceptableTimeWindowMs);
         case definitions::CommandType::kValveClose:
             return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, request.pin,
                                                                     kAcceptableTimeWindowMs);
+        case definitions::CommandType::kTempInRead:
+            return modules::Thermocouple::instance().queue_command(definitions::CommandType::kTempInRead, kAcceptableTimeWindowMs);
+
+        case definitions::CommandType::kTempOutRead:
+            return modules::Thermocouple::instance().queue_command(definitions::CommandType::kTempOutRead, kAcceptableTimeWindowMs);
+
+        case definitions::CommandType::kTempBathRead:
+            return modules::Thermocouple::instance().queue_command(definitions::CommandType::kTempBathRead, kAcceptableTimeWindowMs);
+
+        case definitions::CommandType::kTempMixRead:
+            return modules::Thermocouple::instance().queue_command(definitions::CommandType::kTempMixRead, kAcceptableTimeWindowMs);
+
+        case definitions::CommandType::kFlowRead:
+            return modules::Flowmeter::instance().queue_command(definitions::CommandType::kFlowRead, kAcceptableTimeWindowMs);
+
+        case definitions::CommandType::kFlowStatus:
+            return modules::Flowmeter::instance().queue_command(definitions::CommandType::kFlowStatus, kAcceptableTimeWindowMs);
+
+        case definitions::CommandType::kFlowBegin:
+            return modules::Flowmeter::instance().queue_command(definitions::CommandType::kFlowBegin, kAcceptableTimeWindowMs);
+
+        case definitions::CommandType::kFlowStop:
+            return modules::Flowmeter::instance().queue_command(definitions::CommandType::kFlowStop, kAcceptableTimeWindowMs);
+
+        case definitions::CommandType::kLevelSwitchState:
+            return modules::LevelSwitch::instance().queue_command(definitions::CommandType::kLevelSwitchState, kAcceptableTimeWindowMs);
+
         default:
             return false;
     }
