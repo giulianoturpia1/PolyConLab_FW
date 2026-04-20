@@ -244,6 +244,8 @@ constexpr std::array<ResponseMap, 27> kResponseMap = {{
     {"OFF", ResponseType::kStatusOff},
     {"OPEN", ResponseType::kStatusOpen},
     {"CLOSE", ResponseType::kStatusClosed},
+    {"HIGH", ResponseType::kStatusHigh},
+    {"LOW", ResponseType::kStatusLow},
 }};
 
 constexpr std::array<CommandResponseMap, 8> kCommandResponseMap = {{
