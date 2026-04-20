@@ -12,8 +12,11 @@
 #pragma once
 
 // Forward declarations
-namespace modules {
+namespace interfaces {
 class HALGeneral;
+}
+
+namespace modules {
 class LocalServer;
 class Communications;
 class Heater;
@@ -22,6 +25,7 @@ class Chiller;
 class SolenoidValve;
 class Thermocouple;
 class Flowmeter;
+class LevelSwitch;
 class StateMachine;
 }  // namespace modules
 
@@ -107,7 +111,7 @@ class App {
     // Member variables - References to Modules
 
     StateMachine& state_machine_;
-    HALGeneral& hal_;
+    interfaces::HALGeneral& hal_;
     LocalServer& local_server_;
     Communications& communications_;
     Heater& heater_;
@@ -116,6 +120,7 @@ class App {
     SolenoidValve& valves_;
     Thermocouple& thermocouples_;
     Flowmeter& flowmeter_;
+    LevelSwitch& level_switch_;
 };
 
 }  // namespace modules

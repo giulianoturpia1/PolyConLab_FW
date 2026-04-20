@@ -5,8 +5,8 @@
 #include <algorithm>
 
 #include "HALGeneral.hpp"
-#include "StateMachine.hpp"
 
+constexpr uint32_t kSolenoidValveTimeoutMs = 20;
 constexpr UBaseType_t kSolenoidValveTaskPriority = 2;
 constexpr UBaseType_t kSolenoidValveQueueLength = 8;
 constexpr uint32_t kSolenoidValveTaskStackSize = 3072;
@@ -24,6 +24,10 @@ namespace modules {
 SolenoidValve& SolenoidValve::instance() {
     static SolenoidValve instance;
     return instance;
+}
+
+void SolenoidValve::set_response_queue(interfaces::ICommandResponseQueue* queue) {
+    response_queue_ = queue;
 }
 
 void SolenoidValve::begin(const uint32_t* pins, size_t count) {
@@ -136,16 +140,63 @@ void SolenoidValve::start_task() {
     }
 }
 
-bool SolenoidValve::send_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {
+bool SolenoidValve::queue_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {
     const ValveCommand queue_command = {command, pin};
-    if (queue_ == nullptr || xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+    if (queue_ == nullptr) {
         return false;
     }
 
-    return true;
+    return xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0), queue_(nullptr), response_queue_(nullptr) {}
+
+uint8_t SolenoidValve::find_index(uint32_t pin) const {
+    for (uint8_t index = 0; index < valve_count_; ++index) {
+        if (valves_[index].pin == pin) {
+            return index;
+        }
+    }
+
+    return definitions::kMaxSolenoidValves;  // Return an out-of-range index to indicate not found
+}
+
+bool SolenoidValve::process_command(definitions::CommandType command, uint32_t pin) {
+    switch (command) {
+        case definitions::CommandType::kValveOpen: {
+            const bool executed = open(pin);
+            if (executed) {
+                publish_response({definitions::CommandType::kValveOpen, pin});
+            }
+            return executed;
+        }
+
+        case definitions::CommandType::kValveClose: {
+            const bool executed = close(pin);
+            if (executed) {
+                publish_response({definitions::CommandType::kValveClose, pin});
+            }
+            return executed;
+        }
+
+        case definitions::CommandType::kValveState:
+            publish_response({definitions::CommandType::kValveState, pin});
+            return find_index(pin) < definitions::kMaxSolenoidValves;
+
+        default:
+            return false;
+    }
+}
+
+bool SolenoidValve::publish_response(const definitions::CommandRequest& response) {
+    if (response_queue_ == nullptr) {
+        return false;
+    }
+
+    return response_queue_->publish(response, kSolenoidValveTimeoutMs);
+}
 
 void modules::SolenoidValve::task_entry(void* param) {
     SolenoidValve* self = static_cast<SolenoidValve*>(param);
@@ -156,41 +207,6 @@ void modules::SolenoidValve::task_entry(void* param) {
             self->process_command(command.command, command.pin);
         }
     }
-}
-
-bool SolenoidValve::process_command(definitions::CommandType command, uint32_t pin) {
-    switch (command) {
-        case definitions::CommandType::kValveOpen: {
-            const bool executed = open(pin);
-            if (executed) {
-                modules::StateMachine::instance().enqueue_action({definitions::CommandType::kValveOpen, pin}, 10);
-            }
-            return executed;
-        }
-
-        case definitions::CommandType::kValveClose: {
-            const bool executed = close(pin);
-            if (executed) {
-                modules::StateMachine::instance().enqueue_action({definitions::CommandType::kValveClose, pin}, 10);
-            }
-            return executed;
-        }
-
-        default:
-            return false;
-    }
-}
-
-SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0), queue_(nullptr) {}
-
-uint8_t SolenoidValve::find_index(uint32_t pin) const {
-    for (uint8_t index = 0; index < valve_count_; ++index) {
-        if (valves_[index].pin == pin) {
-            return index;
-        }
-    }
-
-    return definitions::kMaxSolenoidValves;  // Return an out-of-range index to indicate not found
 }
 
 }  // namespace modules

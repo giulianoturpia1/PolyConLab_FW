@@ -71,7 +71,7 @@ At boot, `src/main.cpp` calls `App::instance().begin()`. From there, `App` perfo
 - **Finite State Machine (FSM):** manages states and transitions.
 - **Mediator:** centralizes coordination between communications and actuator modules.
 
-Commands, events and actions are enqueued into the `StateMachine` queues. The state machine task consumes these queues, validates behavior against current state, and dispatches accepted commands to the corresponding module queue/task. This keeps module-to-module coupling low: modules do not need to call each other directly. Instead, `StateMachine` decides when actions are allowed and how they are routed.
+Commands, events and actions are enqueued into the `StateMachine` queues. The state machine task consumes these queues, validates behavior against current state, and dispatches accepted commands to the corresponding module queue/task. The per-state behavior now lives in dedicated state modules, so `StateMachine` acts as a thin coordinator while each state owns its own transition logic and entry behavior. This keeps module-to-module coupling low: modules do not need to call each other directly.
 
 ### 1.5. Communications Interaction
 

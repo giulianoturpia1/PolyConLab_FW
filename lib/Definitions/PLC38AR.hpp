@@ -25,18 +25,19 @@ namespace definitions {
 ///
 enum class Pins : uint32_t {
     // Actuators
-    kHeater = Q0_1,     ///< Heating Resistor
-    kPump = Q0_0,       ///< Circulation Pump
-    kChiller = Q0_2,    ///< Chiller
-    kValve1 = R1_1,     ///< Valve 1
-    kValve2 = R1_2,     ///< Valve 2
-    kFlowmeter = Q0_3,  ///< Flowmeter sensor input pin
+    kHeater = Q0_4,       ///< Heating Resistor - Output Digital Pin
+    kPump = Q0_0,         ///< Circulation Pump - Output Digital Pin
+    kChiller = Q0_7,      ///< Chiller | PLACEHOLDER, no actual connection to it - Output Digital Pin
+    kValve1 = Q0_1,       ///< Valve 1 -  Output Digital Pin
+    kValve2 = Q0_3,       ///< Valve 2 - Output Digital Pin
+    kFlowmeter = I0_5,    ///< Flowmeter Sensor - Input  Digital Pin (Interrupt Capable)
+    kLevelSwitch = Q0_2,  ///< Level Switch - Output Digital Pin
 };
 
 enum class Addresses : uint32_t {
-    kTempSensor1 = 0x60,  ///< I2C address for Temperature Sensor 1
-    kTempSensor2 = 0x61,  ///< I2C address for Temperature Sensor 2
-    kTempSensor3 = 0x62,  ///< I2C address for Temperature Sensor 3
-    kTempSensor4 = 0x63   ///< I2C address for Temperature Sensor 4
+    kTempSensor1 = 0x64,  ///< I2C Address - Temperature Sensor 1
+    kTempSensor2 = 0x65,  ///< I2C Address - Temperature Sensor 2
+    kTempSensor3 = 0x66,  ///< I2C Address - Temperature Sensor 3
+    kTempSensor4 = 0x67   ///< I2C Address - Temperature Sensor 4
 };
 }  // namespace definitions

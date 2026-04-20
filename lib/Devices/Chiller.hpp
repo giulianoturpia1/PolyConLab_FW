@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include "Definitions.hpp"
+#include "ICommandResponseQueue.hpp"
 
 namespace modules {
 
@@ -30,6 +31,13 @@ class Chiller {
     /// @return Chiller&
     ///
     static Chiller& instance();
+
+    ///
+    /// @brief Set the sink used to publish command execution responses.
+    ///
+    /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
+    ///
+    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
     ///
     /// @brief Initialize the chiller controller with the pin.
@@ -68,13 +76,13 @@ class Chiller {
     void start_task();
 
     ///
-    /// @brief Send a chiller command through the module queue.
+    /// @brief Queue a chiller command in the module's local queue.
     ///
     /// @param command Command to be sent.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
-    bool send_command(definitions::CommandType command, uint32_t timeout_ms = 0);
+    bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
 
    private:
     Chiller();
@@ -95,15 +103,24 @@ class Chiller {
     bool process_command(definitions::CommandType command);
 
     ///
+    /// @brief Publish a response through the configured sink.
+    ///
+    /// @param response Response payload.
+    /// @return true if the sink accepted the response.
+    ///
+    bool publish_response(const definitions::CommandRequest& response);
+
+    ///
     /// @brief
     ///
     /// @param param
     ///
     static void task_entry(void* param);
 
-    uint32_t pin_;         ///< Pin used for chiller control
-    bool status_;          ///< Current chiller status
-    QueueHandle_t queue_;  ///< FreeRTOS queue handle for chiller commands
+    uint32_t pin_;                                       ///< Pin used for chiller control
+    bool status_;                                        ///< Current chiller status
+    QueueHandle_t queue_;                                ///< FreeRTOS queue handle for chiller commands
+    interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
 };
 
 }  // namespace modules

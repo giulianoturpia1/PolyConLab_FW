@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include "Definitions.hpp"
+#include "ICommandResponseQueue.hpp"
 
 namespace modules {
 
@@ -30,6 +31,13 @@ class Pump {
     /// @return Pump&
     ///
     static Pump& instance();
+
+    ///
+    /// @brief Set the sink used to publish command execution responses.
+    ///
+    /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
+    ///
+    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
     ///
     /// @brief Initialize the pump controller with the pin.
@@ -68,13 +76,13 @@ class Pump {
     void start_task();
 
     ///
-    /// @brief Send a pump command through the module queue.
+    /// @brief Queue a pump command in the module's local queue.
     ///
     /// @param command Command to be sent.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
-    bool send_command(definitions::CommandType command, uint32_t timeout_ms = 0);
+    bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
 
    private:
     Pump();
@@ -95,15 +103,24 @@ class Pump {
     bool process_command(definitions::CommandType command);
 
     ///
+    /// @brief Publish a response through the configured sink.
+    ///
+    /// @param response Response payload.
+    /// @return true if the sink accepted the response.
+    ///
+    bool publish_response(const definitions::CommandRequest& response);
+
+    ///
     /// @brief FreeRTOS task entrypoint for the pump module. Waits for commands on the queue and processes them.
     ///
     /// @param param
     ///
     static void task_entry(void* param);
 
-    uint32_t pin_;         ///< Pin used for pump control
-    bool status_;          ///< Current pump status (true = ON, false = OFF)
-    QueueHandle_t queue_;  ///< FreeRTOS queue handle for pump commands
+    uint32_t pin_;                                       ///< Pin used for pump control
+    bool status_;                                        ///< Current pump status (true = ON, false = OFF)
+    QueueHandle_t queue_;                                ///< FreeRTOS queue handle for pump commands
+    interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
 };
 
 }  // namespace modules

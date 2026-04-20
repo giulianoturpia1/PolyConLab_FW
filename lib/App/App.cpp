@@ -9,10 +9,12 @@
 #include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
+#include "LevelSwitch.hpp"
 #include "LocalServer.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
+#include "StateMachineResponseQueue.hpp"
 #include "Thermocouple.hpp"
 
 #if defined(PLC_38AR)
@@ -43,7 +45,10 @@ void App::begin() {
     hal_.log("Iniciando configuracion...");
     hal_.delay(1000);
 
+    // Initialize all system modules
     initialize_modules();
+
+    // Start the App task which will run the main loop
     start_task();
 
     hal_.log("Configuracion completada");
@@ -61,7 +66,8 @@ App::App()
       chiller_(modules::Chiller::instance()),
       valves_(modules::SolenoidValve::instance()),
       thermocouples_(modules::Thermocouple::instance()),
-      flowmeter_(modules::Flowmeter::instance()) {}
+      flowmeter_(modules::Flowmeter::instance()),
+      level_switch_(modules::LevelSwitch::instance()) {}
 
 void App::configure_serial_response_callback() {
     communications_.set_serial_response_callback([this](const std::string& response) { hal_.log(response.c_str()); });
@@ -73,9 +79,13 @@ void App::initialize_network_server() {
 }
 
 void App::initialize_modules() {
+    // Initialize Hardware
     initialize_devices();
+
+    // Initialize State Machine
     state_machine_.initialize();
 
+    // Create tasks and queues for modules
     heater_.start_task();
     pump_.start_task();
     chiller_.start_task();
@@ -83,6 +93,14 @@ void App::initialize_modules() {
     thermocouples_.start_task();
     flowmeter_.start_task();
     state_machine_.start_task();
+
+    // Response Queue for each module.
+    heater_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    pump_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    chiller_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    valves_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    thermocouples_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    flowmeter_.set_response_queue(&modules::StateMachineResponseQueue::instance());
 
     initialize_network_server();
     configure_serial_response_callback();
@@ -130,8 +148,6 @@ void App::start_task() {
         hal_.log("No se pudo crear la tarea de App.");
         return;
     }
-
-    task_started = true;
 }
 
 void App::tick() {

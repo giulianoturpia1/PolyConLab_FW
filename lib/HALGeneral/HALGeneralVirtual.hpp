@@ -27,7 +27,7 @@ namespace modules {
 /// This class provides a virtual implementation of HALGeneral for testing
 /// on native platforms without actual hardware.
 ///
-class HALGeneralVirtual : public HALGeneral {
+class HALGeneralVirtual : public interfaces::HALGeneral {
    public:
     // ==================== Time Functions ====================
 
