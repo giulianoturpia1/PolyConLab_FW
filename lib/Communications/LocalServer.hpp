@@ -25,8 +25,8 @@ namespace modules {
 ///
 class LocalServer {
    public:
-    using ResponseCallback = std::function<void(const std::string&)>;
-    using MessageHandler = std::function<void(const std::string&, const ResponseCallback&)>;
+    using ClientResponseCallback = std::function<void(const std::string&)>;
+    using ClientMessageHandler = std::function<void(const std::string&, const ClientResponseCallback&)>;
 
     ///
     /// @brief Get the singleton instance of LocalServer
@@ -46,7 +46,7 @@ class LocalServer {
     ///
     /// @brief Poll for new client data and dispatch messages through the provided handler.
     ///
-    void poll(const MessageHandler& handler);
+    void poll(const ClientMessageHandler& handler);
 
    private:
     LocalServer();

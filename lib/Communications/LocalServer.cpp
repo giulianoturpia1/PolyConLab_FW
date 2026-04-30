@@ -50,7 +50,7 @@ bool LocalServer::begin(const byte mac[6], const IPAddress& ip) {
     return true;
 }
 
-void LocalServer::poll(const MessageHandler& handler) {
+void LocalServer::poll(const ClientMessageHandler& handler) {
     if (!initialized_) {
         return;
     }
@@ -69,7 +69,7 @@ void LocalServer::poll(const MessageHandler& handler) {
 
     modules::hal_general().log("Nuevo Mensaje del Cliente: " + msg);
 
-    ResponseCallback respond = [&client](const std::string& response) {
+    ClientResponseCallback respond = [&client](const std::string& response) {
         if (client.connected()) {
             client.println(response.c_str());
             modules::hal_general().log("Respuesta Enviada: " + response);

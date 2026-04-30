@@ -59,7 +59,7 @@ void App::begin() {
 App::App()
     : state_machine_(modules::StateMachine::instance()),
       hal_(modules::hal_general()),
-      local_server_(modules::LocalServer::instance()),
+      local_server_(static_cast<void*>(&modules::LocalServer::instance())),
       communications_(modules::Communications::instance()),
       heater_(modules::Heater::instance()),
       pump_(modules::Pump::instance()),
@@ -74,8 +74,11 @@ void App::configure_serial_response_callback() {
 }
 
 void App::initialize_network_server() {
-    local_server_.initialize(server_);
-    local_server_.begin(mac, ip);
+    auto* local_server = static_cast<modules::LocalServer*>(local_server_);
+    if (local_server == nullptr)
+        return;
+    local_server->initialize(server_);
+    local_server->begin(mac, ip);
 }
 
 void App::initialize_modules() {
@@ -137,6 +140,14 @@ void App::poll_serial_messages() {
     communications_.handle_serial_message(msg);
 }
 
+void App::handle_ethernet_message(const std::string& msg, const void* client_respond) {
+    auto* callback = static_cast<const modules::LocalServer::ClientResponseCallback*>(client_respond);
+    if (callback == nullptr)
+        return;
+    communications_.set_ethernet_response_callback(*callback);
+    communications_.handle_ethernet_message(msg);
+}
+
 void App::start_task() {
     static bool task_started = false;
     if (task_started) {
@@ -151,9 +162,13 @@ void App::start_task() {
 }
 
 void App::tick() {
-    local_server_.poll([this](const std::string& msg, const modules::LocalServer::ResponseCallback& respond) {
-        communications_.set_ethernet_response_callback(respond);
-        communications_.handle_ethernet_message(msg);
+    auto* local_server = static_cast<modules::LocalServer*>(local_server_);
+    if (local_server == nullptr)
+        return;
+    // Poll for ethernet messages. The handler receives both the message and a response callback
+    // that is specific to the current client connection, so it must be set on each poll.
+    local_server->poll([this](const std::string& msg, const modules::LocalServer::ClientResponseCallback& client_respond) {
+        handle_ethernet_message(msg, static_cast<const void*>(&client_respond));
     });
 
     poll_serial_messages();
