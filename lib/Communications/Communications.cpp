@@ -7,6 +7,7 @@
 #include "Flowmeter.hpp"
 #include "Heater.hpp"
 #include "Helpers.hpp"
+#include "LevelSwitch.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -248,6 +249,13 @@ bool Communications::handle_command(const std::string& msg, const std::function<
             const bool state = modules::Flowmeter::instance().status();
             respond(std::string(state ? utils::response(definitions::ResponseType::kStatusOn)
                                       : utils::response(definitions::ResponseType::kStatusOff)));
+            return true;
+        }
+
+        case definitions::CommandType::kLevelSwitchState: {
+            const bool state = modules::LevelSwitch::instance().status();
+            respond(std::string(state ? utils::response(definitions::ResponseType::kStatusHigh)
+                                      : utils::response(definitions::ResponseType::kStatusLow)));
             return true;
         }
 

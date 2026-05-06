@@ -25,6 +25,7 @@ class Chiller;
 class SolenoidValve;
 class Thermocouple;
 class Flowmeter;
+class LevelSwitch;
 class StateMachine;
 }  // namespace modules
 
@@ -119,6 +120,7 @@ class App {
     SolenoidValve& valves_;
     Thermocouple& thermocouples_;
     Flowmeter& flowmeter_;
+    LevelSwitch& level_switch_;
 };
 
 }  // namespace modules
