@@ -165,12 +165,19 @@ void App::tick() {
     auto* local_server = static_cast<modules::LocalServer*>(local_server_);
     if (local_server == nullptr)
         return;
-    // Poll for ethernet messages. The handler receives both the message and a response callback
-    // that is specific to the current client connection, so it must be set on each poll.
-    local_server->poll([this](const std::string& msg, const modules::LocalServer::ClientResponseCallback& client_respond) {
-        handle_ethernet_message(msg, static_cast<const void*>(&client_respond));
-    });
 
+    // Check Ethernet link status and handle disconnection events.
+    if (!local_server->is_link_up()) {
+        state_machine_.queue_event(definitions::SystemEvent::kCommunicationLost);
+        hal_.log("Ethernet desconectado. Pausando sistema.");
+    } else {
+        // Poll for ethernet messages. The handler receives both the message and a response callback
+        // that is specific to the current client connection, so it must be set on each poll.
+        local_server->poll([this](const std::string& msg, const modules::LocalServer::ClientResponseCallback& client_respond) {
+            handle_ethernet_message(msg, static_cast<const void*>(&client_respond));
+        });
+    }
+    // Poll for serial messages and dispatch them to the communications handler.
     poll_serial_messages();
 }
 

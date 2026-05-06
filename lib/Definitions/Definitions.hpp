@@ -78,7 +78,10 @@ enum class SystemEvent {
     // Hard error reset event
     kResetFault,
     kConditionsOk,
-    kPhysicalReset
+    kPhysicalReset,
+
+    // Communications events
+    kCommunicationLost
 };
 
 ///
@@ -210,7 +213,7 @@ constexpr std::array<CommandMap, 23> kCommandMap = {{
     {("STATE?"), CommandType::kStateQuery},
 }};
 
-constexpr std::array<EventMap, 22> kEventMap = {{
+constexpr std::array<EventMap, 23> kEventMap = {{
     {("POWER ON"), SystemEvent::kPowerOn},
     {("INIT OK"), SystemEvent::kInitOk},
     {("INIT FATAL"), SystemEvent::kInitFatal},
@@ -233,6 +236,7 @@ constexpr std::array<EventMap, 22> kEventMap = {{
     {("RESET FAULT"), SystemEvent::kResetFault},
     {("CONDITIONS OK"), SystemEvent::kConditionsOk},
     {("RESET FISICO"), SystemEvent::kPhysicalReset},
+    {("COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
 constexpr std::array<ResponseMap, 27> kResponseMap = {{
