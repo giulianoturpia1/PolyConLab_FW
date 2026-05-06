@@ -46,10 +46,6 @@ definitions::SystemState modules::ShutdownState::tick(StateMachine* context) {
     return context->get_current_state();
 }
 
-const char* modules::ShutdownState::name() const {
-    return "SHUTDOWN";
-}
-
 void modules::ShutdownState::on_enter(StateMachine* context) {
     (void) context;
     enteredAtMs_ = modules::hal_general().millis();
@@ -57,6 +53,10 @@ void modules::ShutdownState::on_enter(StateMachine* context) {
     modules::hal_general().log("Iniciando Estado: SHUTDOWN - Parada ordenada y guardado de estado");
     apply_safe_outputs();
     close_all_valves_if_supported();
+}
+
+const char* modules::ShutdownState::name() const {
+    return "SHUTDOWN";
 }
 
 void modules::ShutdownState::apply_safe_outputs() {

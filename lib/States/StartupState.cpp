@@ -32,14 +32,6 @@ const char* modules::StartupState::name() const {
     return "STARTUP";
 }
 
-definitions::SystemState modules::StartupState::tick(StateMachine* context) {
-    if (context == nullptr) {
-        return definitions::SystemState::kHardError;
-    }
-
-    return context->get_current_state();
-}
-
 void modules::StartupState::apply_safe_outputs() {
     modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
     modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);

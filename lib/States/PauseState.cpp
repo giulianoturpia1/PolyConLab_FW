@@ -26,11 +26,3 @@ void modules::PauseState::on_enter(StateMachine* context) {
 const char* modules::PauseState::name() const {
     return "PAUSE";
 }
-
-definitions::SystemState modules::PauseState::tick(StateMachine* context) {
-    if (context == nullptr) {
-        return definitions::SystemState::kHardError;
-    }
-
-    return context->get_current_state();
-}

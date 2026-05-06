@@ -49,14 +49,6 @@ const char* modules::HardErrorState::name() const {
     return "HARD_ERROR";
 }
 
-definitions::SystemState modules::HardErrorState::tick(StateMachine* context) {
-    if (context == nullptr) {
-        return definitions::SystemState::kHardError;
-    }
-
-    return context->get_current_state();
-}
-
 void modules::HardErrorState::apply_safe_outputs() {
     modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
     modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);

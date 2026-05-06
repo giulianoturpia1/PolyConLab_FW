@@ -56,14 +56,6 @@ const char* modules::SoftErrorState::name() const {
     return "SOFT_ERROR";
 }
 
-definitions::SystemState modules::SoftErrorState::tick(StateMachine* context) {
-    if (context == nullptr) {
-        return definitions::SystemState::kHardError;
-    }
-
-    return context->get_current_state();
-}
-
 void modules::SoftErrorState::apply_safe_outputs() {
     modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
     modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);

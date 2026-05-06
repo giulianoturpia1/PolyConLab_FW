@@ -63,14 +63,6 @@ const char* modules::CalibrationState::name() const {
     return "CALIBRATION";
 }
 
-definitions::SystemState modules::CalibrationState::tick(StateMachine* context) {
-    if (context == nullptr) {
-        return definitions::SystemState::kHardError;
-    }
-
-    return context->get_current_state();
-}
-
 void modules::CalibrationState::apply_safe_outputs() {
     modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
     modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);

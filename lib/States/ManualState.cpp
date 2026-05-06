@@ -62,11 +62,3 @@ void modules::ManualState::on_enter(StateMachine* context) {
 const char* modules::ManualState::name() const {
     return "MANUAL";
 }
-
-definitions::SystemState modules::ManualState::tick(StateMachine* context) {
-    if (context == nullptr) {
-        return definitions::SystemState::kHardError;
-    }
-
-    return context->get_current_state();
-}
