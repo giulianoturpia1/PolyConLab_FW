@@ -11,13 +11,14 @@
 
 #pragma once
 
+#include <string>
+
 // Forward declarations
 namespace interfaces {
 class HALGeneral;
 }
 
 namespace modules {
-class LocalServer;
 class Communications;
 class Heater;
 class Pump;
@@ -25,6 +26,7 @@ class Chiller;
 class SolenoidValve;
 class Thermocouple;
 class Flowmeter;
+class LevelSwitch;
 class StateMachine;
 }  // namespace modules
 
@@ -93,6 +95,11 @@ class App {
     void poll_serial_messages();
 
     ///
+    /// @brief Handle one ethernet message using the current client response callback.
+    ///
+    void handle_ethernet_message(const std::string& msg, const void* client_respond);
+
+    ///
     /// @brief Start the dedicated App FreeRTOS task that executes run() periodically.
     ///
     void start_task();
@@ -111,7 +118,7 @@ class App {
 
     StateMachine& state_machine_;
     interfaces::HALGeneral& hal_;
-    LocalServer& local_server_;
+    void* local_server_;
     Communications& communications_;
     Heater& heater_;
     Pump& pump_;
@@ -119,6 +126,7 @@ class App {
     SolenoidValve& valves_;
     Thermocouple& thermocouples_;
     Flowmeter& flowmeter_;
+    LevelSwitch& level_switch_;
 };
 
 }  // namespace modules

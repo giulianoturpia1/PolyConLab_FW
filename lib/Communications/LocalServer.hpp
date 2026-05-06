@@ -25,8 +25,8 @@ namespace modules {
 ///
 class LocalServer {
    public:
-    using ResponseCallback = std::function<void(const std::string&)>;
-    using MessageHandler = std::function<void(const std::string&, const ResponseCallback&)>;
+    using ClientResponseCallback = std::function<void(const std::string&)>;
+    using ClientMessageHandler = std::function<void(const std::string&, const ClientResponseCallback&)>;
 
     ///
     /// @brief Get the singleton instance of LocalServer
@@ -46,7 +46,19 @@ class LocalServer {
     ///
     /// @brief Poll for new client data and dispatch messages through the provided handler.
     ///
-    void poll(const MessageHandler& handler);
+    void poll(const ClientMessageHandler& handler);
+
+    ///
+    /// @brief Check Ethernet link health and recover server after reconnection when possible.
+    ///
+    /// @return true when Ethernet hardware and link are available, false otherwise.
+    ///
+    bool ensure_connection();
+
+    ///
+    /// @brief Return latest known Ethernet availability status.
+    ///
+    bool is_link_up() const;
 
    private:
     LocalServer();
@@ -57,10 +69,11 @@ class LocalServer {
     LocalServer(LocalServer&&) = delete;
     LocalServer& operator=(LocalServer&&) = delete;
 
-    EthernetServer* server_;
-    bool initialized_;
-    byte mac_[6];
-    IPAddress ip_;
+    EthernetServer* ethernet_server_;
+    bool is_initialized_;
+    bool ethernet_link_up_;
+    byte ethernet_mac_address_[6];
+    IPAddress ethernet_ip_address_;
 };
 
 }  // namespace modules

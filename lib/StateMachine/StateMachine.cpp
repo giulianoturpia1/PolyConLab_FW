@@ -123,8 +123,10 @@ bool modules::StateMachine::queue_response(const definitions::CommandRequest& re
 }
 
 void modules::StateMachine::tick() {
+    // Process a bounded number of queued events, commands, and responses.
     attend_queues();
 
+    // Check for command feedback timeout if there is a pending command.
     handle_command_feedback_timeout();
 
     IState* stateHandler = get_state_handler(currentState_);
@@ -134,6 +136,8 @@ void modules::StateMachine::tick() {
         return;
     }
 
+    // Activate the current state handler's periodic tick and check for internal state transitions.
+    // State-driven Transition.
     const definitions::SystemState nextState = stateHandler->tick(this);
     if (nextState != currentState_) {
         transition_to(nextState);
@@ -231,6 +235,13 @@ bool modules::StateMachine::response_matches_command(const definitions::CommandR
 }
 
 void modules::StateMachine::process_event(definitions::SystemEvent event) {
+    // Special handling for communication loss event: pause the system regardless of current state.
+    if (event == definitions::SystemEvent::kCommunicationLost) {
+        modules::hal_general().log("Conexion Ethernet perdida, pausando sistema.");
+        transition_to(definitions::SystemState::kPause);
+        return;
+    }
+
     IState* stateHandler = get_state_handler(currentState_);
     if (stateHandler == nullptr) {
         transition_to(definitions::SystemState::kHardError);
@@ -238,6 +249,7 @@ void modules::StateMachine::process_event(definitions::SystemEvent event) {
     }
 
     // First let the current state handler process the event and determine if a state transition is needed.
+    // Event-driven Transition.
     const definitions::SystemState nextState = stateHandler->handle_event(this, event);
     if (nextState != currentState_) {
         transition_to(nextState);
