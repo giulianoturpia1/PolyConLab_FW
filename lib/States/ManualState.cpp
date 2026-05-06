@@ -87,30 +87,6 @@ bool modules::ManualState::dispatch_command(StateMachine* context, const definit
 
         case definitions::CommandType::kLevelSwitchState:
             return modules::LevelSwitch::instance().queue_command(definitions::CommandType::kLevelSwitchState, kAcceptableTimeWindowMs);
-        case definitions::CommandType::kValveState:
-            return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, request.pin,
-                                                                    kAcceptableTimeWindowMs);
-        case definitions::CommandType::kValveState:
-            return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveState, request.pin,
-                                                                    kAcceptableTimeWindowMs);
-        case definitions::CommandType::kTempInRead:
-            return modules::Thermocouple::instance().queue_command(definitions::CommandType::kTempInRead, kAcceptableTimeWindowMs);
-        case definitions::CommandType::kTempOutRead:
-            return modules::Thermocouple::instance().queue_command(definitions::CommandType::kTempOutRead, kAcceptableTimeWindowMs);
-        case definitions::CommandType::kTempBathRead:
-            return modules::Thermocouple::instance().queue_command(definitions::CommandType::kTempBathRead, kAcceptableTimeWindowMs);
-        case definitions::CommandType::kTempMixRead:
-            return modules::Thermocouple::instance().queue_command(definitions::CommandType::kTempMixRead, kAcceptableTimeWindowMs);
-        case definitions::CommandType::kFlowRead:
-            return modules::Flowmeter::instance().queue_command(definitions::CommandType::kFlowRead, kAcceptableTimeWindowMs);
-        case definitions::CommandType::kFlowStatus:
-            return modules::Flowmeter::instance().queue_command(definitions::CommandType::kFlowStatus, kAcceptableTimeWindowMs);
-        case definitions::CommandType::kFlowBegin:
-            return modules::Flowmeter::instance().queue_command(definitions::CommandType::kFlowBegin, kAcceptableTimeWindowMs);
-        case definitions::CommandType::kFlowStop:
-            return modules::Flowmeter::instance().queue_command(definitions::CommandType::kFlowStop, kAcceptableTimeWindowMs);
-        case definitions::CommandType::kLevelSwitchState:
-            return modules::LevelSwitch::instance().queue_command(definitions::CommandType::kLevelSwitchState, kAcceptableTimeWindowMs);
         default:
             return false;
     }
