@@ -1,7 +1,5 @@
 #include "LocalServer.hpp"
 
-#include <memory>
-
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
 
@@ -64,14 +62,18 @@ void LocalServer::poll(const ClientMessageHandler& handler) {
     hal_general().log("Nuevo Mensaje del Cliente: " + msg);
 
     auto client_ptr = std::make_shared<EthernetClient>(client);
-    ClientResponseCallback respond = [client_ptr](const std::string& response) {
-        if (client_ptr->connected()) {
-            client_ptr->println(response.c_str());
+    ClientResponseCallback respond = create_response_callback(client_ptr);
+
+    handler(msg, respond);
+}
+
+LocalServer::ClientResponseCallback LocalServer::create_response_callback(std::shared_ptr<EthernetClient> client) {
+    return [client](const std::string& response) {
+        if (client->connected()) {
+            client->println(response.c_str());
             hal_general().log("Respuesta Enviada: " + response);
         }
     };
-
-    handler(msg, respond);
 }
 
 bool LocalServer::ensure_connection() {

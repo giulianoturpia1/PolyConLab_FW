@@ -11,8 +11,12 @@
 
 #pragma once
 
+#include <Ethernet.h>
+
 #include <functional>
 #include <string>
+
+#include "LocalServer.hpp"
 
 namespace modules {
 
@@ -46,6 +50,11 @@ class Communications {
     void set_serial_response_callback(const std::function<void(const std::string&)>& callback);
 
     ///
+    /// @brief Initialize the Ethernet server with the given parameters.
+    ///
+    void initialize_server(EthernetServer& server, const byte mac[6], const IPAddress& ip);
+
+    ///
     /// @brief Handle a message coming from Ethernet.
     ///
     void handle_ethernet_message(const std::string& msg);
@@ -54,6 +63,17 @@ class Communications {
     /// @brief Handle a message coming from Serial.
     ///
     void handle_serial_message(const std::string& msg);
+
+    ///
+    /// @brief Poll the Ethernet server for messages and dispatch them appropriately.
+    /// Handles link status checking and queues disconnection events if the link is lost.
+    ///
+    void poll_ethernet();
+
+    ///
+    /// @brief Poll the serial port for messages and dispatch them appropriately.
+    ///
+    void poll_serial();
 
    private:
     Communications();
@@ -107,6 +127,7 @@ class Communications {
 
     std::function<void(const std::string&)> ethernet_response_callback_;
     std::function<void(const std::string&)> serial_response_callback_;
+    LocalServer& local_server_;
 };
 
 }  // namespace modules

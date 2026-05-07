@@ -10,7 +10,6 @@
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
 #include "LevelSwitch.hpp"
-#include "LocalServer.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -65,7 +64,6 @@ void App::begin() {
 App::App()
     : state_machine_(modules::StateMachine::instance()),
       hal_(modules::hal_general()),
-      local_server_(static_cast<void*>(&modules::LocalServer::instance())),
       communications_(modules::Communications::instance()),
       heater_(modules::Heater::instance()),
       pump_(modules::Pump::instance()),
@@ -80,11 +78,7 @@ void App::configure_serial_response_callback() {
 }
 
 void App::initialize_network_server() {
-    auto* local_server = static_cast<modules::LocalServer*>(local_server_);
-    if (local_server == nullptr)
-        return;
-    local_server->initialize(server_);
-    local_server->begin(mac, ip);
+    communications_.initialize_server(server_, mac, ip);
 }
 
 void App::initialize_devices() {
@@ -138,29 +132,6 @@ void App::initialize_system() {
     flowmeter_.set_response_queue(&modules::StateMachineResponseQueue::instance());
 }
 
-void App::poll_serial_messages() {
-    if (!Serial.available()) {
-        return;
-    }
-
-    String arduino_msg = Serial.readStringUntil('\n');
-    arduino_msg.trim();
-    if (arduino_msg.length() == 0) {
-        return;
-    }
-
-    std::string msg(arduino_msg.c_str());
-    communications_.handle_serial_message(msg);
-}
-
-void App::handle_ethernet_message(const std::string& msg, const void* client_respond) {
-    auto* callback = static_cast<const modules::LocalServer::ClientResponseCallback*>(client_respond);
-    if (callback == nullptr)
-        return;
-    communications_.set_ethernet_response_callback(*callback);
-    communications_.handle_ethernet_message(msg);
-}
-
 void App::start_task() {
     static bool task_started = false;
     if (task_started) {
@@ -175,23 +146,9 @@ void App::start_task() {
 }
 
 void App::tick() {
-    auto* local_server = static_cast<modules::LocalServer*>(local_server_);
-    if (local_server == nullptr)
-        return;
-
-    // Check Ethernet link status and handle disconnection events.
-    if (!local_server->is_link_up()) {
-        state_machine_.queue_event(definitions::SystemEvent::kCommunicationLost);
-        hal_.log("Ethernet desconectado. Pausando sistema.");
-    } else {
-        // Poll for ethernet messages. The handler receives both the message and a response callback
-        // that is specific to the current client connection, so it must be set on each poll.
-        local_server->poll([this](const std::string& msg, const modules::LocalServer::ClientResponseCallback& client_respond) {
-            handle_ethernet_message(msg, static_cast<const void*>(&client_respond));
-        });
-    }
-    // Poll for serial messages and dispatch them to the communications handler.
-    poll_serial_messages();
+    // Delegate all communication polling to Communications module
+    communications_.poll_ethernet();
+    communications_.poll_serial();
 }
 
 void App::task_entry(void* /*param*/) {
