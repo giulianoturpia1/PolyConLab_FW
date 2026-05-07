@@ -56,7 +56,7 @@ class Thermocouple {
     /// @param adds Pointer to an array of addresses.
     /// @param count Number of addresses in the array.
     ///
-    void begin(const uint32_t* adds, size_t count);
+    bool begin(const uint32_t* adds, size_t count);
 
     ///
     /// @brief Register a Thermocouple with a certain address.
@@ -96,7 +96,7 @@ class Thermocouple {
     ///
     /// @brief Start the dedicated FreeRTOS task/queue for this module.
     ///
-    void start_task();
+    bool start_task();
 
     ///
     /// @brief Send a Thermocouple Amplifier command through the module queue.

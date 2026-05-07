@@ -1,5 +1,7 @@
 #include "LocalServer.hpp"
 
+#include <memory>
+
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
 
@@ -36,7 +38,7 @@ bool LocalServer::begin(const byte mac[6], const IPAddress& ip) {
         if (i < 3)
             msg += ".";
     }
-    modules::hal_general().log(msg);
+    hal_general().log(msg);
     ethernet_link_up_ = true;
     is_initialized_ = true;
     return true;
@@ -59,12 +61,13 @@ void LocalServer::poll(const ClientMessageHandler& handler) {
         return;
     }
 
-    modules::hal_general().log("Nuevo Mensaje del Cliente: " + msg);
+    hal_general().log("Nuevo Mensaje del Cliente: " + msg);
 
-    ClientResponseCallback respond = [&client](const std::string& response) {
-        if (client.connected()) {
-            client.println(response.c_str());
-            modules::hal_general().log("Respuesta Enviada: " + response);
+    auto client_ptr = std::make_shared<EthernetClient>(client);
+    ClientResponseCallback respond = [client_ptr](const std::string& response) {
+        if (client_ptr->connected()) {
+            client_ptr->println(response.c_str());
+            hal_general().log("Respuesta Enviada: " + response);
         }
     };
 
@@ -74,7 +77,7 @@ void LocalServer::poll(const ClientMessageHandler& handler) {
 bool LocalServer::ensure_connection() {
     if (Ethernet.hardwareStatus() == EthernetNoHardware) {
         if (is_initialized_) {
-            modules::hal_general().log("Se perdio el shield Ethernet durante ejecucion.");
+            hal_general().log("Se perdio el shield Ethernet durante ejecucion.");
         }
         is_initialized_ = false;
         ethernet_link_up_ = false;
@@ -84,7 +87,7 @@ bool LocalServer::ensure_connection() {
     const bool is_link_up_now = Ethernet.linkStatus() != LinkOFF;
     if (!is_link_up_now) {
         if (ethernet_link_up_) {
-            modules::hal_general().log("Conexion Ethernet perdida.");
+            hal_general().log("Conexion Ethernet perdida.");
         }
         is_initialized_ = false;
         ethernet_link_up_ = false;
@@ -92,7 +95,7 @@ bool LocalServer::ensure_connection() {
     }
 
     if (!ethernet_link_up_) {
-        modules::hal_general().log("Conexion Ethernet restablecida.");
+        hal_general().log("Conexion Ethernet restablecida.");
     }
     ethernet_link_up_ = true;
 

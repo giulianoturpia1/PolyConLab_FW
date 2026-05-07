@@ -81,12 +81,17 @@ class App {
     /// @brief Initialize all modules and the state machine, and start their tasks.
     ///
     ///
-    void initialize_modules();
+    void initialize_system();
 
     ///
     /// @brief Initialize hardware-facing device modules.
     ///
     void initialize_devices();
+
+    ///
+    /// @brief Start the tasks for the initialized modules.
+    ///
+    void initialize_tasks();
 
     ///
     /// @brief Poll serial messages and dispatch them to the communications handler.
@@ -105,14 +110,14 @@ class App {
     void start_task();
 
     ///
-    /// @brief FreeRTOS task entrypoint for the App runtime loop.
-    ///
-    static void task_entry(void* param);
-
-    ///
     /// @brief Execute one application cycle (communications polling and dispatch).
     ///
     void tick();
+
+    ///
+    /// @brief FreeRTOS task entrypoint for the App runtime loop.
+    ///
+    static void task_entry(void* param);
 
     // Member variables - References to Modules
 

@@ -18,18 +18,20 @@ hw_timer_t* timer = NULL;
 const float pulsesPerLiter = 450.0;  // A configurar segun el sensor
 volatile float flow_rate = 0;
 
+namespace modules {
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
-modules::Flowmeter& modules::Flowmeter::instance() {
+Flowmeter& Flowmeter::instance() {
     static Flowmeter instance;
     return instance;
 }
 
-void modules::Flowmeter::set_response_queue(interfaces::ICommandResponseQueue* queue) {
+void Flowmeter::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
 
-modules::Flowmeter::Flowmeter() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
+Flowmeter::Flowmeter() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
 
 //////////////////////////////////// Flow Meter Interrupt Service Routines //////////////////////////////
 void IRAM_ATTR isrFlowMeter() {
@@ -47,9 +49,14 @@ void IRAM_ATTR isrTimerFlow() {
     flow_rate = liters * 60.0;
 }
 
-void modules::Flowmeter::begin(uint32_t pinFlow_) {
+bool Flowmeter::begin(uint32_t pinFlow_) {
+    if (pinFlow_ == 0) {
+        hal_general().log("Pin invalido para el caudalimetro.");
+        return false;
+    }
+
     pin_ = pinFlow_;
-    modules::hal_general().pin_mode(pin_, modules::PIN_MODE_INPUT);
+    hal_general().pin_mode(pin_, PIN_MODE_INPUT);
     status_ = true;
 
     attachInterrupt(digitalPinToInterrupt(pinFlow_), isrFlowMeter, RISING);
@@ -58,9 +65,10 @@ void modules::Flowmeter::begin(uint32_t pinFlow_) {
     timerAttachInterrupt(timer, &isrTimerFlow, true);
     timerAlarmWrite(timer, 1000000, true);  // 1 seC
     timerAlarmEnable(timer);
+    return true;
 }
 
-void modules::Flowmeter::stop(uint32_t pinFlow_) {
+void Flowmeter::stop(uint32_t pinFlow_) {
     detachInterrupt(digitalPinToInterrupt(pinFlow_));
     if (timer != NULL) {
         timerEnd(timer);
@@ -69,7 +77,7 @@ void modules::Flowmeter::stop(uint32_t pinFlow_) {
     status_ = false;
 }
 
-float modules::Flowmeter::readFlow() {
+float Flowmeter::readFlow() {
     float current_flow;
     portENTER_CRITICAL(&flowMux);
     current_flow = flow_rate;
@@ -77,33 +85,36 @@ float modules::Flowmeter::readFlow() {
     return (current_flow);
 }
 
-bool modules::Flowmeter::status() const {
+bool Flowmeter::status() const {
     return status_;
 }
 
-uint32_t modules::Flowmeter::pin() const {
+uint32_t Flowmeter::pin() const {
     return pin_;
 }
 
-void modules::Flowmeter::start_task() {
+bool Flowmeter::start_task() {
     if (queue_ != nullptr) {
-        return;
+        return true;
     }
 
     queue_ = xQueueCreate(kFlowmeterQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
-        modules::hal_general().log("No se pudo crear la cola del caudalimetro.");
-        return;
+        hal_general().log("No se pudo crear la cola del caudalimetro.");
+        return false;
     }
 
     if (xTaskCreate(task_entry, kFlowmeterTaskName, kFlowmeterTaskStackSize, this, kFlowmeterTaskPriority, nullptr) != pdPASS) {
-        modules::hal_general().log("No se pudo crear la tarea del caudalimetro.");
+        hal_general().log("No se pudo crear la tarea del caudalimetro.");
         vQueueDelete(queue_);
         queue_ = nullptr;
+        return false;
     }
+
+    return true;
 }
 
-bool modules::Flowmeter::send_command(definitions::CommandType command, uint32_t timeout_ms) {
+bool Flowmeter::send_command(definitions::CommandType command, uint32_t timeout_ms) {
     if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
@@ -112,19 +123,7 @@ bool modules::Flowmeter::send_command(definitions::CommandType command, uint32_t
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
-
-void modules::Flowmeter::task_entry(void* param) {
-    Flowmeter* self = static_cast<Flowmeter*>(param);
-    definitions::CommandType command = definitions::CommandType::kFlowRead;
-
-    while (true) {
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
-        }
-    }
-}
-
-bool modules::Flowmeter::process_command(definitions::CommandType command) {
+bool Flowmeter::process_command(definitions::CommandType command) {
     if (command != definitions::CommandType::kFlowBegin && command != definitions::CommandType::kFlowStop &&
         command != definitions::CommandType::kFlowRead && command != definitions::CommandType::kFlowStatus) {
         return false;
@@ -162,10 +161,27 @@ bool modules::Flowmeter::process_command(definitions::CommandType command) {
     }
 }
 
-bool modules::Flowmeter::publish_response(const definitions::CommandRequest& response) {
+bool Flowmeter::publish_response(const definitions::CommandRequest& response) {
     if (response_queue_ == nullptr) {
         return false;
     }
 
     return response_queue_->publish(response, kFlowmeterTimeoutMs);
 }
+
+void Flowmeter::task_entry(void* param) {
+    Flowmeter* self = static_cast<Flowmeter*>(param);
+    definitions::CommandType command = definitions::CommandType::kFlowRead;
+
+    while (true) {
+        if (self->queue_ == nullptr) {
+            break;
+        }
+
+        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
+            self->process_command(command);
+        }
+    }
+}
+
+}  // namespace modules

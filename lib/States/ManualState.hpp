@@ -21,7 +21,6 @@ class ManualState final : public IState {
     bool dispatch_command(StateMachine* context, const definitions::CommandRequest& request);
     void on_enter(StateMachine* context);
     const char* name() const;
-    definitions::SystemState tick(StateMachine* context);
 };
 
 }  // namespace modules

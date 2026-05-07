@@ -11,15 +11,16 @@ constexpr UBaseType_t kSolenoidValveTaskPriority = 2;
 constexpr UBaseType_t kSolenoidValveQueueLength = 8;
 constexpr uint32_t kSolenoidValveTaskStackSize = 3072;
 constexpr char kSolenoidValveTaskName[] = "valve_task";
+constexpr uint32_t kSolenoidValveTaskPollTimeoutMs = 20;
 
 struct ValveCommand {
     definitions::CommandType command;
     uint32_t pin;
 };
 
-////////////////////////////////////// Public Methods //////////////////////////////////////
-
 namespace modules {
+
+////////////////////////////////////// Public Methods //////////////////////////////////////
 
 SolenoidValve& SolenoidValve::instance() {
     static SolenoidValve instance;
@@ -122,22 +123,25 @@ uint8_t SolenoidValve::count() const {
     return valve_count_;
 }
 
-void SolenoidValve::start_task() {
+bool SolenoidValve::start_task() {
     if (queue_ != nullptr) {
-        return;
+        return true;
     }
 
     queue_ = xQueueCreate(kSolenoidValveQueueLength, sizeof(ValveCommand));
     if (queue_ == nullptr) {
-        modules::hal_general().log("No se pudo crear la cola de valvulas.");
-        return;
+        hal_general().log("No se pudo crear la cola de valvulas.");
+        return false;
     }
 
     if (xTaskCreate(task_entry, kSolenoidValveTaskName, kSolenoidValveTaskStackSize, this, kSolenoidValveTaskPriority, nullptr) != pdPASS) {
-        modules::hal_general().log("No se pudo crear la tarea de valvulas.");
+        hal_general().log("No se pudo crear la tarea de valvulas.");
         vQueueDelete(queue_);
         queue_ = nullptr;
+        return false;
     }
+
+    return true;
 }
 
 bool SolenoidValve::queue_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {
@@ -198,11 +202,15 @@ bool SolenoidValve::publish_response(const definitions::CommandRequest& response
     return response_queue_->publish(response, kSolenoidValveTimeoutMs);
 }
 
-void modules::SolenoidValve::task_entry(void* param) {
+void SolenoidValve::task_entry(void* param) {
     SolenoidValve* self = static_cast<SolenoidValve*>(param);
     ValveCommand command = {definitions::CommandType::kValveClose, 0};
 
     while (true) {
+        if (self->queue_ == nullptr) {
+            break;
+        }
+
         if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
             self->process_command(command.command, command.pin);
         }

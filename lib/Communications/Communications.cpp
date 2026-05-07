@@ -21,6 +21,8 @@
 
 namespace modules {
 
+constexpr uint32_t kCommsQueueTimeoutMs = 10;
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
 Communications& Communications::instance() {
@@ -53,6 +55,8 @@ void Communications::handle_serial_message(const std::string& msg) {
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+
+Communications::Communications() : ethernet_response_callback_(nullptr), serial_response_callback_(nullptr) {}
 
 void Communications::handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond) {
     if (msg.empty()) {
@@ -89,7 +93,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
         pin = parse_valve_pin(msg);
     }
 
-    if (modules::StateMachine::instance().queue_command({cmd->command, pin}, 10)) {
+    if (modules::StateMachine::instance().queue_command({cmd->command, pin}, kCommsQueueTimeoutMs)) {
         return true;
     }
 
@@ -117,15 +121,13 @@ bool Communications::handle_event(const std::string& msg, const std::function<vo
         return true;
     }
 
-    if (!modules::StateMachine::instance().queue_event(it->event, 10)) {
+    if (!modules::StateMachine::instance().queue_event(it->event, kCommsQueueTimeoutMs)) {
         respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownEvent)));
         return true;
     }
 
     return true;
 }
-
-Communications::Communications() : ethernet_response_callback_(nullptr), serial_response_callback_(nullptr) {}
 
 uint32_t Communications::parse_valve_pin(const std::string& msg) const {
     size_t comma_pos = msg.find(',');
@@ -134,7 +136,6 @@ uint32_t Communications::parse_valve_pin(const std::string& msg) const {
     }
 
     char valve_num = msg[comma_pos + 1];
-#if defined(PLC_38AR) || defined(PLC_19R)
     switch (valve_num) {
         case '1': {
             return static_cast<uint32_t>(definitions::Pins::kValve1);
@@ -146,10 +147,5 @@ uint32_t Communications::parse_valve_pin(const std::string& msg) const {
             return 0;  // Invalid valve number
         }
     }
-#else
-    (void) valve_num;
-    return 0;
-#endif
 }
-
 }  // namespace modules

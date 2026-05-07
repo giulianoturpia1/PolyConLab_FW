@@ -44,7 +44,7 @@ class Chiller {
     ///
     /// @param pin Pin for chiller control.
     ///
-    void begin(uint32_t pin);
+    bool begin(uint32_t pin);
 
     ///
     /// @brief Turn the chiller on.
@@ -73,7 +73,7 @@ class Chiller {
     ///
     /// @brief Start the dedicated FreeRTOS task/queue for this module.
     ///
-    void start_task();
+    bool start_task();
 
     ///
     /// @brief Queue a chiller command in the module's local queue.

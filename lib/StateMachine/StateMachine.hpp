@@ -67,7 +67,7 @@ class StateMachine {
     ///
     /// @brief Start the dedicated FSM FreeRTOS task and event queue.
     ///
-    void start_task();
+    bool start_task();
 
     ///
     /// @brief Queue an event in the FSM task's local queue.
@@ -100,14 +100,6 @@ class StateMachine {
     /// @return true if response was queued, false otherwise.
     ///
     bool queue_response(const definitions::CommandRequest& response, uint32_t timeout_ms = 0);
-
-    ///
-    /// @brief Execute one state-machine cycle (to be called repeatedly in a loop).
-    /// This consumes a bounded number of queued event/command/response messages and then executes the
-    /// handler for the current state.
-    ///
-    ///
-    void tick();
 
     // Getters
 
@@ -257,6 +249,14 @@ class StateMachine {
     /// indicate a fault or communication issue with the modules.
     ///
     void handle_command_feedback_timeout();
+
+    ///
+    /// @brief Execute one state-machine cycle (to be called repeatedly in a loop).
+    /// This consumes a bounded number of queued event/command/response messages and then executes the
+    /// handler for the current state.
+    ///
+    ///
+    void tick();
 
     // FreeRTOS task
 

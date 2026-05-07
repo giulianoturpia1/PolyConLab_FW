@@ -108,7 +108,7 @@ class SolenoidValve {
     ///
     /// @brief Start the dedicated FreeRTOS task/queue for this module.
     ///
-    void start_task();
+    bool start_task();
 
     ///
     /// @brief Queue a valve command in the module's local queue.

@@ -47,7 +47,7 @@ class Flowmeter {
     ///
     /// @param pinFlow_ Device Pin.
     ///
-    void begin(uint32_t pinFlow_);
+    bool begin(uint32_t pinFlow_);
 
     ///
     /// @brief Stop the flowmeter. Detach interrupts and end timer.
@@ -80,7 +80,7 @@ class Flowmeter {
     ///
     /// @brief Start the dedicated FreeRTOS task/queue for this module.
     ///
-    void start_task();
+    bool start_task();
 
     ///
     /// @brief Send a Flowmeter command through the module queue.
