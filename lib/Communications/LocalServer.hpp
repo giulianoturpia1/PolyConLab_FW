@@ -11,11 +11,11 @@
 
 #pragma once
 
-#include <Arduino.h>
 #include <Ethernet.h>
-#include <SPI.h>
 
 #include <functional>
+#include <memory>
+#include <string>
 
 namespace modules {
 
@@ -68,6 +68,11 @@ class LocalServer {
     LocalServer& operator=(const LocalServer&) = delete;
     LocalServer(LocalServer&&) = delete;
     LocalServer& operator=(LocalServer&&) = delete;
+
+    ///
+    /// @brief Create a response callback for a specific client connection.
+    ///
+    ClientResponseCallback create_response_callback(std::shared_ptr<EthernetClient> client);
 
     EthernetServer* ethernet_server_;
     bool is_initialized_;
