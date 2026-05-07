@@ -7,7 +7,9 @@
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
 
-definitions::SystemState modules::CalibrationState::handle_event(StateMachine* context, definitions::SystemEvent event) {
+namespace modules {
+
+definitions::SystemState CalibrationState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
 
     switch (event) {
@@ -25,46 +27,46 @@ definitions::SystemState modules::CalibrationState::handle_event(StateMachine* c
     }
 }
 
-bool modules::CalibrationState::dispatch_command(StateMachine* context, const definitions::CommandRequest& request) {
+bool CalibrationState::dispatch_command(StateMachine* context, const definitions::CommandRequest& request) {
     (void) context;
 
     constexpr uint32_t kAcceptableTimeWindowMs = 100;
     switch (request.command) {
         case definitions::CommandType::kHeaterOn:
-            return modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOn, kAcceptableTimeWindowMs);
+            return Heater::instance().queue_command(definitions::CommandType::kHeaterOn, kAcceptableTimeWindowMs);
         case definitions::CommandType::kHeaterOff:
-            return modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, kAcceptableTimeWindowMs);
+            return Heater::instance().queue_command(definitions::CommandType::kHeaterOff, kAcceptableTimeWindowMs);
         case definitions::CommandType::kPumpOn:
-            return modules::Pump::instance().queue_command(definitions::CommandType::kPumpOn, kAcceptableTimeWindowMs);
+            return Pump::instance().queue_command(definitions::CommandType::kPumpOn, kAcceptableTimeWindowMs);
         case definitions::CommandType::kPumpOff:
-            return modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, kAcceptableTimeWindowMs);
+            return Pump::instance().queue_command(definitions::CommandType::kPumpOff, kAcceptableTimeWindowMs);
         case definitions::CommandType::kChillerOn:
-            return modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOn, kAcceptableTimeWindowMs);
+            return Chiller::instance().queue_command(definitions::CommandType::kChillerOn, kAcceptableTimeWindowMs);
         case definitions::CommandType::kChillerOff:
-            return modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, kAcceptableTimeWindowMs);
+            return Chiller::instance().queue_command(definitions::CommandType::kChillerOff, kAcceptableTimeWindowMs);
         case definitions::CommandType::kValveOpen:
-            return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveOpen, request.pin,
-                                                                    kAcceptableTimeWindowMs);
+            return SolenoidValve::instance().queue_command(definitions::CommandType::kValveOpen, request.pin, kAcceptableTimeWindowMs);
         case definitions::CommandType::kValveClose:
-            return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, request.pin,
-                                                                    kAcceptableTimeWindowMs);
+            return SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, request.pin, kAcceptableTimeWindowMs);
         default:
             return false;
     }
 }
 
-void modules::CalibrationState::on_enter(StateMachine* context) {
+void CalibrationState::on_enter(StateMachine* context) {
     (void) context;
-    modules::hal_general().log("Iniciando Estado: CALIBRATION");
+    hal_general().log("Iniciando Estado: CALIBRATION");
     apply_safe_outputs();
 }
 
-const char* modules::CalibrationState::name() const {
+const char* CalibrationState::name() const {
     return "CALIBRATION";
 }
 
-void modules::CalibrationState::apply_safe_outputs() {
-    modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
-    modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
-    modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
+void CalibrationState::apply_safe_outputs() {
+    Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
+    Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
+    Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
 }
+
+}  // namespace modules

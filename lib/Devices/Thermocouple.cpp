@@ -18,9 +18,9 @@ struct ThermocoupleCommand {
     uint32_t address;
 };
 
-////////////////////////////////////// Public Methods //////////////////////////////////////
-
 namespace modules {
+
+////////////////////////////////////// Public Methods //////////////////////////////////////
 
 Thermocouple& Thermocouple::instance() {
     static Thermocouple instance;
@@ -31,18 +31,22 @@ void Thermocouple::set_response_queue(interfaces::ICommandResponseQueue* queue) 
     response_queue_ = queue;
 }
 
-void Thermocouple::begin(const uint32_t* adds, size_t count) {
+bool Thermocouple::begin(const uint32_t* adds, size_t count) {
     thermoc_count_ = 0;
 
     if (adds == nullptr || count == 0) {
         hal_general().log("No se añadieron direcciones de thermocuplas para la inicializacion.");
-        return;
+        return false;
     }
 
     const uint8_t bounded_count = static_cast<uint8_t>(std::min(count, static_cast<size_t>(definitions::kMaxThermocouples)));
     for (uint8_t index = 0; index < bounded_count; ++index) {
-        add(adds[index]);
+        if (!add(adds[index])) {
+            return false;
+        }
     }
+
+    return true;
 }
 
 bool Thermocouple::add(uint32_t address) {
@@ -110,22 +114,25 @@ uint8_t Thermocouple::count() const {
     return thermoc_count_;
 }
 
-void Thermocouple::start_task() {
+bool Thermocouple::start_task() {
     if (queue_ != nullptr) {
-        return;
+        return true;
     }
 
     queue_ = xQueueCreate(kThermocoupleQueueLength, sizeof(ThermocoupleCommand));
     if (queue_ == nullptr) {
-        modules::hal_general().log("No se pudo crear la cola de termocuplas.");
-        return;
+        hal_general().log("No se pudo crear la cola de termocuplas.");
+        return false;
     }
 
     if (xTaskCreate(task_entry, kThermocoupleTaskName, kThermocoupleTaskStackSize, this, kThermocoupleTaskPriority, nullptr) != pdPASS) {
-        modules::hal_general().log("No se pudo crear la tarea de termocuplas.");
+        hal_general().log("No se pudo crear la tarea de termocuplas.");
         vQueueDelete(queue_);
         queue_ = nullptr;
+        return false;
     }
+
+    return true;
 }
 
 bool Thermocouple::send_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms) {
@@ -139,11 +146,15 @@ bool Thermocouple::send_command(definitions::CommandType command, uint32_t addre
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-void modules::Thermocouple::task_entry(void* param) {
+void Thermocouple::task_entry(void* param) {
     Thermocouple* self = static_cast<Thermocouple*>(param);
     ThermocoupleCommand command;
 
     while (true) {
+        if (self->queue_ == nullptr) {
+            break;
+        }
+
         if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
             self->process_command(command.command, command.address);
         }
@@ -153,7 +164,7 @@ void modules::Thermocouple::task_entry(void* param) {
 bool Thermocouple::process_command(definitions::CommandType command, uint32_t address) {
     uint32_t sensor_address = address;
     if (sensor_address == 0) {
-        modules::hal_general().log("No se pudo procesar el comando. Direccion I2C invalida.");
+        hal_general().log("No se pudo procesar el comando. Direccion I2C invalida.");
         return false;  // Invalid address
     }
 

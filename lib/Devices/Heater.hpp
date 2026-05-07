@@ -44,7 +44,7 @@ class Heater {
     ///
     /// @param pin Relay pin for heater control.
     ///
-    void begin(uint32_t pin);
+    bool begin(uint32_t pin);
 
     ///
     /// @brief Turn the heater on.
@@ -73,7 +73,7 @@ class Heater {
     ///
     /// @brief Start the dedicated FreeRTOS task/queue for this module.
     ///
-    void start_task();
+    bool start_task();
 
     ///
     /// @brief Queue a heater command in the module's local queue.

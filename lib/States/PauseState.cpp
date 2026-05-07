@@ -3,7 +3,9 @@
 #include "HALGeneral.hpp"
 #include "StateMachine.hpp"
 
-definitions::SystemState modules::PauseState::handle_event(StateMachine* context, definitions::SystemEvent event) {
+namespace modules {
+
+definitions::SystemState PauseState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     switch (event) {
         case definitions::SystemEvent::kUnpause:
             return context->get_previous_state() == definitions::SystemState::kPause ? definitions::SystemState::kManual
@@ -18,11 +20,13 @@ definitions::SystemState modules::PauseState::handle_event(StateMachine* context
     }
 }
 
-void modules::PauseState::on_enter(StateMachine* context) {
+void PauseState::on_enter(StateMachine* context) {
     (void) context;
-    modules::hal_general().log("Iniciando Estado: PAUSE - Timers congelados y salida segura parcial");
+    hal_general().log("Iniciando Estado: PAUSE - Timers congelados y salida segura parcial");
 }
 
-const char* modules::PauseState::name() const {
+const char* PauseState::name() const {
     return "PAUSE";
 }
+
+}  // namespace modules

@@ -9,7 +9,9 @@
 
 constexpr uint32_t kAcceptableTimeWindowMs = 100;
 
-definitions::SystemState modules::ManualState::handle_event(StateMachine* context, definitions::SystemEvent event) {
+namespace modules {
+
+definitions::SystemState ManualState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
 
     switch (event) {
@@ -27,38 +29,38 @@ definitions::SystemState modules::ManualState::handle_event(StateMachine* contex
     }
 }
 
-bool modules::ManualState::dispatch_command(StateMachine* context, const definitions::CommandRequest& request) {
+bool ManualState::dispatch_command(StateMachine* context, const definitions::CommandRequest& request) {
     (void) context;
 
     switch (request.command) {
         case definitions::CommandType::kHeaterOn:
-            return modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOn, kAcceptableTimeWindowMs);
+            return Heater::instance().queue_command(definitions::CommandType::kHeaterOn, kAcceptableTimeWindowMs);
         case definitions::CommandType::kHeaterOff:
-            return modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, kAcceptableTimeWindowMs);
+            return Heater::instance().queue_command(definitions::CommandType::kHeaterOff, kAcceptableTimeWindowMs);
         case definitions::CommandType::kPumpOn:
-            return modules::Pump::instance().queue_command(definitions::CommandType::kPumpOn, kAcceptableTimeWindowMs);
+            return Pump::instance().queue_command(definitions::CommandType::kPumpOn, kAcceptableTimeWindowMs);
         case definitions::CommandType::kPumpOff:
-            return modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, kAcceptableTimeWindowMs);
+            return Pump::instance().queue_command(definitions::CommandType::kPumpOff, kAcceptableTimeWindowMs);
         case definitions::CommandType::kChillerOn:
-            return modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOn, kAcceptableTimeWindowMs);
+            return Chiller::instance().queue_command(definitions::CommandType::kChillerOn, kAcceptableTimeWindowMs);
         case definitions::CommandType::kChillerOff:
-            return modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, kAcceptableTimeWindowMs);
+            return Chiller::instance().queue_command(definitions::CommandType::kChillerOff, kAcceptableTimeWindowMs);
         case definitions::CommandType::kValveOpen:
-            return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveOpen, request.pin,
-                                                                    kAcceptableTimeWindowMs);
+            return SolenoidValve::instance().queue_command(definitions::CommandType::kValveOpen, request.pin, kAcceptableTimeWindowMs);
         case definitions::CommandType::kValveClose:
-            return modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, request.pin,
-                                                                    kAcceptableTimeWindowMs);
+            return SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, request.pin, kAcceptableTimeWindowMs);
         default:
             return false;
     }
 }
 
-void modules::ManualState::on_enter(StateMachine* context) {
+void ManualState::on_enter(StateMachine* context) {
     (void) context;
-    modules::hal_general().log("Iniciando Estado: MANUAL - Esperando comandos del usuario");
+    hal_general().log("Iniciando Estado: MANUAL - Esperando comandos del usuario");
 }
 
-const char* modules::ManualState::name() const {
+const char* ManualState::name() const {
     return "MANUAL";
 }
+
+}  // namespace modules

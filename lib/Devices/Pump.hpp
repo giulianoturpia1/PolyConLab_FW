@@ -44,7 +44,7 @@ class Pump {
     ///
     /// @param pin Pin for pump control.
     ///
-    void begin(uint32_t pin);
+    bool begin(uint32_t pin);
 
     ///
     /// @brief Turn the pump on.
@@ -73,7 +73,7 @@ class Pump {
     ///
     /// @brief Start the dedicated FreeRTOS task/queue for this module.
     ///
-    void start_task();
+    bool start_task();
 
     ///
     /// @brief Queue a pump command in the module's local queue.

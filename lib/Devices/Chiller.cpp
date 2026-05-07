@@ -10,60 +10,71 @@ constexpr UBaseType_t kChillerQueueLength = 8;
 constexpr uint32_t kChillerTaskStackSize = 2048;
 constexpr char kChillerTaskName[] = "chiller_task";
 
+namespace modules {
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
-modules::Chiller& modules::Chiller::instance() {
+Chiller& Chiller::instance() {
     static Chiller instance;
     return instance;
 }
 
-void modules::Chiller::set_response_queue(interfaces::ICommandResponseQueue* queue) {
+void Chiller::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
 
-void modules::Chiller::begin(uint32_t pin) {
+bool Chiller::begin(uint32_t pin) {
+    if (pin == 0) {
+        hal_general().log("Pin invalido para el chiller.");
+        return false;
+    }
+
     pin_ = pin;
-    modules::hal_general().pin_mode(pin_, modules::PIN_MODE_OUTPUT);
+    hal_general().pin_mode(pin_, PIN_MODE_OUTPUT);
     off();
+    return true;
 }
 
-void modules::Chiller::on() {
-    modules::hal_general().digital_write(pin_, modules::PIN_HIGH);
+void Chiller::on() {
+    hal_general().digital_write(pin_, PIN_HIGH);
     status_ = true;
 }
 
-void modules::Chiller::off() {
-    modules::hal_general().digital_write(pin_, modules::PIN_LOW);
+void Chiller::off() {
+    hal_general().digital_write(pin_, PIN_LOW);
     status_ = false;
 }
 
-bool modules::Chiller::status() const {
+bool Chiller::status() const {
     return status_;
 }
 
-uint32_t modules::Chiller::pin() const {
+uint32_t Chiller::pin() const {
     return pin_;
 }
 
-void modules::Chiller::start_task() {
+bool Chiller::start_task() {
     if (queue_ != nullptr) {
-        return;
+        return true;
     }
 
     queue_ = xQueueCreate(kChillerQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
-        modules::hal_general().log("No se pudo crear la cola del chiller.");
-        return;
+        hal_general().log("No se pudo crear la cola del chiller.");
+        return false;
     }
 
     if (xTaskCreate(task_entry, kChillerTaskName, kChillerTaskStackSize, this, kChillerTaskPriority, nullptr) != pdPASS) {
-        modules::hal_general().log("No se pudo crear la tarea del chiller.");
+        hal_general().log("No se pudo crear la tarea del chiller.");
         vQueueDelete(queue_);
         queue_ = nullptr;
+        return false;
     }
+
+    return true;
 }
 
-bool modules::Chiller::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
+bool Chiller::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
     if (queue_ == nullptr) {
         return false;
     }
@@ -73,9 +84,9 @@ bool modules::Chiller::queue_command(definitions::CommandType command, uint32_t 
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-modules::Chiller::Chiller() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
+Chiller::Chiller() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
 
-bool modules::Chiller::process_command(definitions::CommandType command) {
+bool Chiller::process_command(definitions::CommandType command) {
     switch (command) {
         case definitions::CommandType::kChillerOn:
             on();
@@ -96,7 +107,7 @@ bool modules::Chiller::process_command(definitions::CommandType command) {
     }
 }
 
-bool modules::Chiller::publish_response(const definitions::CommandRequest& response) {
+bool Chiller::publish_response(const definitions::CommandRequest& response) {
     if (response_queue_ == nullptr) {
         return false;
     }
@@ -104,13 +115,19 @@ bool modules::Chiller::publish_response(const definitions::CommandRequest& respo
     return response_queue_->publish(response, kChillerTimeoutMs);
 }
 
-void modules::Chiller::task_entry(void* param) {
+void Chiller::task_entry(void* param) {
     Chiller* self = static_cast<Chiller*>(param);
     definitions::CommandType command = definitions::CommandType::kChillerOff;
 
     while (true) {
+        if (self->queue_ == nullptr) {
+            break;
+        }
+
         if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
             self->process_command(command);
         }
     }
 }
+
+}  // namespace modules
