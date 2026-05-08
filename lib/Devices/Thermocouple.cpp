@@ -73,20 +73,29 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
 bool Thermocouple::add(uint32_t address) {
     uint8_t index = find_index(address);
     if (thermoc_count_ >= definitions::kMaxThermocouples) {
-        hal_general().log("No se pudo agregar la direccion de la termocupla: " + std::to_string(address) +
+        char hex_addr[16];
+        snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
+        hal_general().log("No se pudo agregar la direccion de la termocupla: " + std::string(hex_addr) +
                           ". Se alcanzo el limite de capacidad.");
         return false;  // Capacity limit reached
     }
 
     if (index < thermoc_count_) {
-        hal_general().log("La termocupla ya estaba registrada: " + std::to_string(address));
+        char hex_addr[16];
+        snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
+        hal_general().log("La termocupla ya estaba registrada: " + std::string(hex_addr));
         return true;  // Address already registered, consider it a success
     }
 
     // Initialize MCP9600 at the current slot
     uint8_t slot_index = thermoc_count_;
+    char hex_addr[16];
+    snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
+    hal_general().log("Iniciando termocupla en la direccion: " + std::string(hex_addr));
     if (!thermocouples_[slot_index].device.begin(address)) {
-        hal_general().log("No se pudo iniciar la termocupla en la direccion: " + std::to_string(address));
+        char hex_addr_err[16];
+        snprintf(hex_addr_err, sizeof(hex_addr_err), "0x%02X", address);
+        hal_general().log("No se pudo iniciar la termocupla en la direccion: " + std::string(hex_addr_err));
         return false;
     }
 
@@ -108,7 +117,9 @@ bool Thermocouple::add(uint32_t address) {
 bool Thermocouple::remove(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        hal_general().log("Se intento eliminar una direccion no registrada: " + std::to_string(address));
+        char hex_addr[16];
+        snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
+        hal_general().log("Se intento eliminar una direccion no registrada: " + std::string(hex_addr));
         return false;  // Address not found
     }
 
@@ -123,7 +134,9 @@ bool Thermocouple::remove(uint32_t address) {
 float Thermocouple::readCelcius(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        hal_general().log("Se intento leer una direccion no registrada: " + std::to_string(address));
+        char hex_addr[16];
+        snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
+        hal_general().log("Se intento leer una direccion no registrada: " + std::string(hex_addr));
         return NAN;  // Return NaN if address not found
     }
 

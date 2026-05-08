@@ -103,7 +103,6 @@ void App::create_tasks() {
     thermocouples_.create_task();
     flowmeter_.create_task();
     level_switch_.create_task();
-    state_machine_.create_task();
 }
 
 void App::set_response_queues() {
@@ -124,11 +123,12 @@ void App::initialize_system() {
     // Initialize Devices
     initialize_devices();
 
-    // Create Tasks for all modules and the state machine
-    create_tasks();  // Initialized in main.cpp
-
-    // Initialize State Machine
+    // Create and Initialize State Machine
     state_machine_.initialize();
+    state_machine_.create_task();
+
+    // Create Tasks for all modules except State Machine
+    create_tasks();  // Initialized in main.cpp
 
     // Response Queue for each module.
     set_response_queues();

@@ -193,7 +193,7 @@ constexpr std::array<EventMap, 21> kEventMap = {{
     {("EVT:POWER ON"), SystemEvent::kPowerOn},
     {("EVT:INIT OK"), SystemEvent::kInitOk},
     {("EVT:SCADA OK"), SystemEvent::kScadaOk},
-    {("EVT:SENSOR OK"), SystemEvent::kSensorOk},
+    {("EVT:SENSORS OK"), SystemEvent::kSensorOk},
     {("EVT:PAUSE"), SystemEvent::kPause},
     {("EVT:UNPAUSE"), SystemEvent::kUnpause},
     {("EVT:STOP"), SystemEvent::kEStop},

@@ -101,10 +101,6 @@ bool LocalServer::ensure_connection() {
     }
     ethernet_link_up_ = true;
 
-    if (!is_initialized_) {
-        return begin(ethernet_mac_address_, ethernet_ip_address_);
-    }
-
     return true;
 }
 
