@@ -99,13 +99,14 @@ class Thermocouple {
     uint8_t count() const;
 
     ///
-    /// @brief Send a Thermocouple Amplifier command through the module queue.
+    /// @brief Queue a Thermocouple Amplifier command through the module queue.
     ///
     /// @param command Command to be sent.
     /// @param address Address of the Thermocouple Amplifier.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
+    bool queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
     bool queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
 
    private:

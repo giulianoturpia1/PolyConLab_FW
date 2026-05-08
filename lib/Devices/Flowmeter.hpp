@@ -83,11 +83,12 @@ class Flowmeter {
     uint32_t pin() const;
 
     ///
-    /// @brief Send a Flowmeter command through the module queue.
+    /// @brief Queue a Flowmeter command through the module queue.
     /// @param command Command to be sent.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
+    bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
     bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
 
    private:
