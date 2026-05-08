@@ -19,14 +19,41 @@ LevelSwitch& LevelSwitch::instance() {
     return instance;
 }
 
+bool LevelSwitch::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kLevelSwitchQueueLength, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        hal_general().log("No se pudo crear la cola del interruptor de nivel.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kLevelSwitchTaskName, kLevelSwitchTaskStackSize, this, kLevelSwitchTaskPriority, nullptr) != pdPASS) {
+        hal_general().log("No se pudo crear la tarea del interruptor de nivel.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void LevelSwitch::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
 
-void LevelSwitch::begin(uint32_t pin) {
+bool LevelSwitch::begin(uint32_t pin) {
+    if (pin == 0) {
+        hal_general().log("Pin invalido para el interruptor de nivel.");
+        return false;
+    }
+
     pin_ = pin;
     hal_general().pin_mode(pin_, PIN_MODE_INPUT);
     status_ = hal_general().digital_read(pin_);
+    return true;
 }
 
 bool LevelSwitch::status() const {
@@ -35,24 +62,6 @@ bool LevelSwitch::status() const {
 
 uint32_t LevelSwitch::pin() const {
     return pin_;
-}
-
-void LevelSwitch::start_task() {
-    if (queue_ != nullptr) {
-        return;
-    }
-
-    queue_ = xQueueCreate(kLevelSwitchQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del interruptor de nivel.");
-        return;
-    }
-
-    if (xTaskCreate(task_entry, kLevelSwitchTaskName, kLevelSwitchTaskStackSize, this, kLevelSwitchTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del interruptor de nivel.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-    }
 }
 
 bool LevelSwitch::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
@@ -91,6 +100,10 @@ void LevelSwitch::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kLevelSwitchState;
 
     while (true) {
+        if (self->queue_ == nullptr) {
+            break;
+        }
+
         if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
             self->process_command(command);
         }

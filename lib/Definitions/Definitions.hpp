@@ -85,15 +85,6 @@ enum class SystemEvent {
 };
 
 ///
-/// @brief Mapping of event strings to SystemEvent enums for parsing incoming messages.
-///
-///
-struct EventMap {
-    const char* name;   //< Event string (e.g., "POWER_ON")
-    SystemEvent event;  //< Corresponding SystemEvent enum
-};
-
-///
 /// @brief Device commands that can be sent over communication transports
 ///
 enum class CommandType {
@@ -138,23 +129,6 @@ enum class CommandType {
 };
 
 ///
-/// @brief Payload to request a command dispatch from the StateMachine.
-///
-struct CommandRequest {
-    CommandType command;
-    uint32_t pin;
-};
-
-///
-/// @brief Mapping of command strings to CommandType enums for parsing incoming messages.
-///
-///
-struct CommandMap {
-    const char* name;     //< Command string (e.g., "HEATER_ON")
-    CommandType command;  //< Corresponding CommandType enum
-};
-
-///
 /// @brief Canonical response messages used by communications handlers.
 ///
 enum class ResponseType {
@@ -170,9 +144,32 @@ enum class ResponseType {
     kStatusLow
 };
 
+enum class ErrorCode {
+    kErrTemp = 111,  ///< Error code for temperature sensor failure
+};
+
+enum class Constants {
+    kTempIntervalMs = 2000,  ///< Interval for temperature readings in milliseconds
+};
+
+///
+/// @brief Mapping of event strings to SystemEvent enums for parsing incoming messages.
+///
+struct EventMap {
+    const char* name;   //< Event string (e.g., "POWER_ON")
+    SystemEvent event;  //< Corresponding SystemEvent enum
+};
+
+///
+/// @brief Mapping of command strings to CommandType enums for parsing incoming messages.
+///
+struct CommandMap {
+    const char* name;     //< Command string (e.g., "HEATER_ON")
+    CommandType command;  //< Corresponding CommandType enum
+};
+
 ///
 /// @brief Canonical response messages used by communications handlers.
-///
 ///
 struct ResponseMap {
     const char* name;   //< Canonical response name (e.g., "ERROR:UNKNOWN_COMMAND")
@@ -187,31 +184,21 @@ struct CommandResponseMap {
     ResponseType response;
 };
 
-constexpr std::array<CommandMap, 23> kCommandMap = {{
-    {("OUTP:HEAT ON"), CommandType::kHeaterOn},
-    {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
-    {("OUTP:HEAT?"), CommandType::kHeaterState},
-    {("OUTP:PUMP ON"), CommandType::kPumpOn},
-    {("OUTP:PUMP OFF"), CommandType::kPumpOff},
-    {("OUTP:PUMP?"), CommandType::kPumpState},
-    {("OUTP:CHILL ON"), CommandType::kChillerOn},
-    {("OUTP:CHILL OFF"), CommandType::kChillerOff},
-    {("OUTP:CHILL?"), CommandType::kChillerState},
-    {("OUTP:VALV OPEN"), CommandType::kValveOpen},
-    {("OUTP:VALV CLOSE"), CommandType::kValveClose},
-    {("OUTP:VALV?"), CommandType::kValveState},
-    {("MEAS:TEMP:IN?"), CommandType::kTempInRead},
-    {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead},
-    {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
-    {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
-    {("OUTP:FLOW ON"), CommandType::kFlowBegin},
-    {("OUTP:FLOW OFF"), CommandType::kFlowStop},
-    {("OUTP:FLOW?"), CommandType::kFlowStatus},
-    {("MEAS:FLOW?"), CommandType::kFlowRead},
-    {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
-    {("PING"), CommandType::kPing},
-    {("STATE?"), CommandType::kStateQuery},
-}};
+///
+/// @brief Payload to request a command dispatch from the StateMachine.
+///
+struct CommandRequest {
+    CommandType command;
+    uint32_t pin;
+};
+
+///
+/// @brief Mapping of SystemState enums to human-readable state names.
+///
+struct StateNameMap {
+    SystemState state;  ///< System state enum value
+    const char* name;   ///< Human-readable state name (e.g., "STARTUP")
+};
 
 constexpr std::array<EventMap, 23> kEventMap = {{
     {("POWER ON"), SystemEvent::kPowerOn},
@@ -239,7 +226,33 @@ constexpr std::array<EventMap, 23> kEventMap = {{
     {("COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<ResponseMap, 27> kResponseMap = {{
+constexpr std::array<CommandMap, 23> kCommandMap = {{
+    {("OUTP:HEAT ON"), CommandType::kHeaterOn},
+    {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
+    {("OUTP:HEAT?"), CommandType::kHeaterState},
+    {("OUTP:PUMP ON"), CommandType::kPumpOn},
+    {("OUTP:PUMP OFF"), CommandType::kPumpOff},
+    {("OUTP:PUMP?"), CommandType::kPumpState},
+    {("OUTP:CHILL ON"), CommandType::kChillerOn},
+    {("OUTP:CHILL OFF"), CommandType::kChillerOff},
+    {("OUTP:CHILL?"), CommandType::kChillerState},
+    {("OUTP:VALV OPEN"), CommandType::kValveOpen},
+    {("OUTP:VALV CLOSE"), CommandType::kValveClose},
+    {("OUTP:VALV?"), CommandType::kValveState},
+    {("MEAS:TEMP:IN?"), CommandType::kTempInRead},
+    {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead},
+    {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
+    {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
+    {("OUTP:FLOW ON"), CommandType::kFlowBegin},
+    {("OUTP:FLOW OFF"), CommandType::kFlowStop},
+    {("OUTP:FLOW?"), CommandType::kFlowStatus},
+    {("MEAS:FLOW?"), CommandType::kFlowRead},
+    {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
+    {("PING"), CommandType::kPing},
+    {("STATE?"), CommandType::kStateQuery},
+}};
+
+constexpr std::array<ResponseMap, 10> kResponseMap = {{
     {"-100,’COMANDO DESCONOCIDO’", ResponseType::kErrorUnknownCommand},
     {"-200,’EVENTO VACIO’", ResponseType::kErrorEmptyEvent},
     {"-300,’EVENTO DESCONOCIDO’", ResponseType::kErrorUnknownEvent},
@@ -252,32 +265,18 @@ constexpr std::array<ResponseMap, 27> kResponseMap = {{
     {"LOW", ResponseType::kStatusLow},
 }};
 
-constexpr std::array<CommandResponseMap, 8> kCommandResponseMap = {{
+constexpr std::array<CommandResponseMap, 10> kCommandResponseMap = {{
     {CommandType::kHeaterOn, ResponseType::kStatusOn},
     {CommandType::kHeaterOff, ResponseType::kStatusOff},
     {CommandType::kPumpOn, ResponseType::kStatusOn},
     {CommandType::kPumpOff, ResponseType::kStatusOff},
     {CommandType::kChillerOn, ResponseType::kStatusOn},
     {CommandType::kChillerOff, ResponseType::kStatusOff},
+    {CommandType::kFlowBegin, ResponseType::kStatusOn},
+    {CommandType::kFlowStop, ResponseType::kStatusOff},
     {CommandType::kValveOpen, ResponseType::kStatusOpen},
     {CommandType::kValveClose, ResponseType::kStatusClosed},
 }};
-
-enum class ErrorCode {
-    kErrTemp = 111,  ///< Error code for temperature sensor failure
-};
-
-enum class Constants {
-    kTempIntervalMs = 2000,  ///< Interval for temperature readings in milliseconds
-};
-
-///
-/// @brief Mapping of SystemState enums to human-readable state names.
-///
-struct StateNameMap {
-    SystemState state;  ///< System state enum value
-    const char* name;   ///< Human-readable state name (e.g., "STARTUP")
-};
 
 constexpr std::array<StateNameMap, 8> kStateNameMap = {{
     {SystemState::kStartup, "STARTUP"},

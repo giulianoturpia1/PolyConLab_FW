@@ -27,6 +27,27 @@ Thermocouple& Thermocouple::instance() {
     return instance;
 }
 
+bool Thermocouple::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kThermocoupleQueueLength, sizeof(ThermocoupleCommand));
+    if (queue_ == nullptr) {
+        hal_general().log("No se pudo crear la cola de termocuplas.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kThermocoupleTaskName, kThermocoupleTaskStackSize, this, kThermocoupleTaskPriority, nullptr) != pdPASS) {
+        hal_general().log("No se pudo crear la tarea de termocuplas.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void Thermocouple::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
@@ -114,28 +135,7 @@ uint8_t Thermocouple::count() const {
     return thermoc_count_;
 }
 
-bool Thermocouple::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kThermocoupleQueueLength, sizeof(ThermocoupleCommand));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola de termocuplas.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kThermocoupleTaskName, kThermocoupleTaskStackSize, this, kThermocoupleTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea de termocuplas.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
-}
-
-bool Thermocouple::send_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms) {
+bool Thermocouple::queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms) {
     const ThermocoupleCommand queue_command = {command, address};
     if (queue_ == nullptr || xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
@@ -146,19 +146,16 @@ bool Thermocouple::send_command(definitions::CommandType command, uint32_t addre
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-void Thermocouple::task_entry(void* param) {
-    Thermocouple* self = static_cast<Thermocouple*>(param);
-    ThermocoupleCommand command;
+Thermocouple::Thermocouple() : thermocouples_({}), thermoc_count_(0), queue_(nullptr), response_queue_(nullptr) {}
 
-    while (true) {
-        if (self->queue_ == nullptr) {
-            break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command.command, command.address);
+uint8_t Thermocouple::find_index(uint32_t address) const {
+    for (uint8_t index = 0; index < thermoc_count_; ++index) {
+        if (thermocouples_[index].address == address) {
+            return index;
         }
     }
+
+    return definitions::kMaxThermocouples;  // Return an out-of-range index to indicate not found
 }
 
 bool Thermocouple::process_command(definitions::CommandType command, uint32_t address) {
@@ -188,16 +185,19 @@ bool Thermocouple::publish_response(const definitions::CommandRequest& response)
     return response_queue_->publish(response, kThermocoupleTimeoutMs);
 }
 
-Thermocouple::Thermocouple() : thermocouples_({}), thermoc_count_(0), queue_(nullptr), response_queue_(nullptr) {}
+void Thermocouple::task_entry(void* param) {
+    Thermocouple* self = static_cast<Thermocouple*>(param);
+    ThermocoupleCommand command;
 
-uint8_t Thermocouple::find_index(uint32_t address) const {
-    for (uint8_t index = 0; index < thermoc_count_; ++index) {
-        if (thermocouples_[index].address == address) {
-            return index;
+    while (true) {
+        if (self->queue_ == nullptr) {
+            break;
+        }
+
+        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
+            self->process_command(command.command, command.address);
         }
     }
-
-    return definitions::kMaxThermocouples;  // Return an out-of-range index to indicate not found
 }
 
 }  // namespace modules

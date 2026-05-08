@@ -1,7 +1,7 @@
 ///
 ///@file App.hpp
 ///@author F. Galietta, G. Turpia, S. Miranda (proyectopolyconlab@gmail.com)
-///@brief Application layer module that manages the program startup, the main loop and the shutdown of the system.
+///@brief Application layer module that manages program startup and the main loop.
 ///@version 0.2
 ///@date 2026-03-07
 ///
@@ -39,7 +39,7 @@ namespace modules {
 /// polls for communications and dispatches them to the appropriate handlers.
 ///
 /// The main loop is implemented in the tick() method, which is called periodically from a dedicated FreeRTOS task. This is implemented
-/// in the task_entry() static method, and the task is started by calling start_task().
+/// in the task_entry() static method, and the task is created by calling create_task().
 ///
 class App {
    public:
@@ -66,12 +66,6 @@ class App {
     App& operator=(App&&) = delete;
 
     ///
-    /// @brief Configure the serial response callback to log responses through HAL.
-    ///
-    ///
-    void configure_serial_response_callback();
-
-    ///
     /// @brief Initialize the Ethernet server and related settings.
     ///
     ///
@@ -89,14 +83,14 @@ class App {
     void initialize_devices();
 
     ///
-    /// @brief Start the tasks for the initialized modules.
+    /// @brief Create the tasks for the initialized modules.
     ///
-    void initialize_tasks();
+    void create_tasks();
 
     ///
-    /// @brief Start the dedicated App FreeRTOS task that executes run() periodically.
+    /// @brief Create the dedicated App FreeRTOS task that executes tick() periodically.
     ///
-    void start_task();
+    void create_task();
 
     ///
     /// @brief Execute one application cycle (communications polling and dispatch).

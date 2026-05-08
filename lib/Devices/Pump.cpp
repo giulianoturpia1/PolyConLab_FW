@@ -20,6 +20,27 @@ Pump& Pump::instance() {
     return instance;
 }
 
+bool Pump::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kPumpQueueLength, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        hal_general().log("No se pudo crear la cola de la bomba.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kPumpTaskName, kPumpTaskStackSize, this, kPumpTaskPriority, nullptr) != pdPASS) {
+        hal_general().log("No se pudo crear la tarea de la bomba.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void Pump::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
@@ -52,27 +73,6 @@ bool Pump::status() const {
 
 uint32_t Pump::pin() const {
     return pin_;
-}
-
-bool Pump::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kPumpQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola de la bomba.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kPumpTaskName, kPumpTaskStackSize, this, kPumpTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea de la bomba.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
 }
 
 bool Pump::queue_command(definitions::CommandType command, uint32_t timeout_ms) {

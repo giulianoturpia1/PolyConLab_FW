@@ -60,7 +60,7 @@ void StateMachine::initialize() {
     on_state_enter();
 }
 
-bool StateMachine::start_task() {
+bool StateMachine::create_task() {
     static portMUX_TYPE startMux = portMUX_INITIALIZER_UNLOCKED;
     static bool task_started = false;
 

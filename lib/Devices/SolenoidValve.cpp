@@ -27,6 +27,27 @@ SolenoidValve& SolenoidValve::instance() {
     return instance;
 }
 
+bool SolenoidValve::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kSolenoidValveQueueLength, sizeof(ValveCommand));
+    if (queue_ == nullptr) {
+        hal_general().log("No se pudo crear la cola de valvulas.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kSolenoidValveTaskName, kSolenoidValveTaskStackSize, this, kSolenoidValveTaskPriority, nullptr) != pdPASS) {
+        hal_general().log("No se pudo crear la tarea de valvulas.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void SolenoidValve::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
@@ -121,27 +142,6 @@ bool SolenoidValve::status(uint32_t pin) const {
 
 uint8_t SolenoidValve::count() const {
     return valve_count_;
-}
-
-bool SolenoidValve::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kSolenoidValveQueueLength, sizeof(ValveCommand));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola de valvulas.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kSolenoidValveTaskName, kSolenoidValveTaskStackSize, this, kSolenoidValveTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea de valvulas.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
 }
 
 bool SolenoidValve::queue_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {

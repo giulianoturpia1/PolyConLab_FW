@@ -41,6 +41,11 @@ class Thermocouple {
     static Thermocouple& instance();
 
     ///
+    /// @brief Create the dedicated FreeRTOS task/queue for this module.
+    ///
+    bool create_task();
+
+    ///
     /// @brief Set the sink used to publish command execution responses.
     ///
     /// @param queue Response queue implementation. If nullptr, response publishing is disabled.
@@ -94,11 +99,6 @@ class Thermocouple {
     uint8_t count() const;
 
     ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool start_task();
-
-    ///
     /// @brief Send a Thermocouple Amplifier command through the module queue.
     ///
     /// @param command Command to be sent.
@@ -106,7 +106,7 @@ class Thermocouple {
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
-    bool send_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
+    bool queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
 
    private:
     Thermocouple();
@@ -145,7 +145,7 @@ class Thermocouple {
     bool publish_response(const definitions::CommandRequest& response);
 
     ///
-    /// @brief FreeRTOS task entry point for processing valve commands from the queue.
+    /// @brief FreeRTOS task entry point for processing thermocouple commands from the queue.
     ///
     /// @param param
     ///

@@ -21,10 +21,10 @@
 namespace utils {
 
 ///
-/// @brief Trim whitespace from both ends of a string
+/// @brief Trim whitespace from both ends of a string.
 ///
-/// @param str Input string
-/// @return std::string Trimmed string
+/// @param str Input string.
+/// @return std::string Trimmed string.
 ///
 inline std::string trim(const std::string& str) {
     auto start = std::find_if_not(str.begin(), str.end(), [](unsigned char ch) { return std::isspace(ch); });
@@ -33,11 +33,11 @@ inline std::string trim(const std::string& str) {
 }
 
 ///
-/// @brief Check if a string starts with a given prefix
+/// @brief Check if a string starts with a given prefix.
 ///
-/// @param value String to check
-/// @param prefix Prefix to look for
-/// @return bool True if value starts with prefix
+/// @param value String to check.
+/// @param prefix Prefix to look for.
+/// @return bool True if value starts with prefix.
 ///
 inline bool starts_with(const std::string& value, const char* prefix) {
     if (prefix == nullptr) {
@@ -49,11 +49,11 @@ inline bool starts_with(const std::string& value, const char* prefix) {
 }
 
 ///
-/// @brief Format a float with specified precision
+/// @brief Format a float with specified precision.
 ///
-/// @param value Float value to format
-/// @param precision Number of decimal places
-/// @return std::string Formatted string
+/// @param value Float value to format.
+/// @param precision Number of decimal places.
+/// @return std::string Formatted string.
 ///
 inline std::string format_float(float value, int precision) {
     char buffer[32];
@@ -62,10 +62,10 @@ inline std::string format_float(float value, int precision) {
 }
 
 ///
-/// @brief Find a command in the command map by name
+/// @brief Find a command in the command map by name.
 ///
-/// @param cmd_name
-/// @return const definitions::CommandMap*
+/// @param cmd_name Command name to search for.
+/// @return const definitions::CommandMap* Pointer to the CommandMap entry if found, nullptr otherwise.
 ///
 inline const definitions::CommandMap* find_command(const std::string& cmd_name) {
     const auto it =
@@ -75,38 +75,42 @@ inline const definitions::CommandMap* find_command(const std::string& cmd_name) 
 }
 
 ///
-/// @brief Resolve a response text from the response map
+/// @brief Resolve a response text from a response type enum.
 ///
-/// @param type Response identifier
-/// @return const char* Canonical response text
+/// @param response_type Response identifier
+/// @return const char* Response text, or "ERROR:UNKNOWN_RESPONSE" if the type is not recognized.
 ///
-inline const char* response(const definitions::ResponseType type) {
-    const auto it = std::find_if(
-        definitions::kResponseMap.begin(), definitions::kResponseMap.end(),
-        [type](const definitions::ResponseMap& response_entry) { return response_entry.name != nullptr && response_entry.type == type; });
+inline const char* response(const definitions::ResponseType response_type) {
+    const auto it = std::find_if(definitions::kResponseMap.begin(), definitions::kResponseMap.end(),
+                                 [response_type](const definitions::ResponseMap& response_entry) {
+                                     return response_entry.name != nullptr && response_entry.type == response_type;
+                                 });
     if (it != definitions::kResponseMap.end()) {
         return it->name;
     }
 
-    return "";
+    return "ERROR:UNKNOWN_RESPONSE";
 }
 
 ///
-/// @brief Resolve canonical response text for command acknowledgements.
+/// @brief Resolve response text from command type enum
+///
+/// It returns the corresponding response for known commands, or a generic error response if the command is not recognized.
 ///
 /// @param command Command identifier
-/// @return const char* Canonical response text, or nullptr if unsupported
+/// @return const char* Response text corresponding to the command, or "ERROR:UNKNOWN_COMMAND" if the command is not recognized.
 ///
 inline const char* response_for_command(const definitions::CommandType command) {
-    const auto it = std::find_if(definitions::kCommandResponseMap.begin(), definitions::kCommandResponseMap.end(),
-                                 [command](const definitions::CommandResponseMap& entry) {
-                                     return response(entry.response)[0] != '\0' && entry.command == command;
-                                 });
-    if (it == definitions::kCommandResponseMap.end()) {
-        return "";
+    const auto it = std::find_if(
+        definitions::kCommandResponseMap.begin(), definitions::kCommandResponseMap.end(),
+        [command](const definitions::CommandResponseMap& entry) { return entry.command != nullptr && entry.command == command; });
+    // This step translates the command into a response type enummerate, which is then resolved to a response string using the response()
+    // function.
+    if (it != definitions::kCommandResponseMap.end()) {
+        return response(it->response);
     }
 
-    return response(it->response);
+    return response(definitions::ResponseType::kErrorUnknownCommand);
 }
 
 }  // namespace utils

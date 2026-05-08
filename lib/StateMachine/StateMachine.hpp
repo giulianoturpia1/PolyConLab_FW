@@ -67,7 +67,7 @@ class StateMachine {
     ///
     /// @brief Start the dedicated FSM FreeRTOS task and event queue.
     ///
-    bool start_task();
+    bool create_task();
 
     ///
     /// @brief Queue an event in the FSM task's local queue.

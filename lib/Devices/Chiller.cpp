@@ -19,6 +19,27 @@ Chiller& Chiller::instance() {
     return instance;
 }
 
+bool Chiller::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kChillerQueueLength, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        hal_general().log("No se pudo crear la cola del chiller.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kChillerTaskName, kChillerTaskStackSize, this, kChillerTaskPriority, nullptr) != pdPASS) {
+        hal_general().log("No se pudo crear la tarea del chiller.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void Chiller::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
@@ -51,27 +72,6 @@ bool Chiller::status() const {
 
 uint32_t Chiller::pin() const {
     return pin_;
-}
-
-bool Chiller::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kChillerQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del chiller.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kChillerTaskName, kChillerTaskStackSize, this, kChillerTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del chiller.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
 }
 
 bool Chiller::queue_command(definitions::CommandType command, uint32_t timeout_ms) {

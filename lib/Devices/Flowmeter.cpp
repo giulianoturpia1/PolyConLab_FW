@@ -27,11 +27,30 @@ Flowmeter& Flowmeter::instance() {
     return instance;
 }
 
+bool Flowmeter::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kFlowmeterQueueLength, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        hal_general().log("No se pudo crear la cola del caudalimetro.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kFlowmeterTaskName, kFlowmeterTaskStackSize, this, kFlowmeterTaskPriority, nullptr) != pdPASS) {
+        hal_general().log("No se pudo crear la tarea del caudalimetro.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void Flowmeter::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
-
-Flowmeter::Flowmeter() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
 
 //////////////////////////////////// Flow Meter Interrupt Service Routines //////////////////////////////
 void IRAM_ATTR isrFlowMeter() {
@@ -93,28 +112,7 @@ uint32_t Flowmeter::pin() const {
     return pin_;
 }
 
-bool Flowmeter::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kFlowmeterQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del caudalimetro.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kFlowmeterTaskName, kFlowmeterTaskStackSize, this, kFlowmeterTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del caudalimetro.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
-}
-
-bool Flowmeter::send_command(definitions::CommandType command, uint32_t timeout_ms) {
+bool Flowmeter::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
     if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
@@ -123,6 +121,8 @@ bool Flowmeter::send_command(definitions::CommandType command, uint32_t timeout_
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
+Flowmeter::Flowmeter() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
+
 bool Flowmeter::process_command(definitions::CommandType command) {
     if (command != definitions::CommandType::kFlowBegin && command != definitions::CommandType::kFlowStop &&
         command != definitions::CommandType::kFlowRead && command != definitions::CommandType::kFlowStatus) {

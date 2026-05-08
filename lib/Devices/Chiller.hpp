@@ -33,6 +33,11 @@ class Chiller {
     static Chiller& instance();
 
     ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    bool create_task();
+
+    ///
     /// @brief Set the sink used to publish command execution responses.
     ///
     /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
@@ -69,11 +74,6 @@ class Chiller {
     /// @return uint32_t
     ///
     uint32_t pin() const;
-
-    ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool start_task();
 
     ///
     /// @brief Queue a chiller command in the module's local queue.

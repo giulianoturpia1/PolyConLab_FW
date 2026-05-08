@@ -94,9 +94,8 @@ class Communications {
     void handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond);
 
     ///
-    /// @brief Handle a command message.The command name is extracted from the message and dispatched to the
-    /// corresponding handler. Dispatches the command if it is valid, otherwise responds with an error. Dispatches the
-    /// event if it is valid, otherwise responds with an error.
+    /// @brief Handle a command message. The command name is extracted from the message and dispatched to the
+    /// corresponding handler. Dispatches the command if it is valid, otherwise responds with an error.
     ///
     /// @param msg
     /// @param respond
