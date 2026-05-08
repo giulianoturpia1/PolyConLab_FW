@@ -118,46 +118,41 @@ bool Communications::handle_command(const std::string& msg, const std::function<
 
     const definitions::CommandMap* cmd = utils::find_command(base_command);
     if (!cmd) {
+        respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
         return false;
     }
 
-    uint32_t pin = 0;
+    uint32_t extra = 0;
     if (cmd->command == definitions::CommandType::kValveOpen || cmd->command == definitions::CommandType::kValveClose ||
         cmd->command == definitions::CommandType::kValveState) {
-        pin = parse_valve_pin(msg);
+        extra = parse_valve_pin(msg);
     }
 
-    if (StateMachine::instance().queue_command({cmd->command, pin}, kCommsQueueTimeoutMs)) {
-        return true;
+    if (!StateMachine::instance().queue_command({cmd->command, extra}, kCommsQueueTimeoutMs)) {
+        respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+        return false;
     }
 
-    respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
     return true;
 }
 
 bool Communications::handle_event(const std::string& msg, const std::function<void(const std::string&)>& respond) {
-    if (!utils::starts_with(msg, "EVT:") && !utils::starts_with(msg, "EVENT:")) {
-        return false;
-    }
-
-    std::string event_name = utils::starts_with(msg, "EVT:") ? msg.substr(4) : msg.substr(6);
-
-    event_name = utils::trim(event_name);
+    // Trim the message to remove leading/trailing whitespace and check if it's empty
+    std::string event_name = utils::trim(msg);
     if (event_name.length() == 0) {
         respond(std::string(utils::response(definitions::ResponseType::kErrorEmptyEvent)));
         return true;
     }
 
-    const auto it = std::find_if(definitions::kEventMap.begin(), definitions::kEventMap.end(),
-                                 [&event_name](const definitions::EventMap& entry) { return event_name == entry.name; });
-    if (it == definitions::kEventMap.end()) {
+    const definitions::EventMap* evt = utils::find_event(event_name);
+    if (!evt) {
         respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownEvent)));
         return true;
     }
 
-    if (!StateMachine::instance().queue_event(it->event, kCommsQueueTimeoutMs)) {
+    if (!StateMachine::instance().queue_event(evt->event, kCommsQueueTimeoutMs)) {
         respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownEvent)));
-        return true;
+        return false;
     }
 
     return true;

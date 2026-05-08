@@ -177,7 +177,7 @@ bool Thermocouple::process_command(definitions::CommandType command, uint32_t ad
     return !std::isnan(temperature);
 }
 
-bool Thermocouple::publish_response(const definitions::CommandRequest& response) {
+bool Thermocouple::publish_response(const definitions::Command& response) {
     if (response_queue_ == nullptr) {
         return false;
     }

@@ -22,7 +22,6 @@ definitions::SystemState SoftErrorState::handle_event(StateMachine* context, def
         case definitions::SystemEvent::kFaultCritical:
         case definitions::SystemEvent::kShutdownButton:
         case definitions::SystemEvent::kEStop:
-        case definitions::SystemEvent::kFaultEscalates:
         case definitions::SystemEvent::kTooManyRetries:
             return definitions::SystemState::kHardError;
         default:

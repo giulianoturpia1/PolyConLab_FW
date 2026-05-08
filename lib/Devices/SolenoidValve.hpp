@@ -154,7 +154,7 @@ class SolenoidValve {
     /// @param response Response payload.
     /// @return true if the sink accepted the response.
     ///
-    bool publish_response(const definitions::CommandRequest& response);
+    bool publish_response(const definitions::Command& response);
 
     ///
     /// @brief FreeRTOS task entry point for processing valve commands from the queue.

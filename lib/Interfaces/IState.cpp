@@ -4,7 +4,7 @@
 
 namespace interfaces {
 
-bool IState::dispatch_command(modules::StateMachine* context, const definitions::CommandRequest& request) {
+bool IState::dispatch_command(modules::StateMachine* context, const definitions::Command& request) {
     (void) context;
     (void) request;
     return false;

@@ -98,7 +98,7 @@ class LevelSwitch {
     /// @param response Response payload.
     /// @return true if the sink accepted the response.
     ///
-    bool publish_response(const definitions::CommandRequest& response);
+    bool publish_response(const definitions::Command& response);
 
     ///
     /// @brief FreeRTOS task entrypoint for the level switch module. Waits for commands on the queue and processes them.

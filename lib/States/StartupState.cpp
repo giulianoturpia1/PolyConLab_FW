@@ -14,7 +14,6 @@ definitions::SystemState StartupState::handle_event(StateMachine* context, defin
     switch (event) {
         case definitions::SystemEvent::kInitOk:
             return definitions::SystemState::kCheckup;
-        case definitions::SystemEvent::kInitFatal:
         case definitions::SystemEvent::kWatchdogFatal:
             return definitions::SystemState::kHardError;
         case definitions::SystemEvent::kShutdown:

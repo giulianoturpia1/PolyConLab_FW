@@ -1,5 +1,11 @@
 #include "ManualState.hpp"
 
+#if defined(PLC_38AR)
+#include "PLC38AR.hpp"
+#elif defined(PLC_19R)
+#include "PLC19R.hpp"
+#endif
+
 #include "Chiller.hpp"
 #include "FlowMeter.hpp"
 #include "HALGeneral.hpp"
@@ -32,43 +38,61 @@ definitions::SystemState ManualState::handle_event(StateMachine* context, defini
     }
 }
 
-bool ManualState::dispatch_command(StateMachine* context, const definitions::CommandRequest& request) {
+bool ManualState::dispatch_command(StateMachine* context, const definitions::Command& request) {
     (void) context;
 
     switch (request.command) {
         case definitions::CommandType::kHeaterOn:
             return Heater::instance().queue_command(definitions::CommandType::kHeaterOn, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kHeaterOff:
             return Heater::instance().queue_command(definitions::CommandType::kHeaterOff, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kHeaterState:
             return Heater::instance().queue_command(definitions::CommandType::kHeaterState, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kPumpOn:
             return Pump::instance().queue_command(definitions::CommandType::kPumpOn, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kPumpOff:
             return Pump::instance().queue_command(definitions::CommandType::kPumpOff, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kPumpState:
             return Pump::instance().queue_command(definitions::CommandType::kPumpState, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kChillerOn:
             return Chiller::instance().queue_command(definitions::CommandType::kChillerOn, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kChillerOff:
             return Chiller::instance().queue_command(definitions::CommandType::kChillerOff, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kChillerState:
             return Chiller::instance().queue_command(definitions::CommandType::kChillerState, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kValveOpen:
-            return SolenoidValve::instance().queue_command(definitions::CommandType::kValveOpen, request.pin, kAcceptableTimeWindowMs);
+            return SolenoidValve::instance().queue_command(definitions::CommandType::kValveOpen, request.extra, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kValveClose:
-            return SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, request.pin, kAcceptableTimeWindowMs);
+            return SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, request.extra, kAcceptableTimeWindowMs);
+
+        case definitions::CommandType::kValveState:
+            return SolenoidValve::instance().queue_command(definitions::CommandType::kValveState, request.extra, kAcceptableTimeWindowMs);
+
         case definitions::CommandType::kTempInRead:
-            return Thermocouple::instance().queue_command(definitions::CommandType::kTempInRead, kAcceptableTimeWindowMs);
+            return Thermocouple::instance().queue_command(definitions::CommandType::kTempInRead,
+                                                          static_cast<uint32_t>(definitions::Addresses::kTempIn), kAcceptableTimeWindowMs);
 
         case definitions::CommandType::kTempOutRead:
-            return Thermocouple::instance().queue_command(definitions::CommandType::kTempOutRead, kAcceptableTimeWindowMs);
+            return Thermocouple::instance().queue_command(definitions::CommandType::kTempOutRead,
+                                                          static_cast<uint32_t>(definitions::Addresses::kTempOut), kAcceptableTimeWindowMs);
 
         case definitions::CommandType::kTempBathRead:
-            return Thermocouple::instance().queue_command(definitions::CommandType::kTempBathRead, kAcceptableTimeWindowMs);
+            return Thermocouple::instance().queue_command(
+                definitions::CommandType::kTempBathRead, static_cast<uint32_t>(definitions::Addresses::kTempBath), kAcceptableTimeWindowMs);
 
         case definitions::CommandType::kTempMixRead:
-            return Thermocouple::instance().queue_command(definitions::CommandType::kTempMixRead, kAcceptableTimeWindowMs);
+            return Thermocouple::instance().queue_command(definitions::CommandType::kTempMixRead,
+                                                          static_cast<uint32_t>(definitions::Addresses::kTempMix), kAcceptableTimeWindowMs);
 
         case definitions::CommandType::kFlowRead:
             return Flowmeter::instance().queue_command(definitions::CommandType::kFlowRead, kAcceptableTimeWindowMs);

@@ -89,7 +89,6 @@ class Flowmeter {
     /// @return true if command was queued, false otherwise.
     ///
     bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
-    bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
 
    private:
     Flowmeter();
@@ -116,7 +115,7 @@ class Flowmeter {
     /// @param response Response payload.
     /// @return true if the sink accepted the response.
     ///
-    bool publish_response(const definitions::CommandRequest& response);
+    bool publish_response(const definitions::Command& response);
 
     ///
     /// @brief FreeRTOS task entry point for processing flowmeter commands from the queue.

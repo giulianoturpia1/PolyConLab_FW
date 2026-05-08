@@ -89,7 +89,7 @@ class StateMachine {
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if request was queued, false otherwise.
     ///
-    bool queue_command(const definitions::CommandRequest& request, uint32_t timeout_ms = 0);
+    bool queue_command(const definitions::Command& request, uint32_t timeout_ms = 0);
 
     ///
     /// @brief Queue an executed response report in the FSM task's local queue.
@@ -99,7 +99,7 @@ class StateMachine {
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if response was queued, false otherwise.
     ///
-    bool queue_response(const definitions::CommandRequest& response, uint32_t timeout_ms = 0);
+    bool queue_response(const definitions::Command& response, uint32_t timeout_ms = 0);
 
     // Getters
 
@@ -183,7 +183,7 @@ class StateMachine {
     /// @param command Reported executed command.
     /// @return true when report confirms the pending command execution.
     ///
-    bool response_matches_command(const definitions::CommandRequest& request, const definitions::CommandRequest& response) const;
+    bool response_matches_command(const definitions::Command& request, const definitions::Command& response) const;
 
     ///
     /// @brief Process an event of SystemEvent type.
@@ -201,7 +201,7 @@ class StateMachine {
     ///
     /// @param request Command request.
     ///
-    void dispatch_command_request(const definitions::CommandRequest& request);
+    void process_command(const definitions::Command& request);
 
     ///
     /// @brief Process an executed response report.
@@ -209,7 +209,7 @@ class StateMachine {
     ///
     /// @param response Executed response report.
     ///
-    void process_response(const definitions::CommandRequest& response);
+    void process_response(const definitions::Command& response);
 
     ///
     /// @brief Consume a bounded number of different queue messages in one FSM cycle.
@@ -271,12 +271,12 @@ class StateMachine {
     definitions::SystemState currentState_;                                      ///< Current state of the system
     definitions::SystemState previousState_;                                     ///< Previous state of the system
     unsigned long stateEntryTime_;                                               ///< Timestamp of when the current state was entered
-    bool stateChanged_;                           ///< Flag indicating if the state has changed since the last tick
-    definitions::CommandRequest lastResponse_;    ///< Last executed response
-    definitions::CommandRequest pendingCommand_;  ///< Last command request pending execution confirmation
-    unsigned long pendingCommandTimeMs_;          ///< Timestamp of when the pending command was sent
-    bool commandPending_;                         ///< Flag indicating if there is a command pending execution confirmation
-    bool lastCommandConfirmed_;                   ///< Flag indicating if the last command was confirmed as executed by a module
+    bool stateChanged_;                    ///< Flag indicating if the state has changed since the last tick
+    definitions::Command lastResponse_;    ///< Last executed response
+    definitions::Command pendingCommand_;  ///< Last command request pending execution confirmation
+    unsigned long pendingCommandTimeMs_;   ///< Timestamp of when the pending command was sent
+    bool commandPending_;                  ///< Flag indicating if there is a command pending execution confirmation
+    bool lastCommandConfirmed_;            ///< Flag indicating if the last command was confirmed as executed by a module
 };
 
 }  // namespace modules

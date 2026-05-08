@@ -88,8 +88,8 @@ void App::initialize_devices() {
     valves_.begin(valve_pins, 2);
 
     uint32_t i2c_addresses[] = {
-        static_cast<uint32_t>(definitions::Addresses::kTempSensor1), static_cast<uint32_t>(definitions::Addresses::kTempSensor2),
-        static_cast<uint32_t>(definitions::Addresses::kTempSensor3), static_cast<uint32_t>(definitions::Addresses::kTempSensor4)};
+        static_cast<uint32_t>(definitions::Addresses::kTempIn), static_cast<uint32_t>(definitions::Addresses::kTempOut),
+        static_cast<uint32_t>(definitions::Addresses::kTempBath), static_cast<uint32_t>(definitions::Addresses::kTempMix)};
     thermocouples_.begin(i2c_addresses, 4);
     flowmeter_.begin(static_cast<uint32_t>(definitions::Pins::kFlowmeter));
     level_switch_.begin(static_cast<uint32_t>(definitions::Pins::kLevelSwitch));

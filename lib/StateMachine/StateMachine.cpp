@@ -1,6 +1,5 @@
 #include "StateMachine.hpp"
 
-#include "CalibrationState.hpp"
 #include "CheckupState.hpp"
 #include "HALGeneral.hpp"
 #include "HardErrorState.hpp"
@@ -36,8 +35,8 @@ constexpr uint8_t kMaxEventsPerTick = 4;
 constexpr uint8_t kMaxCommandsPerTick = 4;
 constexpr uint8_t kMaxResponsesPerTick = 4;
 definitions::SystemEvent currentEvent = definitions::SystemEvent::kPowerOn;
-definitions::CommandRequest currentCommand = {definitions::CommandType::kHeaterOff, 0};
-definitions::CommandRequest currentResponse = {definitions::CommandType::kHeaterOff, 0};
+definitions::Command currentCommand = {definitions::CommandType::kHeaterOff, 0};
+definitions::Command currentResponse = {definitions::CommandType::kHeaterOff, 0};
 constexpr char kStateMachineTaskName[] = "state_machine_task";
 
 namespace modules {
@@ -75,8 +74,8 @@ bool StateMachine::create_task() {
     taskEXIT_CRITICAL(&startMux);
 
     gStateEventQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::SystemEvent));
-    gStateCommandQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::CommandRequest));
-    gStateResponseQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::CommandRequest));
+    gStateCommandQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::Command));
+    gStateResponseQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::Command));
     if (gStateEventQueue == nullptr || gStateCommandQueue == nullptr || gStateResponseQueue == nullptr) {
         hal_general().log("No se pudo crear la queue de la maquina de estados.");
         if (gStateEventQueue != nullptr) {
@@ -122,7 +121,7 @@ bool StateMachine::queue_event(definitions::SystemEvent event, uint32_t timeout_
     return true;
 }
 
-bool StateMachine::queue_command(const definitions::CommandRequest& request, uint32_t timeout_ms) {
+bool StateMachine::queue_command(const definitions::Command& request, uint32_t timeout_ms) {
     if (gStateCommandQueue == nullptr || xQueueSend(gStateCommandQueue, &request, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
@@ -130,7 +129,7 @@ bool StateMachine::queue_command(const definitions::CommandRequest& request, uin
     return true;
 }
 
-bool StateMachine::queue_response(const definitions::CommandRequest& response, uint32_t timeout_ms) {
+bool StateMachine::queue_response(const definitions::Command& response, uint32_t timeout_ms) {
     if (gStateResponseQueue == nullptr) {
         return false;
     }
@@ -213,7 +212,6 @@ StateMachine::StateMachine()
       lastCommandConfirmed_(false) {
     stateHandlers_.emplace(definitions::SystemState::kStartup, std::unique_ptr<IState>(new StartupState()));
     stateHandlers_.emplace(definitions::SystemState::kCheckup, std::unique_ptr<IState>(new CheckupState()));
-    stateHandlers_.emplace(definitions::SystemState::kCalibration, std::unique_ptr<IState>(new CalibrationState()));
     stateHandlers_.emplace(definitions::SystemState::kManual, std::unique_ptr<IState>(new ManualState()));
     stateHandlers_.emplace(definitions::SystemState::kPause, std::unique_ptr<IState>(new PauseState()));
     stateHandlers_.emplace(definitions::SystemState::kSoftError, std::unique_ptr<IState>(new SoftErrorState()));
@@ -239,7 +237,7 @@ const IState* StateMachine::get_state_handler(definitions::SystemState state) co
     return it->second.get();
 }
 
-bool StateMachine::response_matches_command(const definitions::CommandRequest& request, const definitions::CommandRequest& response) const {
+bool StateMachine::response_matches_command(const definitions::Command& request, const definitions::Command& response) const {
     if (request.command != response.command) {
         return false;
     }
@@ -247,7 +245,7 @@ bool StateMachine::response_matches_command(const definitions::CommandRequest& r
     switch (request.command) {
         case definitions::CommandType::kValveOpen:
         case definitions::CommandType::kValveClose:
-            return request.pin == response.pin;
+            return request.extra == response.extra;
         default:
             return true;
     }
@@ -275,7 +273,7 @@ void StateMachine::process_event(definitions::SystemEvent event) {
     }
 }
 
-void StateMachine::dispatch_command_request(const definitions::CommandRequest& request) {
+void StateMachine::process_command(const definitions::Command& request) {
     IState* stateHandler = get_state_handler(currentState_);
     if (stateHandler == nullptr) {
         transition_to(definitions::SystemState::kHardError);
@@ -297,7 +295,7 @@ void StateMachine::dispatch_command_request(const definitions::CommandRequest& r
     lastCommandConfirmed_ = false;
 }
 
-void StateMachine::process_response(const definitions::CommandRequest& response) {
+void StateMachine::process_response(const definitions::Command& response) {
     lastResponse_ = response;
 
     if (commandPending_ && response_matches_command(pendingCommand_, response)) {
@@ -314,7 +312,7 @@ void StateMachine::process_response(const definitions::CommandRequest& response)
     std::string logMessage = "Respuesta: ";
     logMessage += responseText;
     if (response.command == definitions::CommandType::kValveOpen || response.command == definitions::CommandType::kValveClose) {
-        logMessage += std::to_string(response.pin);
+        logMessage += std::to_string(response.extra);
     }
 
     hal_general().log(logMessage);
@@ -335,7 +333,7 @@ void StateMachine::attend_queues() {
             if (xQueueReceive(gStateCommandQueue, &currentCommand, 0) != pdPASS) {
                 break;
             }
-            dispatch_command_request(currentCommand);
+            process_command(currentCommand);
         }
     }
 

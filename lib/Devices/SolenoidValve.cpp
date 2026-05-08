@@ -194,7 +194,7 @@ bool SolenoidValve::process_command(definitions::CommandType command, uint32_t p
     }
 }
 
-bool SolenoidValve::publish_response(const definitions::CommandRequest& response) {
+bool SolenoidValve::publish_response(const definitions::Command& response) {
     if (response_queue_ == nullptr) {
         return false;
     }

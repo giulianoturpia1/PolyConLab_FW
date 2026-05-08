@@ -53,6 +53,7 @@ class App {
     ///
     /// @brief Initialize firmware application services and module tasks. This serves as the main entry point for the firmware execution.
     ///
+    ///
     void begin();
 
    private:
@@ -72,33 +73,45 @@ class App {
     void initialize_network_server();
 
     ///
-    /// @brief Initialize all modules and the state machine, and start their tasks.
-    ///
-    ///
-    void initialize_system();
-
-    ///
     /// @brief Initialize hardware-facing device modules.
+    ///
     ///
     void initialize_devices();
 
     ///
     /// @brief Create the tasks for the initialized modules.
     ///
+    ///
     void create_tasks();
 
     ///
+    /// @brief Set the response queues for all modules to the State Machine's response queue,
+    /// so that they can report command execution results.
+    ///
+    void set_response_queues();
+
+    ///
+    /// @brief Initialize all modules and the state machine and start their tasks.
+    ///
+    /// This performs high-level system initialization by calling device, network and
+    /// module initializers and then creating their associated FreeRTOS tasks.
+    void initialize_system();
+
+    ///
     /// @brief Create the dedicated App FreeRTOS task that executes tick() periodically.
+    ///
     ///
     void create_task();
 
     ///
     /// @brief Execute one application cycle (communications polling and dispatch).
     ///
+    ///
     void tick();
 
     ///
     /// @brief FreeRTOS task entrypoint for the App runtime loop.
+    ///
     ///
     static void task_entry(void* param);
 

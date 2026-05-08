@@ -9,7 +9,7 @@ StateMachineResponseQueue& StateMachineResponseQueue::instance() {
     return instance;
 }
 
-bool StateMachineResponseQueue::publish(const definitions::CommandRequest& response, uint32_t timeout) {
+bool StateMachineResponseQueue::publish(const definitions::Command& response, uint32_t timeout) {
     return modules::StateMachine::instance().queue_response(response, timeout);
 }
 

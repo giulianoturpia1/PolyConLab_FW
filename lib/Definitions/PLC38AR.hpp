@@ -35,9 +35,9 @@ enum class Pins : uint32_t {
 };
 
 enum class Addresses : uint32_t {
-    kTempSensor1 = 0x64,  ///< I2C Address - Temperature Sensor 1
-    kTempSensor2 = 0x65,  ///< I2C Address - Temperature Sensor 2
-    kTempSensor3 = 0x66,  ///< I2C Address - Temperature Sensor 3
-    kTempSensor4 = 0x67   ///< I2C Address - Temperature Sensor 4
+    kTempIn = 0x64,    ///< I2C Address - Inlet Temperature Sensor (kTempInRead)
+    kTempOut = 0x65,   ///< I2C Address - Outlet Temperature Sensor (kTempOutRead)
+    kTempBath = 0x66,  ///< I2C Address - Bath Temperature Sensor (kTempBathRead)
+    kTempMix = 0x67    ///< I2C Address - Mix Temperature Sensor (kTempMixRead)
 };
 }  // namespace definitions

@@ -87,7 +87,7 @@ bool LevelSwitch::process_command(definitions::CommandType command) {
     }
 }
 
-bool LevelSwitch::publish_response(const definitions::CommandRequest& response) {
+bool LevelSwitch::publish_response(const definitions::Command& response) {
     if (response_queue_ == nullptr) {
         return false;
     }

@@ -107,7 +107,6 @@ class Thermocouple {
     /// @return true if command was queued, false otherwise.
     ///
     bool queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
-    bool queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
 
    private:
     Thermocouple();
@@ -143,7 +142,7 @@ class Thermocouple {
     /// @param response Response payload.
     /// @return true if the sink accepted the response.
     ///
-    bool publish_response(const definitions::CommandRequest& response);
+    bool publish_response(const definitions::Command& response);
 
     ///
     /// @brief FreeRTOS task entry point for processing thermocouple commands from the queue.

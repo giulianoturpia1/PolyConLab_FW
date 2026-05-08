@@ -75,6 +75,18 @@ inline const definitions::CommandMap* find_command(const std::string& cmd_name) 
 }
 
 ///
+/// @brief Find an event in the event map by name.
+///
+/// @param event_name Event name to search for.
+/// @return const definitions::EventMap* Pointer to the EventMap entry if found, nullptr otherwise.
+///
+inline const definitions::EventMap* find_event(const std::string& event_name) {
+    const auto it = std::find_if(definitions::kEventMap.begin(), definitions::kEventMap.end(),
+                                 [&event_name](const definitions::EventMap& entry) { return event_name == entry.name; });
+    return it != definitions::kEventMap.end() ? &(*it) : nullptr;
+}
+
+///
 /// @brief Resolve a response text from a response type enum.
 ///
 /// @param response_type Response identifier
@@ -101,9 +113,8 @@ inline const char* response(const definitions::ResponseType response_type) {
 /// @return const char* Response text corresponding to the command, or "ERROR:UNKNOWN_COMMAND" if the command is not recognized.
 ///
 inline const char* response_for_command(const definitions::CommandType command) {
-    const auto it = std::find_if(
-        definitions::kCommandResponseMap.begin(), definitions::kCommandResponseMap.end(),
-        [command](const definitions::CommandResponseMap& entry) { return entry.command != nullptr && entry.command == command; });
+    const auto it = std::find_if(definitions::kCommandResponseMap.begin(), definitions::kCommandResponseMap.end(),
+                                 [command](const definitions::CommandResponseMap& entry) { return entry.command == command; });
     // This step translates the command into a response type enummerate, which is then resolved to a response string using the response()
     // function.
     if (it != definitions::kCommandResponseMap.end()) {
