@@ -83,9 +83,8 @@ bool SolenoidValve::add(uint32_t pin) {
     hal_general().pin_mode(pin, PIN_MODE_OUTPUT);  // Valves are output devices
     // This depends whether the hardware is active HIGH or LOW. Assuming active HIGH for opening the valve, we set it to
     // LOW by default.
-
-    close(pin);  // Ensure valve is closed by default
     ++valve_count_;
+    close(pin);  // Ensure valve is closed by default
     return true;
 }
 
