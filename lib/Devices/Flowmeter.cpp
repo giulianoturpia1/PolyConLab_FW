@@ -8,6 +8,7 @@
 #include "HALGeneral.hpp"
 
 constexpr uint32_t kFlowmeterTimeoutMs = 20;
+constexpr TickType_t kFlowmeterTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kFlowmeterTaskPriority = 2;
 constexpr UBaseType_t kFlowmeterQueueLength = 8;
 constexpr uint32_t kFlowmeterTaskStackSize = 3072;
@@ -195,12 +196,11 @@ void Flowmeter::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kFlowRead;
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kFlowmeterTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
         }
     }
 }

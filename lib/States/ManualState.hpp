@@ -17,10 +17,10 @@ namespace modules {
 
 class ManualState final : public IState {
    public:
-    definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event);
-    bool dispatch_command(StateMachine* context, const definitions::Command& request);
-    void on_enter(StateMachine* context);
-    const char* name() const;
+    definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) override;
+    bool dispatch_command(StateMachine* context, const definitions::Command& request) override;
+    void on_enter(StateMachine* context) override;
+    const char* name() const override;
 };
 
 }  // namespace modules

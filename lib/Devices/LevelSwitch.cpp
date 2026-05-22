@@ -5,6 +5,7 @@
 #include "HALGeneral.hpp"
 
 constexpr uint32_t kLevelSwitchTimeoutMs = 20;
+constexpr TickType_t kLevelSwitchTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kLevelSwitchTaskPriority = 2;
 constexpr UBaseType_t kLevelSwitchQueueLength = 8;
 constexpr uint32_t kLevelSwitchTaskStackSize = 2048;
@@ -100,12 +101,11 @@ void LevelSwitch::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kLevelSwitchState;
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kLevelSwitchTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
         }
     }
 }

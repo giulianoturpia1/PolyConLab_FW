@@ -4,6 +4,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include <array>
+
 #include "Chiller.hpp"
 #include "Communications.hpp"
 #include "Flowmeter.hpp"
@@ -32,7 +34,7 @@ constexpr UBaseType_t kAppTaskPriority = 2;
 constexpr uint32_t kAppTaskStackSize = 4096;
 constexpr char kAppTaskName[] = "app_task";
 
-byte mac[kEthernetMacLength] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+std::array<byte, kEthernetMacLength> mac = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
 IPAddress ip(192, 168, 1, 1);
 EthernetServer server_(kAppServerPort);
 
@@ -84,13 +86,14 @@ void App::initialize_devices() {
     chiller_.begin(static_cast<uint32_t>(definitions::Pins::kChiller));
     heater_.begin(static_cast<uint32_t>(definitions::Pins::kHeater));
 
-    uint32_t valve_pins[] = {static_cast<uint32_t>(definitions::Pins::kValve1), static_cast<uint32_t>(definitions::Pins::kValve2)};
-    valves_.begin(valve_pins, 2);
+    const std::array<uint32_t, kValveCount> valve_pins = {static_cast<uint32_t>(definitions::Pins::kValve1),
+                                                          static_cast<uint32_t>(definitions::Pins::kValve2)};
+    valves_.begin(valve_pins.data(), valve_pins.size());
 
-    uint32_t i2c_addresses[] = {
+    const std::array<uint32_t, kTemperatureSensorCount> i2c_addresses = {
         static_cast<uint32_t>(definitions::Addresses::kTempIn), static_cast<uint32_t>(definitions::Addresses::kTempOut),
         static_cast<uint32_t>(definitions::Addresses::kTempBath), static_cast<uint32_t>(definitions::Addresses::kTempMix)};
-    thermocouples_.begin(i2c_addresses, 4);
+    thermocouples_.begin(i2c_addresses.data(), i2c_addresses.size());
     flowmeter_.begin(static_cast<uint32_t>(definitions::Pins::kFlowmeter));
     level_switch_.begin(static_cast<uint32_t>(definitions::Pins::kLevelSwitch));
 }

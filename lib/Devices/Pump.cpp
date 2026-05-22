@@ -5,6 +5,7 @@
 #include "HALGeneral.hpp"
 
 constexpr uint32_t kPumpTimeoutMs = 20;
+constexpr TickType_t kPumpTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kPumpTaskPriority = 2;
 constexpr UBaseType_t kPumpQueueLength = 8;
 constexpr uint32_t kPumpTaskStackSize = 2048;
@@ -120,12 +121,11 @@ void Pump::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kPumpOff;
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kPumpTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
         }
     }
 }
