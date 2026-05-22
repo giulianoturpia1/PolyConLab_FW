@@ -105,7 +105,7 @@ Communications::Communications()
 void Communications::handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond) {
     const std::string trimmed = utils::trim(msg);
     if (trimmed.empty()) {
-        respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
+        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
         return;
     }
 
@@ -119,24 +119,24 @@ void Communications::handle_message(const std::string& msg, const std::function<
 
 void Communications::handle_command(const std::string& msg, const std::function<void(const std::string&)>& respond) {
     const std::string base_command = msg.substr(0, msg.find(','));
-    const definitions::CommandMap* cmd = utils::find_command(base_command);
+    const definitions::CommandEntry* cmd = utils::find_command(base_command);
     if (!cmd) {
-        respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
+        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
         return;
     }
 
     if (cmd->command == definitions::CommandType::kLogOn) {
         logger().set_enabled(true);
-        respond(utils::response(definitions::ResponseType::kStatusOn));
+        respond(utils::to_scpi(definitions::ResponseType::kStatusOn));
         return;
     }
     if (cmd->command == definitions::CommandType::kLogOff) {
         logger().set_enabled(false);
-        respond(utils::response(definitions::ResponseType::kStatusOff));
+        respond(utils::to_scpi(definitions::ResponseType::kStatusOff));
         return;
     }
     if (cmd->command == definitions::CommandType::kLogQuery) {
-        respond(utils::response(logger().is_enabled() ? definitions::ResponseType::kStatusOn : definitions::ResponseType::kStatusOff));
+        respond(utils::to_scpi(logger().is_enabled() ? definitions::ResponseType::kStatusOn : definitions::ResponseType::kStatusOff));
         return;
     }
 
@@ -147,25 +147,25 @@ void Communications::handle_command(const std::string& msg, const std::function<
     }
 
     if (!StateMachine::instance().queue_command({cmd->command, extra}, kCommsQueueTimeoutMs)) {
-        respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
+        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
     }
 }
 
 void Communications::handle_event(const std::string& msg, const std::function<void(const std::string&)>& respond) {
     // "EVT:" with nothing after it
     if (msg.length() <= 4) {
-        respond(utils::response(definitions::ResponseType::kErrorEmptyEvent));
+        respond(utils::to_scpi(definitions::ResponseType::kErrorEmptyEvent));
         return;
     }
 
-    const definitions::EventMap* evt = utils::find_event(msg);
+    const definitions::EventEntry* evt = utils::find_event(msg);
     if (!evt) {
-        respond(utils::response(definitions::ResponseType::kErrorUnknownEvent));
+        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownEvent));
         return;
     }
 
     if (!StateMachine::instance().queue_event(evt->event, kCommsQueueTimeoutMs)) {
-        respond(utils::response(definitions::ResponseType::kErrorUnknownEvent));
+        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownEvent));
     }
 }
 

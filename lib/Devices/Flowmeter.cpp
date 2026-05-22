@@ -148,22 +148,22 @@ bool Flowmeter::queue_command(definitions::CommandType command, uint32_t timeout
 Flowmeter::Flowmeter() : pin_(0), status_(false), pulsesPerLiter_(450.0f), queue_(nullptr), response_queue_(nullptr) {}
 
 bool Flowmeter::process_command(definitions::CommandType command) {
-    if (command != definitions::CommandType::kFlowBegin && command != definitions::CommandType::kFlowStop &&
+    if (command != definitions::CommandType::kFlowOn && command != definitions::CommandType::kFlowOff &&
         command != definitions::CommandType::kFlowRead && command != definitions::CommandType::kFlowStatus) {
         return false;
     }
 
     switch (command) {
-        case definitions::CommandType::kFlowBegin: {
+        case definitions::CommandType::kFlowOn: {
             // Carry the actual success/failure in extra so the StateMachine can distinguish them.
             const bool ok = begin(pin_);
-            publish_response({definitions::CommandType::kFlowBegin, ok ? 1u : 0u});
+            publish_response({definitions::CommandType::kFlowOn, ok ? 1u : 0u});
             return true;
         }
 
-        case definitions::CommandType::kFlowStop: {
+        case definitions::CommandType::kFlowOff: {
             stop(pin_);
-            publish_response({definitions::CommandType::kFlowStop, 1u});
+            publish_response({definitions::CommandType::kFlowOff, 1u});
             return true;
         }
 

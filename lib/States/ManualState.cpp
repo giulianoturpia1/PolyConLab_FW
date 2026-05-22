@@ -44,7 +44,7 @@ definitions::SystemState ManualState::handle_event(StateMachine* context, defini
 bool ManualState::dispatch_command(StateMachine* context, const definitions::Command& request) {
     (void) context;
 
-    switch (request.command) {
+    switch (request.type) {
         case definitions::CommandType::kHeaterOn:
             return Heater::instance().queue_command(definitions::CommandType::kHeaterOn, kAcceptableTimeWindowMs);
 
@@ -103,11 +103,11 @@ bool ManualState::dispatch_command(StateMachine* context, const definitions::Com
         case definitions::CommandType::kFlowStatus:
             return Flowmeter::instance().queue_command(definitions::CommandType::kFlowStatus, kAcceptableTimeWindowMs);
 
-        case definitions::CommandType::kFlowBegin:
-            return Flowmeter::instance().queue_command(definitions::CommandType::kFlowBegin, kAcceptableTimeWindowMs);
+        case definitions::CommandType::kFlowOn:
+            return Flowmeter::instance().queue_command(definitions::CommandType::kFlowOn, kAcceptableTimeWindowMs);
 
-        case definitions::CommandType::kFlowStop:
-            return Flowmeter::instance().queue_command(definitions::CommandType::kFlowStop, kAcceptableTimeWindowMs);
+        case definitions::CommandType::kFlowOff:
+            return Flowmeter::instance().queue_command(definitions::CommandType::kFlowOff, kAcceptableTimeWindowMs);
 
         case definitions::CommandType::kLevelSwitchState:
             return LevelSwitch::instance().queue_command(definitions::CommandType::kLevelSwitchState, kAcceptableTimeWindowMs);

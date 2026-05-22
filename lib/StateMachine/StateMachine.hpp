@@ -118,14 +118,6 @@ class StateMachine {
     definitions::SystemState get_previous_state() const;
 
     ///
-    /// @brief Get the State Name object as a string
-    ///
-    /// @param state The state to get the name for
-    /// @return const char*
-    ///
-    static const std::string& get_state_name(definitions::SystemState state);
-
-    ///
     /// @brief Query whether there is a command pending execution confirmation.
     ///
     /// @return true if waiting for a matching module response report.

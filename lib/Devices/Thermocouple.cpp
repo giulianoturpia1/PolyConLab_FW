@@ -82,7 +82,7 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
 }
 
 bool Thermocouple::add(uint32_t address) {
-    const std::string hex_addr = utils::hex_address(address);
+    const std::string hex_addr = utils::format_hex(address);
 
     uint8_t index = find_index(address);
     if (thermoc_count_ >= definitions::kMaxThermocouples) {
@@ -121,7 +121,7 @@ bool Thermocouple::add(uint32_t address) {
 bool Thermocouple::remove(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        kLog.warning("Se intento eliminar una direccion no registrada: " + utils::hex_address(address));
+        kLog.warning("Se intento eliminar una direccion no registrada: " + utils::format_hex(address));
         return false;  // Address not found
     }
 
@@ -136,7 +136,7 @@ bool Thermocouple::remove(uint32_t address) {
 float Thermocouple::readCelcius(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        kLog.warning("Se intento leer una direccion no registrada: " + utils::hex_address(address));
+        kLog.warning("Se intento leer una direccion no registrada: " + utils::format_hex(address));
         return NAN;  // Return NaN if address not found
     }
 

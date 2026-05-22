@@ -175,19 +175,6 @@ definitions::SystemState StateMachine::get_previous_state() const {
     return previousState_;
 }
 
-const std::string& StateMachine::get_state_name(definitions::SystemState state) {
-    static const std::string unknown = "UNKNOWN";
-    static std::string cachedName;
-
-    for (const auto& entry : definitions::kStateNameMap) {
-        if (entry.state == state) {
-            cachedName = entry.name;
-            return cachedName;
-        }
-    }
-    return unknown;
-}
-
 bool StateMachine::is_command_pending() const {
     return commandPending_;
 }
@@ -240,11 +227,11 @@ const IState* StateMachine::get_state_handler(definitions::SystemState state) co
 }
 
 bool StateMachine::response_matches_command(const definitions::Command& request, const definitions::Command& response) const {
-    if (request.command != response.command) {
+    if (request.type != response.type) {
         return false;
     }
 
-    switch (request.command) {
+    switch (request.type) {
         case definitions::CommandType::kValveOpen:
         case definitions::CommandType::kValveClose:
             return request.extra == response.extra;
@@ -285,7 +272,7 @@ void StateMachine::process_command(const definitions::Command& request) {
     }
 
     if (!stateHandler->dispatch_command(this, request)) {
-        kLog.warning("Comando recibido, pero no se pudo ejecutar en el estado actual: " + get_state_name(currentState_));
+        kLog.warning("Comando recibido, pero no se pudo ejecutar en el estado actual: " + std::string(utils::state_name(currentState_)));
         lastCommandConfirmed_ = false;
         commandPending_ = false;
         return;
@@ -306,15 +293,10 @@ void StateMachine::process_response(const definitions::Command& response) {
         kLog.debug("Comando confirmado como ejecutado por modulo.");
     }
 
-    const char* responseText = utils::response_for_command(response.command);
-    if (responseText == nullptr) {
-        return;
-    }
-
-    std::string logMessage = "Respuesta: ";
-    logMessage += responseText;
-    if (response.command == definitions::CommandType::kValveOpen || response.command == definitions::CommandType::kValveClose) {
-        logMessage += std::to_string(response.extra);
+    std::string logMessage = "Respuesta del modulo: ";
+    logMessage += utils::command_name(response.type);
+    if (response.type == definitions::CommandType::kValveOpen || response.type == definitions::CommandType::kValveClose) {
+        logMessage += "," + std::to_string(response.extra);
     }
 
     kLog.debug(logMessage);
