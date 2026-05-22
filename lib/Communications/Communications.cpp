@@ -30,7 +30,7 @@ void Communications::set_serial_response_callback(const std::function<void(const
     serial_response_callback_ = callback;
 }
 
-void Communications::initialize_server(EthernetServer& server, const byte mac[6], const IPAddress& ip) {
+void Communications::initialize_server(EthernetServer& server, const std::array<byte, 6>& mac, const IPAddress& ip) {
     local_server_.initialize(server);
     local_server_.begin(mac, ip);
 }
@@ -70,24 +70,34 @@ void Communications::poll_serial() {
 }
 
 void Communications::poll_ethernet() {
-    // Check Ethernet link status and queue disconnection event if link is lost
-    if (!local_server_.is_link_up()) {
-        StateMachine::instance().queue_event(definitions::SystemEvent::kCommunicationLost);
-        hal_general().log("Ethernet desconectado. Pausando sistema.");
+    const bool link_up = local_server_.is_link_up();
+
+    if (!link_up) {
+        if (last_link_up_) {
+            hal_general().log("Ethernet desconectado. Pausando sistema.");
+            StateMachine::instance().queue_event(definitions::SystemEvent::kCommunicationLost);
+        }
     } else {
-        // Poll for ethernet messages. The handler receives both the message and a response callback
-        // that is specific to the current client connection.
+        if (!last_link_up_) {
+            hal_general().log("Ethernet reconectado. Reanudando sistema.");
+            StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
+        }
         local_server_.poll([this](const std::string& msg, const LocalServer::ClientResponseCallback& client_respond) {
             set_ethernet_response_callback(client_respond);
             handle_ethernet_message(msg);
         });
     }
+
+    last_link_up_ = link_up;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
 Communications::Communications()
-    : ethernet_response_callback_(nullptr), serial_response_callback_(nullptr), local_server_(LocalServer::instance()) {}
+    : ethernet_response_callback_(nullptr),
+      serial_response_callback_(nullptr),
+      local_server_(LocalServer::instance()),
+      last_link_up_(true) {}
 
 void Communications::handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond) {
     if (msg.empty()) {
