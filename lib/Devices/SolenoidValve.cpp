@@ -11,7 +11,6 @@ constexpr UBaseType_t kSolenoidValveTaskPriority = 2;
 constexpr UBaseType_t kSolenoidValveQueueLength = 8;
 constexpr uint32_t kSolenoidValveTaskStackSize = 3072;
 constexpr char kSolenoidValveTaskName[] = "valve_task";
-constexpr uint32_t kSolenoidValveTaskPollTimeoutMs = 20;
 
 struct ValveCommand {
     definitions::CommandType command;

@@ -9,7 +9,6 @@ constexpr UBaseType_t kPumpTaskPriority = 2;
 constexpr UBaseType_t kPumpQueueLength = 8;
 constexpr uint32_t kPumpTaskStackSize = 2048;
 constexpr char kPumpTaskName[] = "pump_task";
-constexpr uint32_t kPumpTaskPollTimeoutMs = 20;
 
 namespace modules {
 

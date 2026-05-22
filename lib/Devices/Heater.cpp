@@ -9,7 +9,6 @@ constexpr UBaseType_t kHeaterTaskPriority = 2;
 constexpr UBaseType_t kHeaterQueueLength = 8;
 constexpr uint32_t kHeaterTaskStackSize = 2048;
 constexpr char kHeaterTaskName[] = "heater_task";
-constexpr uint32_t kHeaterTaskPollTimeoutMs = 20;
 
 namespace modules {
 

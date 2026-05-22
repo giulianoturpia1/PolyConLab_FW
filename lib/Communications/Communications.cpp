@@ -1,8 +1,5 @@
 #include "Communications.hpp"
 
-#include <algorithm>
-#include <cmath>
-
 #include "Definitions.hpp"
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
@@ -118,7 +115,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
 
     const definitions::CommandMap* cmd = utils::find_command(base_command);
     if (!cmd) {
-        respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+        respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
         return false;
     }
 
@@ -129,7 +126,7 @@ bool Communications::handle_command(const std::string& msg, const std::function<
     }
 
     if (!StateMachine::instance().queue_command({cmd->command, extra}, kCommsQueueTimeoutMs)) {
-        respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownCommand)));
+        respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
         return false;
     }
 
@@ -140,18 +137,18 @@ bool Communications::handle_event(const std::string& msg, const std::function<vo
     // Trim the message to remove leading/trailing whitespace and check if it's empty
     std::string event_name = utils::trim(msg);
     if (event_name.length() == 0) {
-        respond(std::string(utils::response(definitions::ResponseType::kErrorEmptyEvent)));
+        respond(utils::response(definitions::ResponseType::kErrorEmptyEvent));
         return true;
     }
 
     const definitions::EventMap* evt = utils::find_event(event_name);
     if (!evt) {
-        respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownEvent)));
+        respond(utils::response(definitions::ResponseType::kErrorUnknownEvent));
         return true;
     }
 
     if (!StateMachine::instance().queue_event(evt->event, kCommsQueueTimeoutMs)) {
-        respond(std::string(utils::response(definitions::ResponseType::kErrorUnknownEvent)));
+        respond(utils::response(definitions::ResponseType::kErrorUnknownEvent));
         return false;
     }
 
