@@ -17,10 +17,10 @@ namespace modules {
 
 class ShutdownState final : public IState {
    public:
-    definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event);
-    definitions::SystemState tick(StateMachine* context);
-    void on_enter(StateMachine* context);
-    const char* name() const;
+    definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) override;
+    definitions::SystemState tick(StateMachine* context) override;
+    void on_enter(StateMachine* context) override;
+    const char* name() const override;
 
    private:
     unsigned long enteredAtMs_ = 0;

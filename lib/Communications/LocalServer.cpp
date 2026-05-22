@@ -17,12 +17,10 @@ void LocalServer::initialize(EthernetServer& server) {
     is_initialized_ = false;
 }
 
-bool LocalServer::begin(const byte mac[6], const IPAddress& ip) {
-    for (int i = 0; i < 6; ++i) {
-        ethernet_mac_address_[i] = mac[i];
-    }
+bool LocalServer::begin(const std::array<byte, 6>& mac, const IPAddress& ip) {
+    ethernet_mac_address_ = mac;
     ethernet_ip_address_ = ip;
-    Ethernet.begin(ethernet_mac_address_, ethernet_ip_address_);
+    Ethernet.begin(ethernet_mac_address_.data(), ethernet_ip_address_);
 
     if (!ensure_connection()) {
         return false;
@@ -98,6 +96,7 @@ bool LocalServer::ensure_connection() {
 
     if (!ethernet_link_up_) {
         hal_general().log("Conexion Ethernet restablecida.");
+        restart_server();
     }
     ethernet_link_up_ = true;
 
@@ -110,11 +109,16 @@ bool LocalServer::is_link_up() const {
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
+void LocalServer::restart_server() {
+    ethernet_server_->begin();
+    is_initialized_ = true;
+}
+
 LocalServer::LocalServer()
     : ethernet_server_(nullptr),
       is_initialized_(false),
       ethernet_link_up_(false),
-      ethernet_mac_address_{0, 0, 0, 0, 0, 0},
+      ethernet_mac_address_{},
       ethernet_ip_address_(0, 0, 0, 0) {}
 
 }  // namespace modules

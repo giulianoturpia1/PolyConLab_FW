@@ -5,11 +5,11 @@
 #include "HALGeneral.hpp"
 
 constexpr uint32_t kHeaterTimeoutMs = 20;
+constexpr TickType_t kHeaterTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kHeaterTaskPriority = 2;
 constexpr UBaseType_t kHeaterQueueLength = 8;
 constexpr uint32_t kHeaterTaskStackSize = 2048;
 constexpr char kHeaterTaskName[] = "heater_task";
-constexpr uint32_t kHeaterTaskPollTimeoutMs = 20;
 
 namespace modules {
 
@@ -121,12 +121,11 @@ void Heater::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kHeaterOff;
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kHeaterTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
         }
     }
 }

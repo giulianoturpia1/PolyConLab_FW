@@ -5,6 +5,7 @@
 #include "HALGeneral.hpp"
 
 constexpr uint32_t kChillerTimeoutMs = 20;
+constexpr TickType_t kChillerTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kChillerTaskPriority = 2;
 constexpr UBaseType_t kChillerQueueLength = 8;
 constexpr uint32_t kChillerTaskStackSize = 2048;
@@ -120,12 +121,11 @@ void Chiller::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kChillerOff;
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kChillerTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
         }
     }
 }

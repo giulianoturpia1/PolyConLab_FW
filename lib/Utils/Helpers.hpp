@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -43,9 +44,17 @@ inline bool starts_with(const std::string& value, const char* prefix) {
     if (prefix == nullptr) {
         return false;
     }
-
-    size_t prefix_len = std::strlen(prefix);
+    const size_t prefix_len = std::strlen(prefix);
     return value.size() >= prefix_len && value.compare(0, prefix_len, prefix) == 0;
+}
+
+///
+/// @brief Format an I2C address as a "0xNN" hex string.
+///
+inline std::string hex_address(uint32_t address) {
+    char buf[11];
+    snprintf(buf, sizeof(buf), "0x%02X", address);
+    return buf;
 }
 
 ///

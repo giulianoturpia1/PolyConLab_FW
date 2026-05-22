@@ -13,6 +13,7 @@
 
 #include <Ethernet.h>
 
+#include <array>
 #include <functional>
 #include <string>
 
@@ -52,7 +53,7 @@ class Communications {
     ///
     /// @brief Initialize the Ethernet server with the given parameters.
     ///
-    void initialize_server(EthernetServer& server, const byte mac[6], const IPAddress& ip);
+    void initialize_server(EthernetServer& server, const std::array<byte, 6>& mac, const IPAddress& ip);
 
     ///
     /// @brief Handle a message coming from Ethernet.
@@ -124,9 +125,10 @@ class Communications {
     ///
     uint32_t parse_valve_pin(const std::string& msg) const;
 
-    std::function<void(const std::string&)> ethernet_response_callback_;
-    std::function<void(const std::string&)> serial_response_callback_;
-    LocalServer& local_server_;
+    std::function<void(const std::string&)> ethernet_response_callback_;  ///< Callback for sending responses back through Ethernet
+    std::function<void(const std::string&)> serial_response_callback_;    ///< Callback for sending responses back through Serial
+    LocalServer& local_server_;  ///< Reference to the LocalServer singleton for handling Ethernet communication
+    bool last_link_up_;          ///< Last known Ethernet link status, used to detect changes and queue events accordingly
 };
 
 }  // namespace modules

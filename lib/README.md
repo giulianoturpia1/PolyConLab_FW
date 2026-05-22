@@ -90,7 +90,7 @@ The reason for using several HAL modules instead of a single monolithic HAL is t
 Each platform-specific implementation inherits from this base class which is purely virtual and provides concrete implementations for the defined methods, by being a singleton. This is controlled through polymorphism, and by using a HAL Manager to handle the selection of the appropriate HAL implementation at runtime. For this reason, each HAL module consists of:
 
 - An abstract purely virtual base class defining the common interface (e.g., `HALGeneral`, `HAL12C`, `HALNetwork`, `HALStorage`).
-- Platform-specific implementations inheriting from the base class (e.g., `HALGeneralArduino`, `HALGeneralVirtual`).
+- Platform-specific implementations inheriting from the base class (e.g., `HALGeneralArduino`).
 
 The HAL automatically detects your platform at compile-time and initializes the correct implementation. This happens inside a `.cpp` (as an example, `HALGeneral.cpp`). As a result, in most cases, you do not need to do any manual initialization. Further platforms can be added by creating new classes that implements an abstract HAL interface, by then implementing platform-specific behavior.
 
@@ -101,8 +101,7 @@ lib/
 ├── HALGeneral/       (Basic I/O - GPIO, analog, time, serial)
 │   ├── HALGeneral.cpp
 │   ├── HALGeneral.hpp
-│   ├── HALGeneralArduino.hpp
-│   └── HALGeneralVirtual.hpp
+│   └── HALGeneralArduino.hpp
 ├── HAL12C/           (I2C communication)
 │   ├── HAL12C.cpp
 │   ├── HAL12C.hpp

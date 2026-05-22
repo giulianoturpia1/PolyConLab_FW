@@ -51,7 +51,7 @@ Across the root folders of the repository, you will find `README.md` files that 
 
 1. Open Visual Studio Code.
 2. Make sure you have Git installed on your system.
-3. Install the necessary extensions in Visual Studio Code mentioned in the [Prerequisites and Introduction](#1-prerequisites-and-introduction) section.
+3. Install the necessary extensions in Visual Studio Code mentioned in the [Introduction and Prerequisites](#1-introduction-and-prerequisites) section.
 4. Open the terminal in Visual Studio Code (Ctrl + `).
 5. Navigate to the directory where you want to clone the repository.
 6. Clone the repository.

@@ -7,11 +7,11 @@
 #include "HALGeneral.hpp"
 
 constexpr uint32_t kSolenoidValveTimeoutMs = 20;
+constexpr TickType_t kSolenoidValveTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kSolenoidValveTaskPriority = 2;
 constexpr UBaseType_t kSolenoidValveQueueLength = 8;
 constexpr uint32_t kSolenoidValveTaskStackSize = 3072;
 constexpr char kSolenoidValveTaskName[] = "valve_task";
-constexpr uint32_t kSolenoidValveTaskPollTimeoutMs = 20;
 
 struct ValveCommand {
     definitions::CommandType command;
@@ -206,12 +206,11 @@ void SolenoidValve::task_entry(void* param) {
     ValveCommand command = {definitions::CommandType::kValveClose, 0};
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kSolenoidValveTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command.command, command.pin);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command.command, command.pin);
         }
     }
 }

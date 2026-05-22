@@ -13,6 +13,7 @@
 
 #include <Ethernet.h>
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <string>
@@ -41,7 +42,7 @@ class LocalServer {
     ///
     /// @brief Start the Ethernet server and validate link/hardware.
     ///
-    bool begin(const byte mac[6], const IPAddress& ip);
+    bool begin(const std::array<byte, 6>& mac, const IPAddress& ip);
 
     ///
     /// @brief Poll for new client data and dispatch messages through the provided handler.
@@ -70,6 +71,11 @@ class LocalServer {
     LocalServer& operator=(LocalServer&&) = delete;
 
     ///
+    /// @brief Restart the TCP listener after a link recovery. Does not re-configure MAC/IP.
+    ///
+    void restart_server();
+
+    ///
     /// @brief Create a response callback for a specific client connection.
     ///
     ClientResponseCallback create_response_callback(std::shared_ptr<EthernetClient> client);
@@ -77,7 +83,7 @@ class LocalServer {
     EthernetServer* ethernet_server_;
     bool is_initialized_;
     bool ethernet_link_up_;
-    byte ethernet_mac_address_[6];
+    std::array<byte, 6> ethernet_mac_address_;
     IPAddress ethernet_ip_address_;
 };
 

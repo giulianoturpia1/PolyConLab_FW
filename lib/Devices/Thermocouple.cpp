@@ -6,8 +6,10 @@
 #include <cmath>
 
 #include "HALGeneral.hpp"
+#include "Helpers.hpp"
 
 constexpr uint32_t kThermocoupleTimeoutMs = 20;
+constexpr TickType_t kThermocoupleTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kThermocoupleTaskPriority = 2;
 constexpr UBaseType_t kThermocoupleQueueLength = 8;
 constexpr uint32_t kThermocoupleTaskStackSize = 3072;
@@ -77,31 +79,24 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
 }
 
 bool Thermocouple::add(uint32_t address) {
+    const std::string hex_addr = utils::hex_address(address);
+
     uint8_t index = find_index(address);
     if (thermoc_count_ >= definitions::kMaxThermocouples) {
-        char hex_addr[16];
-        snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
-        hal_general().log("No se pudo agregar la direccion de la termocupla: " + std::string(hex_addr) +
-                          ". Se alcanzo el limite de capacidad.");
+        hal_general().log("No se pudo agregar la direccion de la termocupla: " + hex_addr + ". Se alcanzo el limite de capacidad.");
         return false;  // Capacity limit reached
     }
 
     if (index < thermoc_count_) {
-        char hex_addr[16];
-        snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
-        hal_general().log("La termocupla ya estaba registrada: " + std::string(hex_addr));
+        hal_general().log("La termocupla ya estaba registrada: " + hex_addr);
         return true;  // Address already registered, consider it a success
     }
 
     // Initialize MCP9600 at the current slot
     uint8_t slot_index = thermoc_count_;
-    char hex_addr[16];
-    snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
-    hal_general().log("Iniciando termocupla en la direccion: " + std::string(hex_addr));
+    hal_general().log("Iniciando termocupla en la direccion: " + hex_addr);
     if (!thermocouples_[slot_index].device.begin(address)) {
-        char hex_addr_err[16];
-        snprintf(hex_addr_err, sizeof(hex_addr_err), "0x%02X", address);
-        hal_general().log("No se pudo iniciar la termocupla en la direccion: " + std::string(hex_addr_err));
+        hal_general().log("No se pudo iniciar la termocupla en la direccion: " + hex_addr);
         return false;
     }
 
@@ -123,9 +118,7 @@ bool Thermocouple::add(uint32_t address) {
 bool Thermocouple::remove(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        char hex_addr[16];
-        snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
-        hal_general().log("Se intento eliminar una direccion no registrada: " + std::string(hex_addr));
+        hal_general().log("Se intento eliminar una direccion no registrada: " + utils::hex_address(address));
         return false;  // Address not found
     }
 
@@ -140,9 +133,7 @@ bool Thermocouple::remove(uint32_t address) {
 float Thermocouple::readCelcius(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        char hex_addr[16];
-        snprintf(hex_addr, sizeof(hex_addr), "0x%02X", address);
-        hal_general().log("Se intento leer una direccion no registrada: " + std::string(hex_addr));
+        hal_general().log("Se intento leer una direccion no registrada: " + utils::hex_address(address));
         return NAN;  // Return NaN if address not found
     }
 
@@ -209,12 +200,11 @@ void Thermocouple::task_entry(void* param) {
     ThermocoupleCommand command;
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kThermocoupleTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command.command, command.address);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command.command, command.address);
         }
     }
 }
