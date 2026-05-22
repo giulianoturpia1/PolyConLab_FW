@@ -49,10 +49,12 @@ class Flowmeter {
 
     ///
     /// @brief Initialize flowmeter with the sensor pin and necessary hardware setup. Attach interrupts and timer.
+    /// If the flowmeter is already running, this is a no-op and returns true.
     ///
-    /// @param pinFlow_ Device Pin.
+    /// @param pinFlow_ Device pin.
+    /// @param pulsesPerLiter Calibration constant: sensor pulses per liter. Defaults to 450.0.
     ///
-    bool begin(uint32_t pinFlow_);
+    bool begin(uint32_t pinFlow_, float pulsesPerLiter = 450.0f);
 
     ///
     /// @brief Stop the flowmeter. Detach interrupts and end timer.
@@ -126,6 +128,7 @@ class Flowmeter {
 
     uint32_t pin_;                                       ///< Pin used for flowmeter control
     bool status_;                                        ///< Current flowmeter status
+    float pulsesPerLiter_;                               ///< Calibration constant: sensor pulses per liter
     QueueHandle_t queue_;                                ///< FreeRTOS queue handle for flowmeter commands
     interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
 };

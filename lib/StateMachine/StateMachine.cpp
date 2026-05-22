@@ -56,7 +56,7 @@ void StateMachine::initialize() {
     commandPending_ = false;
     lastCommandConfirmed_ = false;
     pendingCommandTimeMs_ = 0;
-    on_state_enter();
+    // on_state_enter();
 }
 
 bool StateMachine::create_task() {

@@ -55,6 +55,9 @@ void Thermocouple::set_response_queue(interfaces::ICommandResponseQueue* queue) 
 bool Thermocouple::begin(const uint32_t* adds, size_t count) {
     thermoc_count_ = 0;
 
+    Wire.begin();
+    Wire.setClock(100000);
+
     if (adds == nullptr || count == 0) {
         hal_general().log("No se añadieron direcciones de thermocuplas para la inicializacion.");
         return false;
@@ -66,6 +69,9 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
             return false;
         }
     }
+
+    // Lower the I2C bus speed for runtime thermocouple access.
+    Wire.setClock(10000);
 
     return true;
 }

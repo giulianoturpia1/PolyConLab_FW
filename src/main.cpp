@@ -9,7 +9,7 @@ void setup() {
 
     vTaskStartScheduler();
 
-    hal_general.log("Error: El scheduler no se pudo iniciar.");
+    modules::hal_general().log("Error: El scheduler no se pudo iniciar.");
 }
 
 void loop() {}
