@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kFlowmeterTimeoutMs = 20;
 constexpr TickType_t kFlowmeterTaskWatchdogTicks = portMAX_DELAY;
@@ -20,6 +21,8 @@ static portMUX_TYPE flowMux = portMUX_INITIALIZER_UNLOCKED;
 static hw_timer_t* flowTimer = nullptr;
 
 namespace modules {
+
+static const TaggedLogger kLog("Flowmeter");
 
 //////////////////////////////////// Flow Meter Interrupt Service Routines ////////////////////////////
 
@@ -55,12 +58,12 @@ bool Flowmeter::create_task() {
 
     queue_ = xQueueCreate(kFlowmeterQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del caudalimetro.");
+        kLog.error("No se pudo crear la cola del caudalimetro.");
         return false;
     }
 
     if (xTaskCreate(task_entry, kFlowmeterTaskName, kFlowmeterTaskStackSize, this, kFlowmeterTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del caudalimetro.");
+        kLog.error("No se pudo crear la tarea del caudalimetro.");
         vQueueDelete(queue_);
         queue_ = nullptr;
         return false;
@@ -81,7 +84,7 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
     }
 
     if (pinFlow_ == 0) {
-        hal_general().log("Pin invalido para el caudalimetro.");
+        kLog.error("Pin invalido para el caudalimetro.");
         return false;
     }
 

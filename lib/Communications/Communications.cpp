@@ -3,6 +3,7 @@
 #include "Definitions.hpp"
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
+#include "Logger.hpp"
 #include "StateMachine.hpp"
 
 #if defined(PLC_38AR)
@@ -12,6 +13,8 @@
 #endif
 
 namespace modules {
+
+static const TaggedLogger kLog("Communications");
 
 constexpr uint32_t kCommsQueueTimeoutMs = 10;
 
@@ -74,12 +77,12 @@ void Communications::poll_ethernet() {
 
     if (!link_up) {
         if (last_link_up_) {
-            hal_general().log("Ethernet desconectado. Pausando sistema.");
+            kLog.info("Ethernet desconectado. Pausando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kCommunicationLost);
         }
     } else {
         if (!last_link_up_) {
-            hal_general().log("Ethernet reconectado. Reanudando sistema.");
+            kLog.info("Ethernet reconectado. Reanudando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
         }
         local_server_.poll([this](const std::string& msg, const LocalServer::ClientResponseCallback& client_respond) {
@@ -119,6 +122,21 @@ void Communications::handle_command(const std::string& msg, const std::function<
     const definitions::CommandMap* cmd = utils::find_command(base_command);
     if (!cmd) {
         respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
+        return;
+    }
+
+    if (cmd->command == definitions::CommandType::kLogOn) {
+        logger().set_enabled(true);
+        respond(utils::response(definitions::ResponseType::kStatusOn));
+        return;
+    }
+    if (cmd->command == definitions::CommandType::kLogOff) {
+        logger().set_enabled(false);
+        respond(utils::response(definitions::ResponseType::kStatusOff));
+        return;
+    }
+    if (cmd->command == definitions::CommandType::kLogQuery) {
+        respond(utils::response(logger().is_enabled() ? definitions::ResponseType::kStatusOn : definitions::ResponseType::kStatusOff));
         return;
     }
 

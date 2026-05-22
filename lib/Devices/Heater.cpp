@@ -3,6 +3,7 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kHeaterTimeoutMs = 20;
 constexpr TickType_t kHeaterTaskWatchdogTicks = portMAX_DELAY;
@@ -12,6 +13,8 @@ constexpr uint32_t kHeaterTaskStackSize = 2048;
 constexpr char kHeaterTaskName[] = "heater_task";
 
 namespace modules {
+
+static const TaggedLogger kLog("Heater");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -27,12 +30,12 @@ bool Heater::create_task() {
 
     queue_ = xQueueCreate(kHeaterQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del calentador.");
+        kLog.error("No se pudo crear la cola del calentador.");
         return false;
     }
 
     if (xTaskCreate(task_entry, kHeaterTaskName, kHeaterTaskStackSize, this, kHeaterTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del calentador.");
+        kLog.error("No se pudo crear la tarea del calentador.");
         vQueueDelete(queue_);
         queue_ = nullptr;
         return false;
@@ -47,7 +50,7 @@ void Heater::set_response_queue(interfaces::ICommandResponseQueue* queue) {
 
 bool Heater::begin(uint32_t pin) {
     if (pin == 0) {
-        hal_general().log("Pin invalido para el calentador.");
+        kLog.error("Pin invalido para el calentador.");
         return false;
     }
 

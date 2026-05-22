@@ -2,8 +2,11 @@
 
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
+#include "Logger.hpp"
 
 namespace modules {
+
+static const TaggedLogger kLog("LocalServer");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -34,7 +37,7 @@ bool LocalServer::begin(const std::array<byte, 6>& mac, const IPAddress& ip) {
         if (i < 3)
             msg += ".";
     }
-    hal_general().log(msg);
+    kLog.info(msg);
     ethernet_link_up_ = true;
     is_initialized_ = true;
     return true;
@@ -57,7 +60,7 @@ void LocalServer::poll(const ClientMessageHandler& handler) {
         return;
     }
 
-    hal_general().log("Nuevo Mensaje del Cliente: " + msg);
+    kLog.debug("Nuevo Mensaje del Cliente: " + msg);
 
     auto client_ptr = std::make_shared<EthernetClient>(client);
     ClientResponseCallback respond = create_response_callback(client_ptr);
@@ -69,7 +72,7 @@ LocalServer::ClientResponseCallback LocalServer::create_response_callback(std::s
     return [client](const std::string& response) {
         if (client->connected()) {
             client->println(response.c_str());
-            hal_general().log("Respuesta Enviada: " + response);
+            kLog.debug("Respuesta Enviada: " + response);
         }
     };
 }
@@ -77,7 +80,7 @@ LocalServer::ClientResponseCallback LocalServer::create_response_callback(std::s
 bool LocalServer::ensure_connection() {
     if (Ethernet.hardwareStatus() == EthernetNoHardware) {
         if (is_initialized_) {
-            hal_general().log("Se perdio el shield Ethernet durante ejecucion.");
+            kLog.error("Se perdio el shield Ethernet durante ejecucion.");
         }
         is_initialized_ = false;
         ethernet_link_up_ = false;
@@ -87,7 +90,7 @@ bool LocalServer::ensure_connection() {
     const bool is_link_up_now = Ethernet.linkStatus() != LinkOFF;
     if (!is_link_up_now) {
         if (ethernet_link_up_) {
-            hal_general().log("Conexion Ethernet perdida.");
+            kLog.info("Conexion Ethernet perdida.");
         }
         is_initialized_ = false;
         ethernet_link_up_ = false;
@@ -95,7 +98,7 @@ bool LocalServer::ensure_connection() {
     }
 
     if (!ethernet_link_up_) {
-        hal_general().log("Conexion Ethernet restablecida.");
+        kLog.info("Conexion Ethernet restablecida.");
         restart_server();
     }
     ethernet_link_up_ = true;

@@ -11,6 +11,7 @@
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
 #include "LevelSwitch.hpp"
+#include "Logger.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -19,6 +20,8 @@
 constexpr uint32_t kAcceptableTimeWindowMs = 100;
 
 namespace modules {
+
+static const TaggedLogger kLog("ManualState");
 
 definitions::SystemState ManualState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
@@ -115,7 +118,7 @@ bool ManualState::dispatch_command(StateMachine* context, const definitions::Com
 
 void ManualState::on_enter(StateMachine* context) {
     (void) context;
-    hal_general().log("Iniciando Estado: MANUAL - Esperando comandos del usuario");
+    kLog.info("Iniciando Estado: MANUAL - Esperando comandos del usuario");
 }
 
 const char* ManualState::name() const {

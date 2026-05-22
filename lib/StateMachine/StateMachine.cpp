@@ -5,6 +5,7 @@
 #include "HardErrorState.hpp"
 #include "Helpers.hpp"
 #include "IState.hpp"
+#include "Logger.hpp"
 #include "ManualState.hpp"
 #include "PauseState.hpp"
 #include "ShutdownState.hpp"
@@ -41,6 +42,8 @@ constexpr char kStateMachineTaskName[] = "state_machine_task";
 
 namespace modules {
 
+static const TaggedLogger kLog("StateMachine");
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
 StateMachine& StateMachine::instance() {
@@ -65,7 +68,7 @@ bool StateMachine::create_task() {
     taskENTER_CRITICAL(&startMux);
     if (task_started) {
         taskEXIT_CRITICAL(&startMux);
-        hal_general().log("La tarea de la maquina de estados ya esta en ejecucion.");
+        kLog.warning("La tarea de la maquina de estados ya esta en ejecucion.");
         return true;
     }
 
@@ -76,7 +79,7 @@ bool StateMachine::create_task() {
     gStateCommandQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::Command));
     gStateResponseQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::Command));
     if (gStateEventQueue == nullptr || gStateCommandQueue == nullptr || gStateResponseQueue == nullptr) {
-        hal_general().log("No se pudo crear la queue de la maquina de estados.");
+        kLog.error("No se pudo crear la queue de la maquina de estados.");
         if (gStateEventQueue != nullptr) {
             vQueueDelete(gStateEventQueue);
             gStateEventQueue = nullptr;
@@ -96,7 +99,7 @@ bool StateMachine::create_task() {
     }
 
     if (xTaskCreate(task_entry, kStateMachineTaskName, kStateMachineTaskStackSize, nullptr, kStateMachineTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea de la maquina de estados.");
+        kLog.error("No se pudo crear la tarea de la maquina de estados.");
         vQueueDelete(gStateEventQueue);
         vQueueDelete(gStateCommandQueue);
         vQueueDelete(gStateResponseQueue);
@@ -253,7 +256,7 @@ bool StateMachine::response_matches_command(const definitions::Command& request,
 void StateMachine::process_event(definitions::SystemEvent event) {
     // Special handling for communication loss event: pause the system regardless of current state.
     if (event == definitions::SystemEvent::kCommunicationLost) {
-        hal_general().log("Conexion Ethernet perdida, pausando sistema.");
+        kLog.info("Conexion Ethernet perdida, pausando sistema.");
         transition_to(definitions::SystemState::kPause);
         return;
     }
@@ -282,7 +285,7 @@ void StateMachine::process_command(const definitions::Command& request) {
     }
 
     if (!stateHandler->dispatch_command(this, request)) {
-        hal_general().log("Comando recibido, pero no se pudo ejecutar en el estado actual: " + get_state_name(currentState_));
+        kLog.warning("Comando recibido, pero no se pudo ejecutar en el estado actual: " + get_state_name(currentState_));
         lastCommandConfirmed_ = false;
         commandPending_ = false;
         return;
@@ -300,7 +303,7 @@ void StateMachine::process_response(const definitions::Command& response) {
     if (commandPending_ && response_matches_command(pendingCommand_, response)) {
         commandPending_ = false;
         lastCommandConfirmed_ = true;
-        hal_general().log("Comando confirmado como ejecutado por modulo.");
+        kLog.debug("Comando confirmado como ejecutado por modulo.");
     }
 
     const char* responseText = utils::response_for_command(response.command);
@@ -314,7 +317,7 @@ void StateMachine::process_response(const definitions::Command& response) {
         logMessage += std::to_string(response.extra);
     }
 
-    hal_general().log(logMessage);
+    kLog.debug(logMessage);
 }
 
 void StateMachine::attend_queues() {
@@ -379,7 +382,7 @@ void StateMachine::handle_command_feedback_timeout() {
     }
     const unsigned long now_ms = hal_general().millis();
     if ((now_ms - pendingCommandTimeMs_) >= kCommandFeedbackTimeoutMs) {
-        hal_general().log("Timeout esperando confirmacion de ejecucion para comando pendiente.");
+        kLog.warning("Timeout esperando confirmacion de ejecucion para comando pendiente.");
         commandPending_ = false;
         lastCommandConfirmed_ = false;
     }
