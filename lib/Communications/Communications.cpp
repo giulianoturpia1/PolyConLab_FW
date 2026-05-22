@@ -100,33 +100,26 @@ Communications::Communications()
       last_link_up_(true) {}
 
 void Communications::handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond) {
-    if (msg.empty()) {
+    const std::string trimmed = utils::trim(msg);
+    if (trimmed.empty()) {
+        respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
         return;
     }
 
-    if (handle_command(msg, respond)) {
+    if (utils::starts_with(trimmed, "EVT:")) {
+        handle_event(trimmed, respond);
         return;
     }
 
-    if (handle_event(msg, respond)) {
-        return;
-    }
-
-    respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
+    handle_command(trimmed, respond);
 }
 
-bool Communications::handle_command(const std::string& msg, const std::function<void(const std::string&)>& respond) {
-    // Extract base command (before comma, if present, as some commands have format "DEVICE_CMD,N")
-    std::string base_command = msg;
-    size_t comma_pos = msg.find(',');
-    if (comma_pos != std::string::npos) {
-        base_command = msg.substr(0, comma_pos);
-    }
-
+void Communications::handle_command(const std::string& msg, const std::function<void(const std::string&)>& respond) {
+    const std::string base_command = msg.substr(0, msg.find(','));
     const definitions::CommandMap* cmd = utils::find_command(base_command);
     if (!cmd) {
         respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
-        return false;
+        return;
     }
 
     uint32_t extra = 0;
@@ -137,32 +130,25 @@ bool Communications::handle_command(const std::string& msg, const std::function<
 
     if (!StateMachine::instance().queue_command({cmd->command, extra}, kCommsQueueTimeoutMs)) {
         respond(utils::response(definitions::ResponseType::kErrorUnknownCommand));
-        return false;
     }
-
-    return true;
 }
 
-bool Communications::handle_event(const std::string& msg, const std::function<void(const std::string&)>& respond) {
-    // Trim the message to remove leading/trailing whitespace and check if it's empty
-    std::string event_name = utils::trim(msg);
-    if (event_name.length() == 0) {
+void Communications::handle_event(const std::string& msg, const std::function<void(const std::string&)>& respond) {
+    // "EVT:" with nothing after it
+    if (msg.length() <= 4) {
         respond(utils::response(definitions::ResponseType::kErrorEmptyEvent));
-        return true;
+        return;
     }
 
-    const definitions::EventMap* evt = utils::find_event(event_name);
+    const definitions::EventMap* evt = utils::find_event(msg);
     if (!evt) {
         respond(utils::response(definitions::ResponseType::kErrorUnknownEvent));
-        return true;
+        return;
     }
 
     if (!StateMachine::instance().queue_event(evt->event, kCommsQueueTimeoutMs)) {
         respond(utils::response(definitions::ResponseType::kErrorUnknownEvent));
-        return false;
     }
-
-    return true;
 }
 
 uint32_t Communications::parse_valve_pin(const std::string& msg) const {
