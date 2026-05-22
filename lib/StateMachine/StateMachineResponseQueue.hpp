@@ -30,7 +30,7 @@ class StateMachineResponseQueue final : public interfaces::ICommandResponseQueue
     /// @return true
     /// @return false
     ///
-    bool publish(const definitions::CommandRequest& response, uint32_t timeout) override;
+    bool publish(const definitions::Command& response, uint32_t timeout) override;
 
    private:
     StateMachineResponseQueue() = default;

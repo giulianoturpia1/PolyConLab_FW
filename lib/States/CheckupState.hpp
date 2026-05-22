@@ -20,7 +20,6 @@ class CheckupState final : public IState {
     definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event);
     void on_enter(StateMachine* context);
     const char* name() const;
-    definitions::SystemState tick(StateMachine* context);
 
    private:
     bool scadaOk_ = false;

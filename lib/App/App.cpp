@@ -10,7 +10,6 @@
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
 #include "LevelSwitch.hpp"
-#include "LocalServer.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -23,13 +22,19 @@
 #include "PLC19R.hpp"
 #endif
 
-byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
-IPAddress ip(192, 168, 1, 1);
-EthernetServer server_(80);
+constexpr uint8_t kEthernetMacLength = 6;
+constexpr uint16_t kAppServerPort = 80;
+constexpr uint8_t kValveCount = 2;
+constexpr uint8_t kTemperatureSensorCount = 4;
+constexpr uint32_t kAppStartupDelayMs = 1000;
 constexpr uint32_t kAppTaskPeriodMs = 20;
 constexpr UBaseType_t kAppTaskPriority = 2;
 constexpr uint32_t kAppTaskStackSize = 4096;
 constexpr char kAppTaskName[] = "app_task";
+
+byte mac[kEthernetMacLength] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+IPAddress ip(192, 168, 1, 1);
+EthernetServer server_(kAppServerPort);
 
 namespace modules {
 
@@ -42,16 +47,16 @@ App& App::instance() {
 
 void App::begin() {
     hal_.serial_begin(115200);
-    hal_.log("Iniciando configuracion...");
-    hal_.delay(1000);
+    hal_.log("Iniciando Configuracion...");
+    hal_.delay(kAppStartupDelayMs);
 
     // Initialize all system modules
-    initialize_modules();
+    initialize_system();
 
     // Start the App task which will run the main loop
-    start_task();
+    create_task();
 
-    hal_.log("Configuracion completada");
+    hal_.log("Configuracion Completada");
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
@@ -59,7 +64,6 @@ void App::begin() {
 App::App()
     : state_machine_(modules::StateMachine::instance()),
       hal_(modules::hal_general()),
-      local_server_(modules::LocalServer::instance()),
       communications_(modules::Communications::instance()),
       heater_(modules::Heater::instance()),
       pump_(modules::Pump::instance()),
@@ -69,41 +73,10 @@ App::App()
       flowmeter_(modules::Flowmeter::instance()),
       level_switch_(modules::LevelSwitch::instance()) {}
 
-void App::configure_serial_response_callback() {
-    communications_.set_serial_response_callback([this](const std::string& response) { hal_.log(response.c_str()); });
-}
-
 void App::initialize_network_server() {
-    local_server_.initialize(server_);
-    local_server_.begin(mac, ip);
-}
-
-void App::initialize_modules() {
-    // Initialize Hardware
-    initialize_devices();
-
-    // Initialize State Machine
-    state_machine_.initialize();
-
-    // Create tasks and queues for modules
-    heater_.start_task();
-    pump_.start_task();
-    chiller_.start_task();
-    valves_.start_task();
-    thermocouples_.start_task();
-    flowmeter_.start_task();
-    state_machine_.start_task();
-
-    // Response Queue for each module.
-    heater_.set_response_queue(&modules::StateMachineResponseQueue::instance());
-    pump_.set_response_queue(&modules::StateMachineResponseQueue::instance());
-    chiller_.set_response_queue(&modules::StateMachineResponseQueue::instance());
-    valves_.set_response_queue(&modules::StateMachineResponseQueue::instance());
-    thermocouples_.set_response_queue(&modules::StateMachineResponseQueue::instance());
-    flowmeter_.set_response_queue(&modules::StateMachineResponseQueue::instance());
-
-    initialize_network_server();
-    configure_serial_response_callback();
+    // Initialize Ethernet server and related settings
+    communications_.initialize_server(server_, mac, ip);
+    communications_.set_serial_response_callback([this](const std::string& response) { hal_.log(response.c_str()); });
 }
 
 void App::initialize_devices() {
@@ -115,29 +88,53 @@ void App::initialize_devices() {
     valves_.begin(valve_pins, 2);
 
     uint32_t i2c_addresses[] = {
-        static_cast<uint32_t>(definitions::Addresses::kTempSensor1), static_cast<uint32_t>(definitions::Addresses::kTempSensor2),
-        static_cast<uint32_t>(definitions::Addresses::kTempSensor3), static_cast<uint32_t>(definitions::Addresses::kTempSensor4)};
+        static_cast<uint32_t>(definitions::Addresses::kTempIn), static_cast<uint32_t>(definitions::Addresses::kTempOut),
+        static_cast<uint32_t>(definitions::Addresses::kTempBath), static_cast<uint32_t>(definitions::Addresses::kTempMix)};
     thermocouples_.begin(i2c_addresses, 4);
-
     flowmeter_.begin(static_cast<uint32_t>(definitions::Pins::kFlowmeter));
+    level_switch_.begin(static_cast<uint32_t>(definitions::Pins::kLevelSwitch));
 }
 
-void App::poll_serial_messages() {
-    if (!Serial.available()) {
-        return;
-    }
-
-    String arduino_msg = Serial.readStringUntil('\n');
-    arduino_msg.trim();
-    if (arduino_msg.length() == 0) {
-        return;
-    }
-
-    std::string msg(arduino_msg.c_str());
-    communications_.handle_serial_message(msg);
+void App::create_tasks() {
+    heater_.create_task();
+    pump_.create_task();
+    chiller_.create_task();
+    valves_.create_task();
+    thermocouples_.create_task();
+    flowmeter_.create_task();
+    level_switch_.create_task();
 }
 
-void App::start_task() {
+void App::set_response_queues() {
+    // Set the response queue for each module to the State Machine's response queue
+    heater_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    pump_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    chiller_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    valves_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    thermocouples_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    flowmeter_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+    level_switch_.set_response_queue(&modules::StateMachineResponseQueue::instance());
+}
+
+void App::initialize_system() {
+    // Initialize Network Server
+    initialize_network_server();
+
+    // Initialize Devices
+    initialize_devices();
+
+    // Create and Initialize State Machine
+    state_machine_.initialize();
+    state_machine_.create_task();
+
+    // Create Tasks for all modules except State Machine
+    create_tasks();  // Initialized in main.cpp
+
+    // Response Queue for each module.
+    set_response_queues();
+}
+
+void App::create_task() {
     static bool task_started = false;
     if (task_started) {
         hal_.log("La tarea de App ya esta en ejecucion.");
@@ -151,15 +148,12 @@ void App::start_task() {
 }
 
 void App::tick() {
-    local_server_.poll([this](const std::string& msg, const modules::LocalServer::ResponseCallback& respond) {
-        communications_.set_ethernet_response_callback(respond);
-        communications_.handle_ethernet_message(msg);
-    });
-
-    poll_serial_messages();
+    // Delegate all communication polling to Communications module
+    communications_.poll_ethernet();
+    communications_.poll_serial();
 }
 
-void App::task_entry(void* /*param*/) {
+void App::task_entry(void* param) {
     while (true) {
         App::instance().tick();
         vTaskDelay(pdMS_TO_TICKS(kAppTaskPeriodMs));

@@ -13,7 +13,9 @@
 #include "PLC19R.hpp"
 #endif
 
-definitions::SystemState modules::HardErrorState::handle_event(StateMachine* context, definitions::SystemEvent event) {
+namespace modules {
+
+definitions::SystemState HardErrorState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
 
     switch (event) {
@@ -36,38 +38,30 @@ definitions::SystemState modules::HardErrorState::handle_event(StateMachine* con
     return definitions::SystemState::kHardError;
 }
 
-void modules::HardErrorState::on_enter(StateMachine* context) {
+void HardErrorState::on_enter(StateMachine* context) {
     (void) context;
     resetFaultRequested_ = false;
     conditionsOk_ = false;
-    modules::hal_general().log("Iniciando Estado: HARD_ERROR - Sistema bloqueado");
+    hal_general().log("Iniciando Estado: HARD_ERROR - Sistema bloqueado");
     apply_safe_outputs();
     close_all_valves_if_supported();
 }
 
-const char* modules::HardErrorState::name() const {
+const char* HardErrorState::name() const {
     return "HARD_ERROR";
 }
 
-definitions::SystemState modules::HardErrorState::tick(StateMachine* context) {
-    if (context == nullptr) {
-        return definitions::SystemState::kHardError;
-    }
-
-    return context->get_current_state();
+void HardErrorState::apply_safe_outputs() {
+    Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
+    Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
+    Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
 }
 
-void modules::HardErrorState::apply_safe_outputs() {
-    modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
-    modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
-    modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
-}
-
-void modules::HardErrorState::close_all_valves_if_supported() {
+void HardErrorState::close_all_valves_if_supported() {
 #if defined(PLC_38AR) || defined(PLC_19R)
-    modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose,
-                                                     static_cast<uint32_t>(definitions::Pins::kValve1), 10);
-    modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose,
-                                                     static_cast<uint32_t>(definitions::Pins::kValve2), 10);
+    SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve1), 10);
+    SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve2), 10);
 #endif
 }
+
+}  // namespace modules

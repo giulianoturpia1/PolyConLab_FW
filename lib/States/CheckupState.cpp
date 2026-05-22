@@ -13,7 +13,9 @@
 #include "PLC19R.hpp"
 #endif
 
-definitions::SystemState modules::CheckupState::handle_event(StateMachine* context, definitions::SystemEvent event) {
+namespace modules {
+
+definitions::SystemState CheckupState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
 
     switch (event) {
@@ -41,35 +43,29 @@ definitions::SystemState modules::CheckupState::handle_event(StateMachine* conte
     return definitions::SystemState::kCheckup;
 }
 
-void modules::CheckupState::on_enter(StateMachine* context) {
+void CheckupState::on_enter(StateMachine* context) {
     (void) context;
     scadaOk_ = false;
     sensorOk_ = false;
-    modules::hal_general().log("Iniciando Estado: CHECKUP");
+    hal_general().log("Iniciando Estado: CHECKUP");
     apply_safe_outputs();
 }
 
-const char* modules::CheckupState::name() const {
+const char* CheckupState::name() const {
     return "CHECKUP";
 }
 
-definitions::SystemState modules::CheckupState::tick(StateMachine* context) {
-    if (context == nullptr) {
-        return definitions::SystemState::kHardError;
-    }
-
-    return context->get_current_state();
-}
-
-void modules::CheckupState::apply_safe_outputs() {
-    modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
-    modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
-    modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
+void CheckupState::apply_safe_outputs() {
+    Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
+    Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
+    Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
 #if defined(PLC_38AR)
-    modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(Q0_1), 10);
-    modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(Q0_3), 10);
+    SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(Q0_1), 10);
+    SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(Q0_3), 10);
 #elif defined(PLC_19R)
-    modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(R1_1), 10);
-    modules::SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(R1_2), 10);
+    SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(R1_1), 10);
+    SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(R1_2), 10);
 #endif
 }
+
+}  // namespace modules

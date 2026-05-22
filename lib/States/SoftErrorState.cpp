@@ -6,7 +6,9 @@
 #include "Pump.hpp"
 #include "StateMachine.hpp"
 
-definitions::SystemState modules::SoftErrorState::handle_event(StateMachine* context, definitions::SystemEvent event) {
+namespace modules {
+
+definitions::SystemState SoftErrorState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     switch (event) {
         case definitions::SystemEvent::kRetryCheckup:
             retryRequested_ = true;
@@ -20,7 +22,6 @@ definitions::SystemState modules::SoftErrorState::handle_event(StateMachine* con
         case definitions::SystemEvent::kFaultCritical:
         case definitions::SystemEvent::kShutdownButton:
         case definitions::SystemEvent::kEStop:
-        case definitions::SystemEvent::kFaultEscalates:
         case definitions::SystemEvent::kTooManyRetries:
             return definitions::SystemState::kHardError;
         default:
@@ -43,29 +44,23 @@ definitions::SystemState modules::SoftErrorState::handle_event(StateMachine* con
     return definitions::SystemState::kSoftError;
 }
 
-void modules::SoftErrorState::on_enter(StateMachine* context) {
+void SoftErrorState::on_enter(StateMachine* context) {
     (void) context;
     retryRequested_ = false;
     ackRequested_ = false;
     conditionCleared_ = false;
-    modules::hal_general().log("Iniciando Estado: SOFT_ERROR - Error recuperable");
+    hal_general().log("Iniciando Estado: SOFT_ERROR - Error recuperable");
     apply_safe_outputs();
 }
 
-const char* modules::SoftErrorState::name() const {
+const char* SoftErrorState::name() const {
     return "SOFT_ERROR";
 }
 
-definitions::SystemState modules::SoftErrorState::tick(StateMachine* context) {
-    if (context == nullptr) {
-        return definitions::SystemState::kHardError;
-    }
-
-    return context->get_current_state();
+void SoftErrorState::apply_safe_outputs() {
+    Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
+    Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
+    Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
 }
 
-void modules::SoftErrorState::apply_safe_outputs() {
-    modules::Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
-    modules::Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
-    modules::Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
-}
+}  // namespace modules

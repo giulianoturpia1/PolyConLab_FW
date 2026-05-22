@@ -33,6 +33,11 @@ class Heater {
     static Heater& instance();
 
     ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    bool create_task();
+
+    ///
     /// @brief Set the sink used to publish command execution responses.
     ///
     /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
@@ -44,7 +49,7 @@ class Heater {
     ///
     /// @param pin Relay pin for heater control.
     ///
-    void begin(uint32_t pin);
+    bool begin(uint32_t pin);
 
     ///
     /// @brief Turn the heater on.
@@ -69,11 +74,6 @@ class Heater {
     /// @return uint32_t
     ///
     uint32_t pin() const;
-
-    ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    void start_task();
 
     ///
     /// @brief Queue a heater command in the module's local queue.
@@ -108,7 +108,7 @@ class Heater {
     /// @param response Response payload.
     /// @return true if the sink accepted the response.
     ///
-    bool publish_response(const definitions::CommandRequest& response);
+    bool publish_response(const definitions::Command& response);
 
     ///
     /// @brief FreeRTOS task entrypoint for the heater module. Waits for commands on the queue and processes them.

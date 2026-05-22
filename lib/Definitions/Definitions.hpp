@@ -34,14 +34,13 @@ constexpr uint8_t kMaxThermocouples = 5;
 ///
 ///
 enum class SystemState {
-    kStartup,      ///< Initial state: Initialize HW/RTOS, Init TCP/BLE, Init lights
-    kCheckup,      ///< Automatic checkup: Health-check sensors, Handshake SCADA/BLE, Analogic checks
-    kCalibration,  ///< Calibration: Ordered stop, Execute calibration protocol, Return to Automatic Checkups
-    kManual,       ///< Manual/Wait state: Commands 1 and 1, Active interfaces, User waiting
-    kPause,        ///< Pause: Freeze timers, safe partial exit, allow resume/abort
-    kSoftError,    ///< Soft error: Partial stop, HMI warning + LED/Buzzer, Retry/Ack
-    kHardError,    ///< Critical error (latched): Full stop, Control locked, Requires reset
-    kShutdown      ///< Safe stop: Ordered stop, save state, return to Startup
+    kStartup,    ///< Initial state: Initialize HW/RTOS, Init TCP/BLE, Init lights
+    kCheckup,    ///< Automatic checkup: Health-check sensors, Handshake SCADA/BLE, Analogic checks
+    kManual,     ///< Manual/Wait state: Commands 1 and 1, Active interfaces, User waiting
+    kPause,      ///< Pause: Freeze timers, safe partial exit, allow resume/abort
+    kSoftError,  ///< Soft error: Partial stop, HMI warning + LED/Buzzer, Retry/Ack
+    kHardError,  ///< Critical error (latched): Full stop, Control locked, Requires reset
+    kShutdown    ///< Safe stop: Ordered stop, save state, return to Startup
 };
 
 ///
@@ -53,7 +52,6 @@ enum class SystemEvent {
     // Startup and shutdown events
     kPowerOn,
     kInitOk,
-    kInitFatal,
     kWatchdogFatal,
     kShutdown,
     kShutdownComplete,
@@ -72,22 +70,15 @@ enum class SystemEvent {
     kFaultCritical,
     kShutdownButton,
     kEStop,
-    kFaultEscalates,
     kTooManyRetries,
 
     // Hard error reset event
     kResetFault,
     kConditionsOk,
-    kPhysicalReset
-};
+    kPhysicalReset,
 
-///
-/// @brief Mapping of event strings to SystemEvent enums for parsing incoming messages.
-///
-///
-struct EventMap {
-    const char* name;   //< Event string (e.g., "POWER_ON")
-    SystemEvent event;  //< Corresponding SystemEvent enum
+    // Communications events
+    kCommunicationLost
 };
 
 ///
@@ -135,23 +126,6 @@ enum class CommandType {
 };
 
 ///
-/// @brief Payload to request a command dispatch from the StateMachine.
-///
-struct CommandRequest {
-    CommandType command;
-    uint32_t pin;
-};
-
-///
-/// @brief Mapping of command strings to CommandType enums for parsing incoming messages.
-///
-///
-struct CommandMap {
-    const char* name;     //< Command string (e.g., "HEATER_ON")
-    CommandType command;  //< Corresponding CommandType enum
-};
-
-///
 /// @brief Canonical response messages used by communications handlers.
 ///
 enum class ResponseType {
@@ -168,12 +142,19 @@ enum class ResponseType {
 };
 
 ///
-/// @brief Canonical response messages used by communications handlers.
+/// @brief Command structure used for representing a command in the system.
 ///
+struct Command {
+    CommandType command;  ///< Command type identifier
+    uint32_t extra;       ///< Generic extra field: pin number or I2C address depending on command
+};
+
 ///
-struct ResponseMap {
-    const char* name;   //< Canonical response name (e.g., "ERROR:UNKNOWN_COMMAND")
-    ResponseType type;  //< Response identifier
+/// @brief Mapping of command strings to CommandType enums for parsing incoming messages.
+///
+struct CommandMap {
+    const char* name;     //< Command string (e.g., "HEATER ON")
+    CommandType command;  //< Corresponding CommandType enum
 };
 
 ///
@@ -183,6 +164,54 @@ struct CommandResponseMap {
     CommandType command;
     ResponseType response;
 };
+
+///
+/// @brief Mapping of event strings to SystemEvent enums for parsing incoming messages.
+///
+struct EventMap {
+    const char* name;   //< Event string (e.g., "POWER ON")
+    SystemEvent event;  //< Corresponding SystemEvent enum
+};
+
+///
+/// @brief Canonical response messages used by communications handlers.
+///
+struct ResponseMap {
+    const char* name;   //< Canonical response name (e.g., "ERROR:UNKNOWN COMMAND")
+    ResponseType type;  //< Response identifier
+};
+
+///
+/// @brief Mapping of SystemState enums to human-readable state names.
+///
+struct StateNameMap {
+    SystemState state;  ///< System state enum value
+    const char* name;   ///< Human-readable state name (e.g., "STARTUP")
+};
+
+constexpr std::array<EventMap, 21> kEventMap = {{
+    {("EVT:POWER ON"), SystemEvent::kPowerOn},
+    {("EVT:INIT OK"), SystemEvent::kInitOk},
+    {("EVT:SCADA OK"), SystemEvent::kScadaOk},
+    {("EVT:SENSORS OK"), SystemEvent::kSensorOk},
+    {("EVT:PAUSE"), SystemEvent::kPause},
+    {("EVT:UNPAUSE"), SystemEvent::kUnpause},
+    {("EVT:STOP"), SystemEvent::kEStop},
+    {("EVT:SHUTDOWN"), SystemEvent::kShutdown},
+    {("EVT:SHUTDOWN BUTTON"), SystemEvent::kShutdownButton},
+    {("EVT:SHUTDOWN COMPLETE"), SystemEvent::kShutdownComplete},
+    {("EVT:FAULT RECOVERABLE"), SystemEvent::kFaultRecoverable},
+    {("EVT:FAULT CRITICAL"), SystemEvent::kFaultCritical},
+    {("EVT:RETRY CHECKUP"), SystemEvent::kRetryCheckup},
+    {("EVT:ACK FAULT"), SystemEvent::kAckFault},
+    {("EVT:RESET FAULT"), SystemEvent::kResetFault},
+    {("EVT:CONDITION CLEARED"), SystemEvent::kConditionCleared},
+    {("EVT:CONDITIONS OK"), SystemEvent::kConditionsOk},
+    {("EVT:WATCHDOG FATAL"), SystemEvent::kWatchdogFatal},
+    {("EVT:TOO MANY RETRIES"), SystemEvent::kTooManyRetries},
+    {("EVT:PHYSICAL RESET"), SystemEvent::kPhysicalReset},
+    {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
+}};
 
 constexpr std::array<CommandMap, 23> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn},
@@ -210,32 +239,7 @@ constexpr std::array<CommandMap, 23> kCommandMap = {{
     {("STATE?"), CommandType::kStateQuery},
 }};
 
-constexpr std::array<EventMap, 22> kEventMap = {{
-    {("POWER ON"), SystemEvent::kPowerOn},
-    {("INIT OK"), SystemEvent::kInitOk},
-    {("INIT FATAL"), SystemEvent::kInitFatal},
-    {("WATCHDOG FATAL"), SystemEvent::kWatchdogFatal},
-    {("SHUTDOWN"), SystemEvent::kShutdown},
-    {("SHUTDOWN COMPLETE"), SystemEvent::kShutdownComplete},
-    {("PAUSE"), SystemEvent::kPause},
-    {("UNPAUSE"), SystemEvent::kUnpause},
-    {("SCADA OK"), SystemEvent::kScadaOk},
-    {("SENSOR OK"), SystemEvent::kSensorOk},
-    {("FAULT RECOVERABLE"), SystemEvent::kFaultRecoverable},
-    {("RETRY CHECKUP"), SystemEvent::kRetryCheckup},
-    {("ACK FAULT"), SystemEvent::kAckFault},
-    {("CONDITION CLEARED"), SystemEvent::kConditionCleared},
-    {("FAULT CRITICAL"), SystemEvent::kFaultCritical},
-    {("SHUTDOWN BUTTON"), SystemEvent::kShutdownButton},
-    {("E STOP"), SystemEvent::kEStop},
-    {("FAULT ESCALATES"), SystemEvent::kFaultEscalates},
-    {("TOO MANY RETRIES"), SystemEvent::kTooManyRetries},
-    {("RESET FAULT"), SystemEvent::kResetFault},
-    {("CONDITIONS OK"), SystemEvent::kConditionsOk},
-    {("RESET FISICO"), SystemEvent::kPhysicalReset},
-}};
-
-constexpr std::array<ResponseMap, 27> kResponseMap = {{
+constexpr std::array<ResponseMap, 10> kResponseMap = {{
     {"-100,’COMANDO DESCONOCIDO’", ResponseType::kErrorUnknownCommand},
     {"-200,’EVENTO VACIO’", ResponseType::kErrorEmptyEvent},
     {"-300,’EVENTO DESCONOCIDO’", ResponseType::kErrorUnknownEvent},
@@ -243,46 +247,33 @@ constexpr std::array<ResponseMap, 27> kResponseMap = {{
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},
     {"OPEN", ResponseType::kStatusOpen},
-    {"CLOSE", ResponseType::kStatusClosed},
+    {"CLOSED ", ResponseType::kStatusClosed},
     {"HIGH", ResponseType::kStatusHigh},
     {"LOW", ResponseType::kStatusLow},
 }};
 
-constexpr std::array<CommandResponseMap, 8> kCommandResponseMap = {{
-    {CommandType::kHeaterOn, ResponseType::kStatusOn},
-    {CommandType::kHeaterOff, ResponseType::kStatusOff},
-    {CommandType::kPumpOn, ResponseType::kStatusOn},
-    {CommandType::kPumpOff, ResponseType::kStatusOff},
-    {CommandType::kChillerOn, ResponseType::kStatusOn},
-    {CommandType::kChillerOff, ResponseType::kStatusOff},
-    {CommandType::kValveOpen, ResponseType::kStatusOpen},
-    {CommandType::kValveClose, ResponseType::kStatusClosed},
+constexpr std::array<CommandResponseMap, 23> kCommandResponseMap = {{
+    {CommandType::kHeaterOn, ResponseType::kStatusOn},           {CommandType::kHeaterOff, ResponseType::kStatusOff},
+    {CommandType::kHeaterState, ResponseType::kStatusOn},        {CommandType::kPumpOn, ResponseType::kStatusOn},
+    {CommandType::kPumpOff, ResponseType::kStatusOff},           {CommandType::kPumpState, ResponseType::kStatusOn},
+    {CommandType::kChillerOn, ResponseType::kStatusOn},          {CommandType::kChillerOff, ResponseType::kStatusOff},
+    {CommandType::kChillerState, ResponseType::kStatusOn},       {CommandType::kValveOpen, ResponseType::kStatusOpen},
+    {CommandType::kValveClose, ResponseType::kStatusClosed},     {CommandType::kValveState, ResponseType::kStatusOpen},
+    {CommandType::kTempInRead, ResponseType::kStatusOn},         {CommandType::kTempOutRead, ResponseType::kStatusOn},
+    {CommandType::kTempBathRead, ResponseType::kStatusOn},       {CommandType::kTempMixRead, ResponseType::kStatusOn},
+    {CommandType::kFlowBegin, ResponseType::kStatusOn},          {CommandType::kFlowStop, ResponseType::kStatusOff},
+    {CommandType::kFlowRead, ResponseType::kStatusOn},           {CommandType::kFlowStatus, ResponseType::kStatusOn},
+    {CommandType::kLevelSwitchState, ResponseType::kStatusHigh}, {CommandType::kPing, ResponseType::kPingOk},
+    {CommandType::kStateQuery, ResponseType::kPingOk},
 }};
 
-enum class ErrorCode {
-    kErrTemp = 111,  ///< Error code for temperature sensor failure
-};
-
-enum class Constants {
-    kTempIntervalMs = 2000,  ///< Interval for temperature readings in milliseconds
-};
-
-///
-/// @brief Mapping of SystemState enums to human-readable state names.
-///
-struct StateNameMap {
-    SystemState state;  ///< System state enum value
-    const char* name;   ///< Human-readable state name (e.g., "STARTUP")
-};
-
-constexpr std::array<StateNameMap, 8> kStateNameMap = {{
+constexpr std::array<StateNameMap, 7> kStateNameMap = {{
     {SystemState::kStartup, "STARTUP"},
     {SystemState::kCheckup, "CHECKUP"},
-    {SystemState::kCalibration, "CALIBRATION"},
     {SystemState::kManual, "MANUAL"},
     {SystemState::kPause, "PAUSE"},
-    {SystemState::kSoftError, "SOFT_ERROR"},
-    {SystemState::kHardError, "HARD_ERROR"},
+    {SystemState::kSoftError, "SOFT ERROR"},
+    {SystemState::kHardError, "HARD ERROR"},
     {SystemState::kShutdown, "SHUTDOWN"},
 }};
 

@@ -41,6 +41,11 @@ class Thermocouple {
     static Thermocouple& instance();
 
     ///
+    /// @brief Create the dedicated FreeRTOS task/queue for this module.
+    ///
+    bool create_task();
+
+    ///
     /// @brief Set the sink used to publish command execution responses.
     ///
     /// @param queue Response queue implementation. If nullptr, response publishing is disabled.
@@ -56,7 +61,7 @@ class Thermocouple {
     /// @param adds Pointer to an array of addresses.
     /// @param count Number of addresses in the array.
     ///
-    void begin(const uint32_t* adds, size_t count);
+    bool begin(const uint32_t* adds, size_t count);
 
     ///
     /// @brief Register a Thermocouple with a certain address.
@@ -94,19 +99,14 @@ class Thermocouple {
     uint8_t count() const;
 
     ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    void start_task();
-
-    ///
-    /// @brief Send a Thermocouple Amplifier command through the module queue.
+    /// @brief Queue a Thermocouple Amplifier command through the module queue.
     ///
     /// @param command Command to be sent.
     /// @param address Address of the Thermocouple Amplifier.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
-    bool send_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
+    bool queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
 
    private:
     Thermocouple();
@@ -142,10 +142,10 @@ class Thermocouple {
     /// @param response Response payload.
     /// @return true if the sink accepted the response.
     ///
-    bool publish_response(const definitions::CommandRequest& response);
+    bool publish_response(const definitions::Command& response);
 
     ///
-    /// @brief FreeRTOS task entry point for processing valve commands from the queue.
+    /// @brief FreeRTOS task entry point for processing thermocouple commands from the queue.
     ///
     /// @param param
     ///
