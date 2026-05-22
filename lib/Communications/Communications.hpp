@@ -2,7 +2,7 @@
 /// @file Communications.hpp
 /// @author F. Galietta, G. Turpia, S. Miranda (proyectopolyconlab@gmail.com)
 /// @brief Communications module that isolates command handling from the application layer.
-/// @version 0.1
+/// @version 0.2
 /// @date 26-02-2026
 ///
 /// @copyright Copyright (c) 2026
@@ -13,6 +13,7 @@
 
 #include <Ethernet.h>
 
+#include <array>
 #include <functional>
 #include <string>
 
@@ -21,15 +22,15 @@
 namespace modules {
 
 ///
-/// @brief Communications manager that routes commands from multiple transports.
+/// @brief Communications manager that routes messages from multiple transports.
 /// Implemented as a singleton.
 /// The class provides operations to set callbacks for sending responses back through the appropriate transport (Ethernet
 /// or Serial), in order to keep the transport layer isolated from the application logic.
 ///
-/// The main operation is handle_message(), which takes an incoming message and a response callback, and routes the message to the
-/// appropriate handler based on its content (device command or event command). The device command handler processes commands related to
-/// devices (e.g., setting flow rate), while the event command handler processes commands that trigger events in the state machine (e.g.,
-/// "EVT:START_CALIBRATION").
+/// The main operation is handle_message(), which routes incoming messages based on their prefix:
+///   - Messages starting with "EVT:" are dispatched to handle_event() and trigger state machine transitions.
+///   - All other messages are treated as SCPI commands and dispatched to handle_command().
+/// Each handler is fully self-contained and owns its own error responses.
 ///
 ///
 class Communications {
@@ -52,7 +53,7 @@ class Communications {
     ///
     /// @brief Initialize the Ethernet server with the given parameters.
     ///
-    void initialize_server(EthernetServer& server, const byte mac[6], const IPAddress& ip);
+    void initialize_server(EthernetServer& server, const std::array<byte, 6>& mac, const IPAddress& ip);
 
     ///
     /// @brief Handle a message coming from Ethernet.
@@ -85,49 +86,52 @@ class Communications {
     Communications& operator=(Communications&&) = delete;
 
     ///
-    /// @brief Handle a command message, routing it to the appropriate handler. At the moment, it only supports device
-    /// commands and event commands.
+    /// @brief Trim and route an incoming message to the appropriate handler based on its prefix.
+    /// Empty or whitespace-only messages respond with kErrorUnknownCommand.
+    /// Messages starting with "EVT:" are forwarded to handle_event(); all others to handle_command().
+    /// System commands (e.g. "SYST:LOG ON") are registered in kCommandMap as CommandEntry records and handled inline
+    /// inside handle_command() without being queued to the StateMachine.
+    /// Handlers receive an already-trimmed string.
     ///
-    /// @param msg
-    /// @param respond
+    /// @param msg    Incoming raw message string.
+    /// @param respond Callback used to send a response back to the caller.
     ///
     void handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond);
 
     ///
-    /// @brief Handle a command message.The command name is extracted from the message and dispatched to the
-    /// corresponding handler. Dispatches the command if it is valid, otherwise responds with an error. Dispatches the
-    /// event if it is valid, otherwise responds with an error.
+    /// @brief Parse and dispatch a SCPI command to the state machine.
+    /// Looks up the command in the command map and queues it for execution.
+    /// Responds with kErrorUnknownCommand if the command is not recognized or cannot be queued.
     ///
-    /// @param msg
-    /// @param respond
-    /// @return true
-    /// @return false
+    /// @param msg    Full SCPI command string (e.g. "OUTP:HEAT ON", "OUTP:VALV OPEN,1").
+    /// @param respond Callback used to send a response back to the caller.
     ///
-    bool handle_command(const std::string& msg, const std::function<void(const std::string&)>& respond);
+    void handle_command(const std::string& msg, const std::function<void(const std::string&)>& respond);
 
     ///
-    /// @brief Handle an event message. The event name is extracted from the message and dispatched to the state
-    /// machine. Dispatches the event if it is valid, otherwise responds with an error.
+    /// @brief Parse and dispatch an event to the state machine.
+    /// Looks up the event in the event map and queues it for processing.
+    /// Responds with kErrorEmptyEvent if no event type follows "EVT:", or
+    /// kErrorUnknownEvent if the event is not recognized or cannot be queued.
     ///
-    /// @param msg
-    /// @param respond
-    /// @return true
-    /// @return false
+    /// @param msg    Full event string, including the "EVT:" prefix (e.g. "EVT:PAUSE").
+    /// @param respond Callback used to send a response back to the caller.
     ///
-    bool handle_event(const std::string& msg, const std::function<void(const std::string&)>& respond);
+    void handle_event(const std::string& msg, const std::function<void(const std::string&)>& respond);
 
     ///
-    /// @brief Parse valve number from command message and return corresponding pin.
-    /// Expected format: "VALVE_CMD,N" where N is 1 or 2.
+    /// @brief Parse the valve number from a SCPI valve command and return the corresponding pin.
+    /// Expected format: "OUTP:VALV <ACTION>,N" where N is 1 or 2.
     ///
-    /// @param msg Command message
-    /// @return uint32_t Pin number, or 0 if invalid
+    /// @param msg Full SCPI valve command string.
+    /// @return uint32_t Corresponding pin number, or 0 if the format is invalid.
     ///
     uint32_t parse_valve_pin(const std::string& msg) const;
 
-    std::function<void(const std::string&)> ethernet_response_callback_;
-    std::function<void(const std::string&)> serial_response_callback_;
-    LocalServer& local_server_;
+    std::function<void(const std::string&)> ethernet_response_callback_;  ///< Callback for sending responses back through Ethernet
+    std::function<void(const std::string&)> serial_response_callback_;    ///< Callback for sending responses back through Serial
+    LocalServer& local_server_;  ///< Reference to the LocalServer singleton for handling Ethernet communication
+    bool last_link_up_;          ///< Last known Ethernet link status, used to detect changes and queue events accordingly
 };
 
 }  // namespace modules

@@ -1,7 +1,7 @@
 ///
 ///@file App.hpp
 ///@author F. Galietta, G. Turpia, S. Miranda (proyectopolyconlab@gmail.com)
-///@brief Application layer module that manages the program startup, the main loop and the shutdown of the system.
+///@brief Application layer module that manages program startup and the main loop.
 ///@version 0.2
 ///@date 2026-03-07
 ///
@@ -39,7 +39,7 @@ namespace modules {
 /// polls for communications and dispatches them to the appropriate handlers.
 ///
 /// The main loop is implemented in the tick() method, which is called periodically from a dedicated FreeRTOS task. This is implemented
-/// in the task_entry() static method, and the task is started by calling start_task().
+/// in the task_entry() static method, and the task is created by calling create_task().
 ///
 class App {
    public:
@@ -52,6 +52,7 @@ class App {
 
     ///
     /// @brief Initialize firmware application services and module tasks. This serves as the main entry point for the firmware execution.
+    ///
     ///
     void begin();
 
@@ -66,45 +67,51 @@ class App {
     App& operator=(App&&) = delete;
 
     ///
-    /// @brief Configure the serial response callback to log responses through HAL.
-    ///
-    ///
-    void configure_serial_response_callback();
-
-    ///
     /// @brief Initialize the Ethernet server and related settings.
     ///
     ///
     void initialize_network_server();
 
     ///
-    /// @brief Initialize all modules and the state machine, and start their tasks.
-    ///
-    ///
-    void initialize_system();
-
-    ///
     /// @brief Initialize hardware-facing device modules.
+    ///
     ///
     void initialize_devices();
 
     ///
-    /// @brief Start the tasks for the initialized modules.
+    /// @brief Create the tasks for the initialized modules.
     ///
-    void initialize_tasks();
+    ///
+    void create_tasks();
 
     ///
-    /// @brief Start the dedicated App FreeRTOS task that executes run() periodically.
+    /// @brief Set the response queues for all modules to the State Machine's response queue,
+    /// so that they can report command execution results.
     ///
-    void start_task();
+    void set_response_queues();
+
+    ///
+    /// @brief Initialize all modules and the state machine and start their tasks.
+    ///
+    /// This performs high-level system initialization by calling device, network and
+    /// module initializers and then creating their associated FreeRTOS tasks.
+    void initialize_system();
+
+    ///
+    /// @brief Create the dedicated App FreeRTOS task that executes tick() periodically.
+    ///
+    ///
+    void create_task();
 
     ///
     /// @brief Execute one application cycle (communications polling and dispatch).
+    ///
     ///
     void tick();
 
     ///
     /// @brief FreeRTOS task entrypoint for the App runtime loop.
+    ///
     ///
     static void task_entry(void* param);
 

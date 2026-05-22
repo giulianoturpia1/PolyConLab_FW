@@ -5,13 +5,14 @@
 #include <algorithm>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kSolenoidValveTimeoutMs = 20;
+constexpr TickType_t kSolenoidValveTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kSolenoidValveTaskPriority = 2;
 constexpr UBaseType_t kSolenoidValveQueueLength = 8;
 constexpr uint32_t kSolenoidValveTaskStackSize = 3072;
 constexpr char kSolenoidValveTaskName[] = "valve_task";
-constexpr uint32_t kSolenoidValveTaskPollTimeoutMs = 20;
 
 struct ValveCommand {
     definitions::CommandType command;
@@ -20,11 +21,34 @@ struct ValveCommand {
 
 namespace modules {
 
+static const TaggedLogger kLog("SolenoidValve");
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
 SolenoidValve& SolenoidValve::instance() {
     static SolenoidValve instance;
     return instance;
+}
+
+bool SolenoidValve::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kSolenoidValveQueueLength, sizeof(ValveCommand));
+    if (queue_ == nullptr) {
+        kLog.error("No se pudo crear la cola de valvulas.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kSolenoidValveTaskName, kSolenoidValveTaskStackSize, this, kSolenoidValveTaskPriority, nullptr) != pdPASS) {
+        kLog.error("No se pudo crear la tarea de valvulas.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
 }
 
 void SolenoidValve::set_response_queue(interfaces::ICommandResponseQueue* queue) {
@@ -35,7 +59,7 @@ void SolenoidValve::begin(const uint32_t* pins, size_t count) {
     valve_count_ = 0;
 
     if (pins == nullptr || count == 0) {
-        hal_general().log("No se añadieron pines de valvulas para la inicializacion.");
+        kLog.warning("No se añadieron pines de valvulas para la inicializacion.");
         return;
     }
 
@@ -48,12 +72,12 @@ void SolenoidValve::begin(const uint32_t* pins, size_t count) {
 bool SolenoidValve::add(uint32_t pin) {
     uint8_t index = find_index(pin);
     if (valve_count_ >= definitions::kMaxSolenoidValves) {
-        hal_general().log("No se pudo agregar el pin de valvula: " + std::to_string(pin) + ". Se alcanzo el limite de capacidad.");
+        kLog.error("No se pudo agregar el pin de valvula: " + std::to_string(pin) + ". Se alcanzo el limite de capacidad.");
         return false;  // Capacity limit reached or pin not already registered
     }
 
     if (index < definitions::kMaxSolenoidValves) {
-        hal_general().log("El pin de valvula ya estaba registrado: " + std::to_string(pin));
+        kLog.warning("El pin de valvula ya estaba registrado: " + std::to_string(pin));
         return true;  // Pin already registered, consider it a success
     }
 
@@ -62,16 +86,15 @@ bool SolenoidValve::add(uint32_t pin) {
     hal_general().pin_mode(pin, PIN_MODE_OUTPUT);  // Valves are output devices
     // This depends whether the hardware is active HIGH or LOW. Assuming active HIGH for opening the valve, we set it to
     // LOW by default.
-
-    close(pin);  // Ensure valve is closed by default
     ++valve_count_;
+    close(pin);  // Ensure valve is closed by default
     return true;
 }
 
 bool SolenoidValve::remove(uint32_t pin) {
     uint8_t index = find_index(pin);
     if (index >= definitions::kMaxSolenoidValves) {
-        hal_general().log("Se intento eliminar un pin de valvula no registrado: " + std::to_string(pin));
+        kLog.warning("Se intento eliminar un pin de valvula no registrado: " + std::to_string(pin));
         return false;  // Pin not found
     }
 
@@ -88,7 +111,7 @@ bool SolenoidValve::remove(uint32_t pin) {
 bool SolenoidValve::open(uint32_t pin) {
     uint8_t index = find_index(pin);
     if (index >= definitions::kMaxSolenoidValves) {
-        hal_general().log("Se intento abrir un pin de valvula no registrado: " + std::to_string(pin));
+        kLog.warning("Se intento abrir un pin de valvula no registrado: " + std::to_string(pin));
         return false;  // Pin not found
     }
 
@@ -100,7 +123,7 @@ bool SolenoidValve::open(uint32_t pin) {
 bool SolenoidValve::close(uint32_t pin) {
     uint8_t index = find_index(pin);
     if (index >= definitions::kMaxSolenoidValves) {
-        hal_general().log("Se intento cerrar un pin de valvula no registrado: " + std::to_string(pin));
+        kLog.warning("Se intento cerrar un pin de valvula no registrado: " + std::to_string(pin));
         return false;  // Pin not found
     }
 
@@ -112,7 +135,7 @@ bool SolenoidValve::close(uint32_t pin) {
 bool SolenoidValve::status(uint32_t pin) const {
     uint8_t index = find_index(pin);
     if (index >= definitions::kMaxSolenoidValves) {
-        hal_general().log("Se intento leer el estado de un pin de valvula no registrado: " + std::to_string(pin));
+        kLog.warning("Se intento leer el estado de un pin de valvula no registrado: " + std::to_string(pin));
         return false;
     }
 
@@ -121,27 +144,6 @@ bool SolenoidValve::status(uint32_t pin) const {
 
 uint8_t SolenoidValve::count() const {
     return valve_count_;
-}
-
-bool SolenoidValve::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kSolenoidValveQueueLength, sizeof(ValveCommand));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola de valvulas.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kSolenoidValveTaskName, kSolenoidValveTaskStackSize, this, kSolenoidValveTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea de valvulas.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
 }
 
 bool SolenoidValve::queue_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {
@@ -194,7 +196,7 @@ bool SolenoidValve::process_command(definitions::CommandType command, uint32_t p
     }
 }
 
-bool SolenoidValve::publish_response(const definitions::CommandRequest& response) {
+bool SolenoidValve::publish_response(const definitions::Command& response) {
     if (response_queue_ == nullptr) {
         return false;
     }
@@ -207,12 +209,11 @@ void SolenoidValve::task_entry(void* param) {
     ValveCommand command = {definitions::CommandType::kValveClose, 0};
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kSolenoidValveTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command.command, command.pin);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command.command, command.pin);
         }
     }
 }

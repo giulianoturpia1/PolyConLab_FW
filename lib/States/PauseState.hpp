@@ -17,9 +17,9 @@ namespace modules {
 
 class PauseState final : public IState {
    public:
-    definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event);
-    void on_enter(StateMachine* context);
-    const char* name() const;
+    definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) override;
+    void on_enter(StateMachine* context) override;
+    const char* name() const override;
 };
 
 }  // namespace modules

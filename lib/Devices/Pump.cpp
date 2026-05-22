@@ -3,15 +3,18 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kPumpTimeoutMs = 20;
+constexpr TickType_t kPumpTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kPumpTaskPriority = 2;
 constexpr UBaseType_t kPumpQueueLength = 8;
 constexpr uint32_t kPumpTaskStackSize = 2048;
 constexpr char kPumpTaskName[] = "pump_task";
-constexpr uint32_t kPumpTaskPollTimeoutMs = 20;
 
 namespace modules {
+
+static const TaggedLogger kLog("Pump");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -20,13 +23,34 @@ Pump& Pump::instance() {
     return instance;
 }
 
+bool Pump::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kPumpQueueLength, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        kLog.error("No se pudo crear la cola de la bomba.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kPumpTaskName, kPumpTaskStackSize, this, kPumpTaskPriority, nullptr) != pdPASS) {
+        kLog.error("No se pudo crear la tarea de la bomba.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void Pump::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
 
 bool Pump::begin(uint32_t pin) {
     if (pin == 0) {
-        hal_general().log("Pin invalido para la bomba.");
+        kLog.error("Pin invalido para la bomba.");
         return false;
     }
 
@@ -52,27 +76,6 @@ bool Pump::status() const {
 
 uint32_t Pump::pin() const {
     return pin_;
-}
-
-bool Pump::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kPumpQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola de la bomba.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kPumpTaskName, kPumpTaskStackSize, this, kPumpTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea de la bomba.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
 }
 
 bool Pump::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
@@ -108,7 +111,7 @@ bool Pump::process_command(definitions::CommandType command) {
     }
 }
 
-bool Pump::publish_response(const definitions::CommandRequest& response) {
+bool Pump::publish_response(const definitions::Command& response) {
     if (response_queue_ == nullptr) {
         return false;
     }
@@ -121,12 +124,11 @@ void Pump::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kPumpOff;
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kPumpTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
         }
     }
 }

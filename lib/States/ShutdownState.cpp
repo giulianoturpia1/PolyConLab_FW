@@ -4,6 +4,7 @@
 #include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
+#include "Logger.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -16,6 +17,8 @@
 #endif
 
 namespace modules {
+
+static const TaggedLogger kLog("ShutdownState");
 
 definitions::SystemState ShutdownState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
@@ -54,7 +57,7 @@ void ShutdownState::on_enter(StateMachine* context) {
     (void) context;
     enteredAtMs_ = hal_general().millis();
     completed_ = false;
-    hal_general().log("Iniciando Estado: SHUTDOWN - Parada ordenada y guardado de estado");
+    kLog.info("Iniciando Estado: SHUTDOWN - Parada ordenada y guardado de estado");
     apply_safe_outputs();
     close_all_valves_if_supported();
 }

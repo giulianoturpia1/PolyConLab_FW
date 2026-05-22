@@ -37,6 +37,11 @@ class SolenoidValve {
     static SolenoidValve& instance();
 
     ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    bool create_task();
+
+    ///
     /// @brief Set the sink used to publish command execution responses.
     ///
     /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
@@ -106,11 +111,6 @@ class SolenoidValve {
     uint8_t count() const;
 
     ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool start_task();
-
-    ///
     /// @brief Queue a valve command in the module's local queue.
     ///
     /// @param command Command to be sent.
@@ -154,7 +154,7 @@ class SolenoidValve {
     /// @param response Response payload.
     /// @return true if the sink accepted the response.
     ///
-    bool publish_response(const definitions::CommandRequest& response);
+    bool publish_response(const definitions::Command& response);
 
     ///
     /// @brief FreeRTOS task entry point for processing valve commands from the queue.

@@ -29,7 +29,7 @@ class ICommandResponseQueue {
     /// @return true
     /// @return false
     ///
-    virtual bool publish(const definitions::CommandRequest& response, uint32_t timeout) = 0;
+    virtual bool publish(const definitions::Command& response, uint32_t timeout) = 0;
 };
 
 }  // namespace interfaces

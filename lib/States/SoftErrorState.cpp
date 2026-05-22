@@ -3,10 +3,13 @@
 #include "Chiller.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
+#include "Logger.hpp"
 #include "Pump.hpp"
 #include "StateMachine.hpp"
 
 namespace modules {
+
+static const TaggedLogger kLog("SoftErrorState");
 
 definitions::SystemState SoftErrorState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     switch (event) {
@@ -22,7 +25,6 @@ definitions::SystemState SoftErrorState::handle_event(StateMachine* context, def
         case definitions::SystemEvent::kFaultCritical:
         case definitions::SystemEvent::kShutdownButton:
         case definitions::SystemEvent::kEStop:
-        case definitions::SystemEvent::kFaultEscalates:
         case definitions::SystemEvent::kTooManyRetries:
             return definitions::SystemState::kHardError;
         default:
@@ -50,7 +52,7 @@ void SoftErrorState::on_enter(StateMachine* context) {
     retryRequested_ = false;
     ackRequested_ = false;
     conditionCleared_ = false;
-    hal_general().log("Iniciando Estado: SOFT_ERROR - Error recuperable");
+    kLog.info("Iniciando Estado: SOFT_ERROR - Error recuperable");
     apply_safe_outputs();
 }
 

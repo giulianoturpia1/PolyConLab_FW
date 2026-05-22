@@ -33,6 +33,11 @@ class Pump {
     static Pump& instance();
 
     ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    bool create_task();
+
+    ///
     /// @brief Set the sink used to publish command execution responses.
     ///
     /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
@@ -71,11 +76,6 @@ class Pump {
     uint32_t pin() const;
 
     ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool start_task();
-
-    ///
     /// @brief Queue a pump command in the module's local queue.
     ///
     /// @param command Command to be sent.
@@ -108,7 +108,7 @@ class Pump {
     /// @param response Response payload.
     /// @return true if the sink accepted the response.
     ///
-    bool publish_response(const definitions::CommandRequest& response);
+    bool publish_response(const definitions::Command& response);
 
     ///
     /// @brief FreeRTOS task entrypoint for the pump module. Waits for commands on the queue and processes them.

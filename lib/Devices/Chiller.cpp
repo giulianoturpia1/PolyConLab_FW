@@ -3,14 +3,18 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kChillerTimeoutMs = 20;
+constexpr TickType_t kChillerTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kChillerTaskPriority = 2;
 constexpr UBaseType_t kChillerQueueLength = 8;
 constexpr uint32_t kChillerTaskStackSize = 2048;
 constexpr char kChillerTaskName[] = "chiller_task";
 
 namespace modules {
+
+static const TaggedLogger kLog("Chiller");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -19,13 +23,34 @@ Chiller& Chiller::instance() {
     return instance;
 }
 
+bool Chiller::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kChillerQueueLength, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        kLog.error("No se pudo crear la cola del chiller.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kChillerTaskName, kChillerTaskStackSize, this, kChillerTaskPriority, nullptr) != pdPASS) {
+        kLog.error("No se pudo crear la tarea del chiller.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void Chiller::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
 
 bool Chiller::begin(uint32_t pin) {
     if (pin == 0) {
-        hal_general().log("Pin invalido para el chiller.");
+        kLog.error("Pin invalido para el chiller.");
         return false;
     }
 
@@ -51,27 +76,6 @@ bool Chiller::status() const {
 
 uint32_t Chiller::pin() const {
     return pin_;
-}
-
-bool Chiller::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kChillerQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del chiller.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kChillerTaskName, kChillerTaskStackSize, this, kChillerTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del chiller.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
 }
 
 bool Chiller::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
@@ -107,7 +111,7 @@ bool Chiller::process_command(definitions::CommandType command) {
     }
 }
 
-bool Chiller::publish_response(const definitions::CommandRequest& response) {
+bool Chiller::publish_response(const definitions::Command& response) {
     if (response_queue_ == nullptr) {
         return false;
     }
@@ -120,12 +124,11 @@ void Chiller::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kChillerOff;
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kChillerTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
         }
     }
 }

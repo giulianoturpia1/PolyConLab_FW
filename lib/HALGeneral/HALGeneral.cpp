@@ -1,11 +1,6 @@
 #include "HALGeneral.hpp"
 
-// Platform-specific implementations
-#if defined(ARDUINO)
 #include "HALGeneralArduino.hpp"
-#else
-#include "HALGeneralVirtual.hpp"
-#endif
 
 namespace modules {
 
@@ -29,17 +24,8 @@ void HALGeneralManager::set(HALGeneral* hal) {
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
 HALGeneralManager::HALGeneralManager() : hal_(nullptr) {
-    // Eager initialization - platform is known at compile time
-    // Create the appropriate HALGeneral implementation immediately
-#if defined(ARDUINO)
-    // Arduino platform
     static HALGeneralArduino arduino_hal;
     hal_ = &arduino_hal;
-#else
-    // Virtual/Test platform
-    static HALGeneralVirtual virtual_hal;
-    hal_ = &virtual_hal;
-#endif
 }
 
 }  // namespace modules

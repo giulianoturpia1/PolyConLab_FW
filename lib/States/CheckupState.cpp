@@ -3,6 +3,7 @@
 #include "Chiller.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
+#include "Logger.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -14,6 +15,8 @@
 #endif
 
 namespace modules {
+
+static const TaggedLogger kLog("CheckupState");
 
 definitions::SystemState CheckupState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
@@ -47,7 +50,7 @@ void CheckupState::on_enter(StateMachine* context) {
     (void) context;
     scadaOk_ = false;
     sensorOk_ = false;
-    hal_general().log("Iniciando Estado: CHECKUP");
+    kLog.info("Iniciando Estado: CHECKUP");
     apply_safe_outputs();
 }
 

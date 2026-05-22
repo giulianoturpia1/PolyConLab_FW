@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <string>
 
@@ -21,10 +22,10 @@
 namespace utils {
 
 ///
-/// @brief Trim whitespace from both ends of a string
+/// @brief Trim whitespace from both ends of a string.
 ///
-/// @param str Input string
-/// @return std::string Trimmed string
+/// @param str Input string.
+/// @return std::string Trimmed string.
 ///
 inline std::string trim(const std::string& str) {
     auto start = std::find_if_not(str.begin(), str.end(), [](unsigned char ch) { return std::isspace(ch); });
@@ -33,27 +34,38 @@ inline std::string trim(const std::string& str) {
 }
 
 ///
-/// @brief Check if a string starts with a given prefix
+/// @brief Check if a string starts with a given prefix.
 ///
-/// @param value String to check
-/// @param prefix Prefix to look for
-/// @return bool True if value starts with prefix
+/// @param value String to check.
+/// @param prefix Prefix to look for.
+/// @return bool True if value starts with prefix.
 ///
 inline bool starts_with(const std::string& value, const char* prefix) {
     if (prefix == nullptr) {
         return false;
     }
-
-    size_t prefix_len = std::strlen(prefix);
+    const size_t prefix_len = std::strlen(prefix);
     return value.size() >= prefix_len && value.compare(0, prefix_len, prefix) == 0;
 }
 
 ///
-/// @brief Format a float with specified precision
+/// @brief Format an integer value as a "0xNN" hex string.
 ///
-/// @param value Float value to format
-/// @param precision Number of decimal places
-/// @return std::string Formatted string
+/// @param value Value to format.
+/// @return std::string Hex string (e.g. "0x60").
+///
+inline std::string format_hex(uint32_t value) {
+    char buf[11];
+    snprintf(buf, sizeof(buf), "0x%02X", value);
+    return buf;
+}
+
+///
+/// @brief Format a float with specified precision.
+///
+/// @param value Float value to format.
+/// @param precision Number of decimal places.
+/// @return std::string Formatted string.
 ///
 inline std::string format_float(float value, int precision) {
     char buffer[32];
@@ -62,51 +74,83 @@ inline std::string format_float(float value, int precision) {
 }
 
 ///
-/// @brief Find a command in the command map by name
+/// @brief Look up a SCPI command string in the command table.
 ///
-/// @param cmd_name
-/// @return const definitions::CommandMap*
+/// @param cmd_name SCPI command string to search for (e.g. "OUTP:HEAT ON").
+/// @return const definitions::CommandEntry* Pointer to the matching entry, or nullptr if not found.
 ///
-inline const definitions::CommandMap* find_command(const std::string& cmd_name) {
+inline const definitions::CommandEntry* find_command(const std::string& cmd_name) {
     const auto it =
         std::find_if(definitions::kCommandMap.begin(), definitions::kCommandMap.end(),
-                     [&cmd_name](const definitions::CommandMap& entry) { return entry.name != nullptr && cmd_name == entry.name; });
+                     [&cmd_name](const definitions::CommandEntry& entry) { return entry.name != nullptr && cmd_name == entry.name; });
     return it != definitions::kCommandMap.end() ? &(*it) : nullptr;
 }
 
 ///
-/// @brief Resolve a response text from the response map
+/// @brief Look up a SCPI event string in the event table.
 ///
-/// @param type Response identifier
-/// @return const char* Canonical response text
+/// @param event_name SCPI event string to search for (e.g. "EVT:PAUSE").
+/// @return const definitions::EventEntry* Pointer to the matching entry, or nullptr if not found.
 ///
-inline const char* response(const definitions::ResponseType type) {
-    const auto it = std::find_if(
-        definitions::kResponseMap.begin(), definitions::kResponseMap.end(),
-        [type](const definitions::ResponseMap& response_entry) { return response_entry.name != nullptr && response_entry.type == type; });
-    if (it != definitions::kResponseMap.end()) {
-        return it->name;
-    }
-
-    return "";
+inline const definitions::EventEntry* find_event(const std::string& event_name) {
+    const auto it = std::find_if(definitions::kEventMap.begin(), definitions::kEventMap.end(),
+                                 [&event_name](const definitions::EventEntry& entry) { return event_name == entry.name; });
+    return it != definitions::kEventMap.end() ? &(*it) : nullptr;
 }
 
 ///
-/// @brief Resolve canonical response text for command acknowledgements.
+/// @brief Resolve a ResponseType to its canonical SCPI wire string.
 ///
-/// @param command Command identifier
-/// @return const char* Canonical response text, or nullptr if unsupported
+/// @param type Response type identifier.
+/// @return const char* Wire string (e.g. "ON", "-100,'Command error'"), or "ERROR:UNKNOWN_RESPONSE" if not found.
 ///
-inline const char* response_for_command(const definitions::CommandType command) {
-    const auto it = std::find_if(definitions::kCommandResponseMap.begin(), definitions::kCommandResponseMap.end(),
-                                 [command](const definitions::CommandResponseMap& entry) {
-                                     return response(entry.response)[0] != '\0' && entry.command == command;
-                                 });
-    if (it == definitions::kCommandResponseMap.end()) {
-        return "";
-    }
+inline const char* to_scpi(const definitions::ResponseType type) {
+    const auto it = std::find_if(definitions::kResponseMap.begin(), definitions::kResponseMap.end(),
+                                 [type](const definitions::ResponseEntry& entry) { return entry.name != nullptr && entry.type == type; });
+    return it != definitions::kResponseMap.end() ? it->name : "ERROR:UNKNOWN_RESPONSE";
+}
 
-    return response(it->response);
+///
+/// @brief Resolve a CommandType to its canonical SCPI response wire string.
+///
+/// Looks up the command in kCommandResponseMap to find its ResponseType, then resolves
+/// that to the wire string via to_scpi(ResponseType). Returns the unknown-command
+/// error string if the command has no registered response.
+///
+/// @param command Command type to look up.
+/// @return const char* Corresponding SCPI response wire string.
+///
+inline const char* to_scpi(const definitions::CommandType command) {
+    const auto it = std::find_if(definitions::kCommandResponseMap.begin(), definitions::kCommandResponseMap.end(),
+                                 [command](const definitions::CommandResponseEntry& entry) { return entry.command == command; });
+    return it != definitions::kCommandResponseMap.end() ? to_scpi(it->response) : to_scpi(definitions::ResponseType::kErrorUnknownCommand);
+}
+
+///
+/// @brief Look up the display name of a SystemState.
+///
+/// @param state System state to look up.
+/// @return const char* Human-readable state name (e.g. "MANUAL"), or "UNKNOWN" if not found.
+///
+inline const char* state_name(const definitions::SystemState state) {
+    const auto it = std::find_if(definitions::kStateNameMap.begin(), definitions::kStateNameMap.end(),
+                                 [state](const definitions::StateNameEntry& entry) { return entry.state == state; });
+    return it != definitions::kStateNameMap.end() ? it->name : "UNKNOWN";
+}
+
+///
+/// @brief Look up the SCPI command string for a given CommandType.
+///
+/// Reverses the kCommandMap lookup — useful for logging a command name
+/// without coupling to SCPI wire format concerns.
+///
+/// @param command Command type to look up.
+/// @return const char* SCPI command string (e.g. "OUTP:HEAT ON"), or "UNKNOWN" if not found.
+///
+inline const char* command_name(const definitions::CommandType command) {
+    const auto it = std::find_if(definitions::kCommandMap.begin(), definitions::kCommandMap.end(),
+                                 [command](const definitions::CommandEntry& entry) { return entry.command == command; });
+    return it != definitions::kCommandMap.end() ? it->name : "UNKNOWN";
 }
 
 }  // namespace utils

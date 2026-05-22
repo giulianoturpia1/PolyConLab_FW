@@ -3,14 +3,18 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kLevelSwitchTimeoutMs = 20;
+constexpr TickType_t kLevelSwitchTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kLevelSwitchTaskPriority = 2;
 constexpr UBaseType_t kLevelSwitchQueueLength = 8;
 constexpr uint32_t kLevelSwitchTaskStackSize = 2048;
 constexpr char kLevelSwitchTaskName[] = "level_switch_task";
 
 namespace modules {
+
+static const TaggedLogger kLog("LevelSwitch");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -19,14 +23,41 @@ LevelSwitch& LevelSwitch::instance() {
     return instance;
 }
 
+bool LevelSwitch::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kLevelSwitchQueueLength, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        kLog.error("No se pudo crear la cola del interruptor de nivel.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kLevelSwitchTaskName, kLevelSwitchTaskStackSize, this, kLevelSwitchTaskPriority, nullptr) != pdPASS) {
+        kLog.error("No se pudo crear la tarea del interruptor de nivel.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void LevelSwitch::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
 
-void LevelSwitch::begin(uint32_t pin) {
+bool LevelSwitch::begin(uint32_t pin) {
+    if (pin == 0) {
+        kLog.error("Pin invalido para el interruptor de nivel.");
+        return false;
+    }
+
     pin_ = pin;
     hal_general().pin_mode(pin_, PIN_MODE_INPUT);
     status_ = hal_general().digital_read(pin_);
+    return true;
 }
 
 bool LevelSwitch::status() const {
@@ -35,24 +66,6 @@ bool LevelSwitch::status() const {
 
 uint32_t LevelSwitch::pin() const {
     return pin_;
-}
-
-void LevelSwitch::start_task() {
-    if (queue_ != nullptr) {
-        return;
-    }
-
-    queue_ = xQueueCreate(kLevelSwitchQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del interruptor de nivel.");
-        return;
-    }
-
-    if (xTaskCreate(task_entry, kLevelSwitchTaskName, kLevelSwitchTaskStackSize, this, kLevelSwitchTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del interruptor de nivel.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-    }
 }
 
 bool LevelSwitch::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
@@ -78,7 +91,7 @@ bool LevelSwitch::process_command(definitions::CommandType command) {
     }
 }
 
-bool LevelSwitch::publish_response(const definitions::CommandRequest& response) {
+bool LevelSwitch::publish_response(const definitions::Command& response) {
     if (response_queue_ == nullptr) {
         return false;
     }
@@ -91,8 +104,11 @@ void LevelSwitch::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kLevelSwitchState;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, kLevelSwitchTaskWatchdogTicks) == pdPASS) {
             self->process_command(command);
+        }
+        if (self->queue_ == nullptr) {
+            break;
         }
     }
 }

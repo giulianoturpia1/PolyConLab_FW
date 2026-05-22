@@ -6,8 +6,11 @@
 #include <cmath>
 
 #include "HALGeneral.hpp"
+#include "Helpers.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kThermocoupleTimeoutMs = 20;
+constexpr TickType_t kThermocoupleTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kThermocoupleTaskPriority = 2;
 constexpr UBaseType_t kThermocoupleQueueLength = 8;
 constexpr uint32_t kThermocoupleTaskStackSize = 3072;
@@ -20,11 +23,34 @@ struct ThermocoupleCommand {
 
 namespace modules {
 
+static const TaggedLogger kLog("Thermocouple");
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
 Thermocouple& Thermocouple::instance() {
     static Thermocouple instance;
     return instance;
+}
+
+bool Thermocouple::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kThermocoupleQueueLength, sizeof(ThermocoupleCommand));
+    if (queue_ == nullptr) {
+        kLog.error("No se pudo crear la cola de termocuplas.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kThermocoupleTaskName, kThermocoupleTaskStackSize, this, kThermocoupleTaskPriority, nullptr) != pdPASS) {
+        kLog.error("No se pudo crear la tarea de termocuplas.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
 }
 
 void Thermocouple::set_response_queue(interfaces::ICommandResponseQueue* queue) {
@@ -34,8 +60,11 @@ void Thermocouple::set_response_queue(interfaces::ICommandResponseQueue* queue) 
 bool Thermocouple::begin(const uint32_t* adds, size_t count) {
     thermoc_count_ = 0;
 
+    Wire.begin();
+    Wire.setClock(100000);
+
     if (adds == nullptr || count == 0) {
-        hal_general().log("No se añadieron direcciones de thermocuplas para la inicializacion.");
+        kLog.warning("No se añadieron direcciones de thermocuplas para la inicializacion.");
         return false;
     }
 
@@ -46,26 +75,31 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
         }
     }
 
+    // Lower the I2C bus speed for runtime thermocouple access.
+    Wire.setClock(10000);
+
     return true;
 }
 
 bool Thermocouple::add(uint32_t address) {
+    const std::string hex_addr = utils::format_hex(address);
+
     uint8_t index = find_index(address);
     if (thermoc_count_ >= definitions::kMaxThermocouples) {
-        hal_general().log("No se pudo agregar la direccion de la termocupla: " + std::to_string(address) +
-                          ". Se alcanzo el limite de capacidad.");
+        kLog.error("No se pudo agregar la direccion de la termocupla: " + hex_addr + ". Se alcanzo el limite de capacidad.");
         return false;  // Capacity limit reached
     }
 
     if (index < thermoc_count_) {
-        hal_general().log("La termocupla ya estaba registrada: " + std::to_string(address));
+        kLog.warning("La termocupla ya estaba registrada: " + hex_addr);
         return true;  // Address already registered, consider it a success
     }
 
     // Initialize MCP9600 at the current slot
     uint8_t slot_index = thermoc_count_;
+    kLog.info("Iniciando termocupla en la direccion: " + hex_addr);
     if (!thermocouples_[slot_index].device.begin(address)) {
-        hal_general().log("No se pudo iniciar la termocupla en la direccion: " + std::to_string(address));
+        kLog.error("No se pudo iniciar la termocupla en la direccion: " + hex_addr);
         return false;
     }
 
@@ -87,7 +121,7 @@ bool Thermocouple::add(uint32_t address) {
 bool Thermocouple::remove(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        hal_general().log("Se intento eliminar una direccion no registrada: " + std::to_string(address));
+        kLog.warning("Se intento eliminar una direccion no registrada: " + utils::format_hex(address));
         return false;  // Address not found
     }
 
@@ -102,7 +136,7 @@ bool Thermocouple::remove(uint32_t address) {
 float Thermocouple::readCelcius(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        hal_general().log("Se intento leer una direccion no registrada: " + std::to_string(address));
+        kLog.warning("Se intento leer una direccion no registrada: " + utils::format_hex(address));
         return NAN;  // Return NaN if address not found
     }
 
@@ -114,28 +148,7 @@ uint8_t Thermocouple::count() const {
     return thermoc_count_;
 }
 
-bool Thermocouple::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kThermocoupleQueueLength, sizeof(ThermocoupleCommand));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola de termocuplas.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kThermocoupleTaskName, kThermocoupleTaskStackSize, this, kThermocoupleTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea de termocuplas.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
-}
-
-bool Thermocouple::send_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms) {
+bool Thermocouple::queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms) {
     const ThermocoupleCommand queue_command = {command, address};
     if (queue_ == nullptr || xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
@@ -146,25 +159,22 @@ bool Thermocouple::send_command(definitions::CommandType command, uint32_t addre
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-void Thermocouple::task_entry(void* param) {
-    Thermocouple* self = static_cast<Thermocouple*>(param);
-    ThermocoupleCommand command;
+Thermocouple::Thermocouple() : thermocouples_({}), thermoc_count_(0), queue_(nullptr), response_queue_(nullptr) {}
 
-    while (true) {
-        if (self->queue_ == nullptr) {
-            break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command.command, command.address);
+uint8_t Thermocouple::find_index(uint32_t address) const {
+    for (uint8_t index = 0; index < thermoc_count_; ++index) {
+        if (thermocouples_[index].address == address) {
+            return index;
         }
     }
+
+    return definitions::kMaxThermocouples;  // Return an out-of-range index to indicate not found
 }
 
 bool Thermocouple::process_command(definitions::CommandType command, uint32_t address) {
     uint32_t sensor_address = address;
     if (sensor_address == 0) {
-        hal_general().log("No se pudo procesar el comando. Direccion I2C invalida.");
+        kLog.error("No se pudo procesar el comando. Direccion I2C invalida.");
         return false;  // Invalid address
     }
 
@@ -180,7 +190,7 @@ bool Thermocouple::process_command(definitions::CommandType command, uint32_t ad
     return !std::isnan(temperature);
 }
 
-bool Thermocouple::publish_response(const definitions::CommandRequest& response) {
+bool Thermocouple::publish_response(const definitions::Command& response) {
     if (response_queue_ == nullptr) {
         return false;
     }
@@ -188,16 +198,18 @@ bool Thermocouple::publish_response(const definitions::CommandRequest& response)
     return response_queue_->publish(response, kThermocoupleTimeoutMs);
 }
 
-Thermocouple::Thermocouple() : thermocouples_({}), thermoc_count_(0), queue_(nullptr), response_queue_(nullptr) {}
+void Thermocouple::task_entry(void* param) {
+    Thermocouple* self = static_cast<Thermocouple*>(param);
+    ThermocoupleCommand command;
 
-uint8_t Thermocouple::find_index(uint32_t address) const {
-    for (uint8_t index = 0; index < thermoc_count_; ++index) {
-        if (thermocouples_[index].address == address) {
-            return index;
+    while (true) {
+        if (xQueueReceive(self->queue_, &command, kThermocoupleTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command.command, command.address);
+        }
+        if (self->queue_ == nullptr) {
+            break;
         }
     }
-
-    return definitions::kMaxThermocouples;  // Return an out-of-range index to indicate not found
 }
 
 }  // namespace modules

@@ -36,6 +36,11 @@ class Flowmeter {
     static Flowmeter& instance();
 
     ///
+    /// @brief Start the dedicated FreeRTOS task/queue for this module.
+    ///
+    bool create_task();
+
+    ///
     /// @brief Set the sink used to publish command execution responses.
     ///
     /// @param queue Response queue implementation. If nullptr, response publishing is disabled.
@@ -44,10 +49,12 @@ class Flowmeter {
 
     ///
     /// @brief Initialize flowmeter with the sensor pin and necessary hardware setup. Attach interrupts and timer.
+    /// If the flowmeter is already running, this is a no-op and returns true.
     ///
-    /// @param pinFlow_ Device Pin.
+    /// @param pinFlow_ Device pin.
+    /// @param pulsesPerLiter Calibration constant: sensor pulses per liter. Defaults to 450.0.
     ///
-    bool begin(uint32_t pinFlow_);
+    bool begin(uint32_t pinFlow_, float pulsesPerLiter = 450.0f);
 
     ///
     /// @brief Stop the flowmeter. Detach interrupts and end timer.
@@ -78,17 +85,12 @@ class Flowmeter {
     uint32_t pin() const;
 
     ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool start_task();
-
-    ///
-    /// @brief Send a Flowmeter command through the module queue.
+    /// @brief Queue a Flowmeter command through the module queue.
     /// @param command Command to be sent.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if command was queued, false otherwise.
     ///
-    bool send_command(definitions::CommandType command, uint32_t timeout_ms = 0);
+    bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
 
    private:
     Flowmeter();
@@ -115,10 +117,10 @@ class Flowmeter {
     /// @param response Response payload.
     /// @return true if the sink accepted the response.
     ///
-    bool publish_response(const definitions::CommandRequest& response);
+    bool publish_response(const definitions::Command& response);
 
     ///
-    /// @brief FreeRTOS task entry point for processing valve commands from the queue.
+    /// @brief FreeRTOS task entry point for processing flowmeter commands from the queue.
     ///
     /// @param param
     ///
@@ -126,6 +128,7 @@ class Flowmeter {
 
     uint32_t pin_;                                       ///< Pin used for flowmeter control
     bool status_;                                        ///< Current flowmeter status
+    float pulsesPerLiter_;                               ///< Calibration constant: sensor pulses per liter
     QueueHandle_t queue_;                                ///< FreeRTOS queue handle for flowmeter commands
     interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
 };

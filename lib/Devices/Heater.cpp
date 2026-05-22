@@ -3,15 +3,18 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kHeaterTimeoutMs = 20;
+constexpr TickType_t kHeaterTaskWatchdogTicks = portMAX_DELAY;
 constexpr UBaseType_t kHeaterTaskPriority = 2;
 constexpr UBaseType_t kHeaterQueueLength = 8;
 constexpr uint32_t kHeaterTaskStackSize = 2048;
 constexpr char kHeaterTaskName[] = "heater_task";
-constexpr uint32_t kHeaterTaskPollTimeoutMs = 20;
 
 namespace modules {
+
+static const TaggedLogger kLog("Heater");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -20,13 +23,34 @@ Heater& Heater::instance() {
     return instance;
 }
 
+bool Heater::create_task() {
+    if (queue_ != nullptr) {
+        return true;
+    }
+
+    queue_ = xQueueCreate(kHeaterQueueLength, sizeof(definitions::CommandType));
+    if (queue_ == nullptr) {
+        kLog.error("No se pudo crear la cola del calentador.");
+        return false;
+    }
+
+    if (xTaskCreate(task_entry, kHeaterTaskName, kHeaterTaskStackSize, this, kHeaterTaskPriority, nullptr) != pdPASS) {
+        kLog.error("No se pudo crear la tarea del calentador.");
+        vQueueDelete(queue_);
+        queue_ = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
 void Heater::set_response_queue(interfaces::ICommandResponseQueue* queue) {
     response_queue_ = queue;
 }
 
 bool Heater::begin(uint32_t pin) {
     if (pin == 0) {
-        hal_general().log("Pin invalido para el calentador.");
+        kLog.error("Pin invalido para el calentador.");
         return false;
     }
 
@@ -52,27 +76,6 @@ bool Heater::status() const {
 
 uint32_t Heater::pin() const {
     return pin_;
-}
-
-bool Heater::start_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(kHeaterQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del calentador.");
-        return false;
-    }
-
-    if (xTaskCreate(task_entry, kHeaterTaskName, kHeaterTaskStackSize, this, kHeaterTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del calentador.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
 }
 
 bool Heater::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
@@ -108,7 +111,7 @@ bool Heater::process_command(definitions::CommandType command) {
     }
 }
 
-bool Heater::publish_response(const definitions::CommandRequest& response) {
+bool Heater::publish_response(const definitions::Command& response) {
     if (response_queue_ == nullptr) {
         return false;
     }
@@ -121,12 +124,11 @@ void Heater::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kHeaterOff;
 
     while (true) {
+        if (xQueueReceive(self->queue_, &command, kHeaterTaskWatchdogTicks) == pdPASS) {
+            self->process_command(command);
+        }
         if (self->queue_ == nullptr) {
             break;
-        }
-
-        if (xQueueReceive(self->queue_, &command, portMAX_DELAY) == pdPASS) {
-            self->process_command(command);
         }
     }
 }

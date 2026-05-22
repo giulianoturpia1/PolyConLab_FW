@@ -3,6 +3,7 @@
 #include "Chiller.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
+#include "Logger.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -14,6 +15,8 @@
 #endif
 
 namespace modules {
+
+static const TaggedLogger kLog("HardErrorState");
 
 definitions::SystemState HardErrorState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
@@ -42,7 +45,7 @@ void HardErrorState::on_enter(StateMachine* context) {
     (void) context;
     resetFaultRequested_ = false;
     conditionsOk_ = false;
-    hal_general().log("Iniciando Estado: HARD_ERROR - Sistema bloqueado");
+    kLog.error("Iniciando Estado: HARD_ERROR - Sistema bloqueado");
     apply_safe_outputs();
     close_all_valves_if_supported();
 }
