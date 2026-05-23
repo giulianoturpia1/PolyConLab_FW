@@ -12,6 +12,10 @@
 #include "PLC19R.hpp"
 #endif
 
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+
 namespace modules {
 
 static const TaggedLogger kLog("Communications");
@@ -100,7 +104,8 @@ Communications::Communications()
     : ethernet_response_callback_(nullptr),
       serial_response_callback_(nullptr),
       local_server_(LocalServer::instance()),
-      last_link_up_(true) {}
+      last_link_up_(true),
+      pending_respond_(nullptr) {}
 
 void Communications::handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond) {
     const std::string trimmed = utils::trim(msg);
@@ -144,9 +149,15 @@ void Communications::handle_command(const std::string& msg, const std::function<
     if (cmd->command == definitions::CommandType::kValveOpen || cmd->command == definitions::CommandType::kValveClose ||
         cmd->command == definitions::CommandType::kValveState) {
         extra = parse_valve_pin(msg);
+        if (extra == 0) {
+            respond(utils::to_scpi(definitions::ResponseType::kErrorInvalidParam));
+            return;
+        }
     }
 
+    pending_respond_ = respond;
     if (!StateMachine::instance().queue_command({cmd->command, extra}, kCommsQueueTimeoutMs)) {
+        pending_respond_ = nullptr;
         respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
     }
 }
@@ -167,6 +178,60 @@ void Communications::handle_event(const std::string& msg, const std::function<vo
     if (!StateMachine::instance().queue_event(evt->event, kCommsQueueTimeoutMs)) {
         respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownEvent));
     }
+}
+
+void Communications::handle_response(const definitions::Command& cmd) {
+    if (!pending_respond_) {
+        return;
+    }
+
+    std::string response;
+
+    switch (cmd.type) {
+        // Boolean state queries: extra = 1 → ON/HIGH, 0 → OFF/LOW
+        case definitions::CommandType::kHeaterState:
+        case definitions::CommandType::kPumpState:
+        case definitions::CommandType::kChillerState:
+            response =
+                cmd.extra ? utils::to_scpi(definitions::ResponseType::kStatusOn) : utils::to_scpi(definitions::ResponseType::kStatusOff);
+            break;
+        case definitions::CommandType::kLevelSwitchState:
+            response =
+                cmd.extra ? utils::to_scpi(definitions::ResponseType::kStatusHigh) : utils::to_scpi(definitions::ResponseType::kStatusLow);
+            break;
+        // Numeric reads: extra holds IEEE-754 float bits packed via memcpy
+        case definitions::CommandType::kTempInRead:
+        case definitions::CommandType::kTempOutRead:
+        case definitions::CommandType::kTempBathRead:
+        case definitions::CommandType::kTempMixRead:
+        case definitions::CommandType::kFlowRead: {
+            float val;
+            std::memcpy(&val, &cmd.extra, sizeof(float));
+            if (std::isnan(val)) {
+                response = utils::to_scpi(definitions::ResponseType::kErrorSensorFault);
+                break;
+            }
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "%.2f", val);
+            response = buf;
+            break;
+        }
+        // State query: extra holds the SystemState enum value cast to uint32_t
+        case definitions::CommandType::kStateQuery:
+            response = utils::state_name(static_cast<definitions::SystemState>(cmd.extra));
+            break;
+        // Error sentinel: extra holds the ResponseType cast to uint32_t
+        case definitions::CommandType::kCommandError:
+            response = utils::to_scpi(static_cast<definitions::ResponseType>(cmd.extra));
+            break;
+        // All other commands: static lookup through kCommandResponseMap
+        default:
+            response = utils::to_scpi(cmd.type);
+            break;
+    }
+
+    pending_respond_(response);
+    pending_respond_ = nullptr;
 }
 
 uint32_t Communications::parse_valve_pin(const std::string& msg) const {

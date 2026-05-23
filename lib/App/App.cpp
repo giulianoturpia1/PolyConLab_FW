@@ -132,6 +132,7 @@ void App::initialize_system() {
     // Create and Initialize State Machine
     state_machine_.initialize();
     state_machine_.create_task();
+    state_machine_.set_response_callback([](const definitions::Command& cmd) { Communications::instance().handle_response(cmd); });
 
     // Create Tasks for all modules except State Machine
     create_tasks();  // Initialized in main.cpp

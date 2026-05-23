@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -140,6 +141,16 @@ class StateMachine {
     ///
     bool is_in_state(definitions::SystemState state) const;
 
+    ///
+    /// @brief Register a callback invoked for every command outcome: success or failure.
+    ///
+    /// On success the Command carries the confirmed payload.
+    /// On failure cmd.type == CommandType::kCommandError and cmd.extra holds the ResponseType.
+    ///
+    /// @param callback Callable invoked with the outcome Command.
+    ///
+    void set_response_callback(std::function<void(const definitions::Command&)> callback);
+
    private:
     StateMachine();
     // Rule of Five
@@ -172,7 +183,7 @@ class StateMachine {
     /// @brief Compare command intent against an executed command report.
     ///
     /// @param request Pending command request.
-    /// @param command Reported executed command.
+    /// @param response Reported executed command.
     /// @return true when report confirms the pending command execution.
     ///
     bool response_matches_command(const definitions::Command& request, const definitions::Command& response) const;
@@ -269,6 +280,8 @@ class StateMachine {
     unsigned long pendingCommandTimeMs_;   ///< Timestamp of when the pending command was sent
     bool commandPending_;                  ///< Flag indicating if there is a command pending execution confirmation
     bool lastCommandConfirmed_;            ///< Flag indicating if the last command was confirmed as executed by a module
+    std::function<void(const definitions::Command&)>
+        response_callback_;  ///< Fired on every command outcome; kCommandError type encodes failures
 };
 
 }  // namespace modules

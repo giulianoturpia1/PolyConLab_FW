@@ -111,10 +111,7 @@ enum class CommandType {
     kTempMixRead,
 
     // Flow meter command
-    kFlowOn,
-    kFlowOff,
     kFlowRead,
-    kFlowStatus,
 
     // Level switch command
     kLevelSwitchState,
@@ -126,7 +123,12 @@ enum class CommandType {
     // System commands
     kLogOn,
     kLogOff,
-    kLogQuery
+    kLogQuery,
+
+    // Internal sentinel — never appears in kCommandMap or over the wire.
+    // Used to route command errors through the unified response callback.
+    // extra holds the ResponseType cast to uint32_t.
+    kCommandError
 };
 
 ///
@@ -142,7 +144,14 @@ enum class ResponseType {
     kStatusOpen,
     kStatusClosed,
     kStatusHigh,
-    kStatusLow
+    kStatusLow,
+    kErrorCommandRejected,  ///< Command not accepted in the current FSM state
+    kErrorCommandTimeout,   ///< Device did not confirm command execution within timeout
+    kErrorInvalidParam,     ///< Command parameter is out of range (e.g. valve number = 0)
+    kErrorSensorFault,      ///< Sensor returned NaN (disconnected or CRC failure)
+    kMeasTemp,              ///< Runtime-formatted temperature reading in Celsius — no static wire string
+    kMeasFlow,              ///< Runtime-formatted flow rate in L/min — no static wire string
+    kStateValue,            ///< Runtime-formatted FSM state name — no static wire string
 };
 
 ///
@@ -150,7 +159,11 @@ enum class ResponseType {
 ///
 struct Command {
     CommandType type;  ///< Command type identifier
-    uint32_t extra;    ///< Generic extra field: pin number or I2C address depending on command
+    uint32_t extra;    ///< Generic payload — interpretation depends on CommandType:
+                       ///<   actuator/sensor pin or I2C address for device commands;
+                       ///<   IEEE-754 float bits for temperature/flow reads;
+                       ///<   SystemState cast to uint32_t for kStateQuery;
+                       ///<   ResponseType cast to uint32_t for kCommandError.
 };
 
 ///
@@ -217,7 +230,7 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
     {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<CommandEntry, 26> kCommandMap = {{
+constexpr std::array<CommandEntry, 23> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
     {("OUTP:HEAT?"), CommandType::kHeaterState},
@@ -234,9 +247,6 @@ constexpr std::array<CommandEntry, 26> kCommandMap = {{
     {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead},
     {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
     {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
-    {("OUTP:FLOW ON"), CommandType::kFlowOn},
-    {("OUTP:FLOW OFF"), CommandType::kFlowOff},
-    {("OUTP:FLOW?"), CommandType::kFlowStatus},
     {("MEAS:FLOW?"), CommandType::kFlowRead},
     {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
     {("PING"), CommandType::kPing},
@@ -246,20 +256,24 @@ constexpr std::array<CommandEntry, 26> kCommandMap = {{
     {("SYST:LOG?"), CommandType::kLogQuery},
 }};
 
-constexpr std::array<ResponseEntry, 10> kResponseMap = {{
-    {"-100,’Command error’", ResponseType::kErrorUnknownCommand},
-    {"-200,’Execution error’", ResponseType::kErrorEmptyEvent},
-    {"-300,’Unknown event’", ResponseType::kErrorUnknownEvent},
+constexpr std::array<ResponseEntry, 14> kResponseMap = {{
+    {"-100,’UNKNOWN COMMAND’", ResponseType::kErrorUnknownCommand},
+    {"-200,’EMPTY EVENT’", ResponseType::kErrorEmptyEvent},
+    {"-300,’UNKNOWN EVENT’", ResponseType::kErrorUnknownEvent},
+    {"-101,’COMMAND REJECTED’", ResponseType::kErrorCommandRejected},
+    {"-102,’COMMAND TIMEOUT’", ResponseType::kErrorCommandTimeout},
+    {"-220,’INVALID PARAMETER’", ResponseType::kErrorInvalidParam},
+    {"-103,’SENSOR FAULT’", ResponseType::kErrorSensorFault},
     {"PONG", ResponseType::kPingOk},
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},
     {"OPEN", ResponseType::kStatusOpen},
-    {"CLOSED ", ResponseType::kStatusClosed},
+    {"CLOSED", ResponseType::kStatusClosed},
     {"HIGH", ResponseType::kStatusHigh},
     {"LOW", ResponseType::kStatusLow},
 }};
 
-constexpr std::array<CommandResponseEntry, 26> kCommandResponseMap = {{
+constexpr std::array<CommandResponseEntry, 23> kCommandResponseMap = {{
     {CommandType::kHeaterOn, ResponseType::kStatusOn},
     {CommandType::kHeaterOff, ResponseType::kStatusOff},
     {CommandType::kHeaterState, ResponseType::kStatusOn},
@@ -272,17 +286,14 @@ constexpr std::array<CommandResponseEntry, 26> kCommandResponseMap = {{
     {CommandType::kValveOpen, ResponseType::kStatusOpen},
     {CommandType::kValveClose, ResponseType::kStatusClosed},
     {CommandType::kValveState, ResponseType::kStatusOpen},
-    {CommandType::kTempInRead, ResponseType::kStatusOn},
-    {CommandType::kTempOutRead, ResponseType::kStatusOn},
-    {CommandType::kTempBathRead, ResponseType::kStatusOn},
-    {CommandType::kTempMixRead, ResponseType::kStatusOn},
-    {CommandType::kFlowOn, ResponseType::kStatusOn},
-    {CommandType::kFlowOff, ResponseType::kStatusOff},
-    {CommandType::kFlowRead, ResponseType::kStatusOn},
-    {CommandType::kFlowStatus, ResponseType::kStatusOn},
+    {CommandType::kTempInRead, ResponseType::kMeasTemp},
+    {CommandType::kTempOutRead, ResponseType::kMeasTemp},
+    {CommandType::kTempBathRead, ResponseType::kMeasTemp},
+    {CommandType::kTempMixRead, ResponseType::kMeasTemp},
+    {CommandType::kFlowRead, ResponseType::kMeasFlow},
     {CommandType::kLevelSwitchState, ResponseType::kStatusHigh},
     {CommandType::kPing, ResponseType::kPingOk},
-    {CommandType::kStateQuery, ResponseType::kPingOk},
+    {CommandType::kStateQuery, ResponseType::kStateValue},
     {CommandType::kLogOn, ResponseType::kStatusOn},
     {CommandType::kLogOff, ResponseType::kStatusOff},
     {CommandType::kLogQuery, ResponseType::kStatusOn},

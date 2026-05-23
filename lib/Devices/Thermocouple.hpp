@@ -70,7 +70,7 @@ class Thermocouple {
     /// issue as the controller will ignore duplicates.
     ///
     /// @param address Address of Thermocouple Amplifier.
-    /// @return true if the valve was registered or already existed, false on capacity limit.
+    /// @return true if the thermocouple was registered or already existed, false on capacity limit.
     ///
     bool add(uint32_t address);
 
@@ -78,8 +78,7 @@ class Thermocouple {
     /// @brief Remove a Thermocouple Amplifier from the controller.
     ///
     /// @param address Address of Thermocouple Amplifier.
-    /// @return true if the valve was found and removed, false if the pin was not registered.
-    /// @return false if the address was not registered.
+    /// @return true if the thermocouple was found and removed, false if the address was not registered.
     ///
     bool remove(uint32_t address);
 
@@ -127,12 +126,13 @@ class Thermocouple {
     uint8_t find_index(uint32_t address) const;
 
     ///
-    /// @brief Process a Thermocouple Amplifier command directly, without queueing. Used as a fallback when the queue is unavailable.
+    /// @brief Process a Thermocouple Amplifier command from the task loop.
+    /// Reads the sensor at the given address and publishes a response with the temperature
+    /// packed as IEEE-754 bits in extra, or NaN bits if the sensor is unavailable.
     ///
-    /// @param command Command to be processed.
-    /// @param address Address of the Thermocouple Amplifier.
-    /// @return true
-    /// @return false
+    /// @param command Command to be processed (must be a kTemp*Read variant).
+    /// @param address I2C address of the Thermocouple Amplifier.
+    /// @return true if the command was handled and a response published, false otherwise.
     ///
     bool process_command(definitions::CommandType command, uint32_t address);
 
@@ -155,9 +155,9 @@ class Thermocouple {
     /// @brief Internal structure to hold thermocouple information.
     ///
     struct ThermocoupleSlot {
-        uint32_t address;         // I2C address of the Thermocouple Amplifier
-        bool status;              //< Current Thermocouple Amplifier status
-        Adafruit_MCP9600 device;  //< MCP9600 driver instance for this thermocouple
+        uint32_t address;         ///< I2C address of the Thermocouple Amplifier
+        bool status;              ///< True when the amplifier was successfully initialized
+        Adafruit_MCP9600 device;  ///< MCP9600 driver instance for this thermocouple
     };
 
     std::array<ThermocoupleSlot, definitions::kMaxThermocouples>

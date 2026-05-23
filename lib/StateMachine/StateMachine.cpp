@@ -79,7 +79,7 @@ bool StateMachine::create_task() {
     gStateCommandQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::Command));
     gStateResponseQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::Command));
     if (gStateEventQueue == nullptr || gStateCommandQueue == nullptr || gStateResponseQueue == nullptr) {
-        kLog.error("No se pudo crear la queue de la maquina de estados.");
+        kLog.error("No se pudo crear la cola de la maquina de estados.");
         if (gStateEventQueue != nullptr) {
             vQueueDelete(gStateEventQueue);
             gStateEventQueue = nullptr;
@@ -187,6 +187,10 @@ bool StateMachine::is_in_state(definitions::SystemState state) const {
     return currentState_ == state;
 }
 
+void StateMachine::set_response_callback(std::function<void(const definitions::Command&)> callback) {
+    response_callback_ = callback;
+}
+
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
 StateMachine::StateMachine()
@@ -198,7 +202,8 @@ StateMachine::StateMachine()
       pendingCommand_({definitions::CommandType::kHeaterOff, 0}),
       pendingCommandTimeMs_(0),
       commandPending_(false),
-      lastCommandConfirmed_(false) {
+      lastCommandConfirmed_(false),
+      response_callback_(nullptr) {
     stateHandlers_.emplace(definitions::SystemState::kStartup, std::unique_ptr<IState>(new StartupState()));
     stateHandlers_.emplace(definitions::SystemState::kCheckup, std::unique_ptr<IState>(new CheckupState()));
     stateHandlers_.emplace(definitions::SystemState::kManual, std::unique_ptr<IState>(new ManualState()));
@@ -263,11 +268,29 @@ void StateMachine::process_event(definitions::SystemEvent event) {
 }
 
 void StateMachine::process_command(const definitions::Command& request) {
+    // Handle instant SM-level queries without a device task round-trip.
+    if (request.type == definitions::CommandType::kPing) {
+        if (response_callback_) {
+            response_callback_({definitions::CommandType::kPing, 0u});
+        }
+        return;
+    }
+    if (request.type == definitions::CommandType::kStateQuery) {
+        if (response_callback_) {
+            response_callback_({definitions::CommandType::kStateQuery, static_cast<uint32_t>(currentState_)});
+        }
+        return;
+    }
+
     IState* stateHandler = get_state_handler(currentState_);
     if (stateHandler == nullptr) {
         transition_to(definitions::SystemState::kHardError);
         lastCommandConfirmed_ = false;
         commandPending_ = false;
+        if (response_callback_) {
+            response_callback_(
+                {definitions::CommandType::kCommandError, static_cast<uint32_t>(definitions::ResponseType::kErrorCommandRejected)});
+        }
         return;
     }
 
@@ -275,6 +298,10 @@ void StateMachine::process_command(const definitions::Command& request) {
         kLog.warning("Comando recibido, pero no se pudo ejecutar en el estado actual: " + std::string(utils::state_name(currentState_)));
         lastCommandConfirmed_ = false;
         commandPending_ = false;
+        if (response_callback_) {
+            response_callback_(
+                {definitions::CommandType::kCommandError, static_cast<uint32_t>(definitions::ResponseType::kErrorCommandRejected)});
+        }
         return;
     }
 
@@ -291,14 +318,14 @@ void StateMachine::process_response(const definitions::Command& response) {
         commandPending_ = false;
         lastCommandConfirmed_ = true;
         kLog.debug("Comando confirmado como ejecutado por modulo.");
+        // Notify any registered callback about the confirmed execution.
+        if (response_callback_) {
+            response_callback_(response);
+        }
     }
 
     std::string logMessage = "Respuesta del modulo: ";
-    logMessage += utils::command_name(response.type);
-    if (response.type == definitions::CommandType::kValveOpen || response.type == definitions::CommandType::kValveClose) {
-        logMessage += "," + std::to_string(response.extra);
-    }
-
+    logMessage = utils::command_name(response.type);
     kLog.debug(logMessage);
 }
 
@@ -364,9 +391,19 @@ void StateMachine::handle_command_feedback_timeout() {
     }
     const unsigned long now_ms = hal_general().millis();
     if ((now_ms - pendingCommandTimeMs_) >= kCommandFeedbackTimeoutMs) {
-        kLog.warning("Timeout esperando confirmacion de ejecucion para comando pendiente.");
+        std::string logMessage = "Timeout esperando confirmacion de ejecucion para comando pendiente: ";
+        logMessage += utils::command_name(pendingCommand_.type);
+        // Special case for valve commands to include the valve number in the log.
+        if (pendingCommand_.type == definitions::CommandType::kValveOpen || pendingCommand_.type == definitions::CommandType::kValveClose) {
+            logMessage += "," + std::to_string(pendingCommand_.extra);
+        }
+        kLog.warning(logMessage);
         commandPending_ = false;
         lastCommandConfirmed_ = false;
+        if (response_callback_) {
+            response_callback_(
+                {definitions::CommandType::kCommandError, static_cast<uint32_t>(definitions::ResponseType::kErrorCommandTimeout)});
+        }
     }
 }
 
