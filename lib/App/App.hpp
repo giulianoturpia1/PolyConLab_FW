@@ -67,8 +67,8 @@ class App {
     App& operator=(App&&) = delete;
 
     ///
-    /// @brief Initialize the Ethernet server and related settings.
-    ///
+    /// @brief Initialize the Ethernet TCP server (bind, begin, link-check setup).
+    /// Serial transport wiring is done separately in initialize_system().
     ///
     void initialize_network_server();
 

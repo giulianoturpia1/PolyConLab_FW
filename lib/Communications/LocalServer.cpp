@@ -1,8 +1,16 @@
 #include "LocalServer.hpp"
 
+#include <Arduino.h>
+#include <Ethernet.h>
+
+#include <memory>
+
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
+
+constexpr uint16_t kLocalServerPort = 80;
+static EthernetServer gEthernetServer(kLocalServerPort);
 
 namespace modules {
 
@@ -15,21 +23,14 @@ LocalServer& LocalServer::instance() {
     return instance;
 }
 
-void LocalServer::initialize(EthernetServer& server) {
-    ethernet_server_ = &server;
-    is_initialized_ = false;
-}
-
-bool LocalServer::begin(const std::array<byte, 6>& mac, const IPAddress& ip) {
-    ethernet_mac_address_ = mac;
-    ethernet_ip_address_ = ip;
-    Ethernet.begin(ethernet_mac_address_.data(), ethernet_ip_address_);
+bool LocalServer::begin(const std::array<uint8_t, 6>& mac, const std::array<uint8_t, 4>& ip) {
+    Ethernet.begin(const_cast<uint8_t*>(mac.data()), const_cast<uint8_t*>(ip.data()));
 
     if (!ensure_connection()) {
         return false;
     }
 
-    ethernet_server_->begin();
+    gEthernetServer.begin();
     std::string msg = "Server is at: ";
     IPAddress local_ip = Ethernet.localIP();
     for (int i = 0; i < 4; i++) {
@@ -43,12 +44,33 @@ bool LocalServer::begin(const std::array<byte, 6>& mac, const IPAddress& ip) {
     return true;
 }
 
+///
+/// @brief Build a write-back callable bound to a specific connected TCP client.
+///
+/// The returned lambda captures the client by shared_ptr so it stays alive for the
+/// duration of the deferred response round-trip (command → StateMachine → response).
+/// Calling it sends the SCPI response string over the TCP connection, provided the
+/// client is still connected at delivery time. Silently discards if the connection
+/// has closed.
+///
+/// @param client Shared pointer to the EthernetClient that sent the command.
+/// @return LocalServer::ClientResponseCallback Callable that writes one response line to that client.
+///
+static LocalServer::ClientResponseCallback create_response_callback(std::shared_ptr<EthernetClient> client) {
+    return [client](const std::string& response) {
+        if (client->connected()) {
+            client->println(response.c_str());
+            kLog.debug("Respuesta Enviada: " + response);
+        }
+    };
+}
+
 void LocalServer::poll(const ClientMessageHandler& handler) {
     if (!ensure_connection()) {
         return;
     }
 
-    EthernetClient client = ethernet_server_->available();
+    EthernetClient client = gEthernetServer.available();
     if (!client || !client.connected() || !client.available()) {
         return;
     }
@@ -66,15 +88,6 @@ void LocalServer::poll(const ClientMessageHandler& handler) {
     ClientResponseCallback respond = create_response_callback(client_ptr);
 
     handler(msg, respond);
-}
-
-LocalServer::ClientResponseCallback LocalServer::create_response_callback(std::shared_ptr<EthernetClient> client) {
-    return [client](const std::string& response) {
-        if (client->connected()) {
-            client->println(response.c_str());
-            kLog.debug("Respuesta Enviada: " + response);
-        }
-    };
 }
 
 bool LocalServer::ensure_connection() {
@@ -113,15 +126,10 @@ bool LocalServer::is_link_up() const {
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
 void LocalServer::restart_server() {
-    ethernet_server_->begin();
+    gEthernetServer.begin();
     is_initialized_ = true;
 }
 
-LocalServer::LocalServer()
-    : ethernet_server_(nullptr),
-      is_initialized_(false),
-      ethernet_link_up_(false),
-      ethernet_mac_address_{},
-      ethernet_ip_address_(0, 0, 0, 0) {}
+LocalServer::LocalServer() : is_initialized_(false), ethernet_link_up_(false) {}
 
 }  // namespace modules

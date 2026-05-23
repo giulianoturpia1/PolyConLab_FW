@@ -12,15 +12,11 @@
 #include "PLC19R.hpp"
 #endif
 
-#include <cmath>
-#include <cstdio>
-#include <cstring>
-
 namespace modules {
 
 static const TaggedLogger kLog("Communications");
 
-constexpr uint32_t kCommsQueueTimeoutMs = 10;
+constexpr uint32_t kCommsQueueTimeoutMs = 20;
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -29,51 +25,10 @@ Communications& Communications::instance() {
     return instance;
 }
 
-void Communications::set_ethernet_response_callback(const std::function<void(const std::string&)>& callback) {
-    ethernet_response_callback_ = callback;
-}
-
-void Communications::set_serial_response_callback(const std::function<void(const std::string&)>& callback) {
-    serial_response_callback_ = callback;
-}
-
-void Communications::initialize_server(EthernetServer& server, const std::array<byte, 6>& mac, const IPAddress& ip) {
-    local_server_.initialize(server);
+void Communications::initialize_server(const std::array<uint8_t, 6>& mac, const std::array<uint8_t, 4>& ip,
+                                       std::function<void(const std::string&)> serial_send) {
+    serial_send_ = std::move(serial_send);
     local_server_.begin(mac, ip);
-}
-
-void Communications::handle_ethernet_message(const std::string& msg) {
-    if (!ethernet_response_callback_) {
-        return;
-    }
-
-    handle_message(msg, ethernet_response_callback_);
-}
-
-void Communications::handle_serial_message(const std::string& msg) {
-    if (!serial_response_callback_) {
-        return;
-    }
-
-    handle_message(msg, serial_response_callback_);
-}
-
-void Communications::poll_serial() {
-    if (!Serial.available()) {
-        return;
-    }
-
-    String arduino_msg = Serial.readStringUntil('\n');
-    arduino_msg.trim();
-    if (arduino_msg.length() == 0) {
-        return;
-    }
-
-    std::string msg(arduino_msg.c_str());
-    if (!serial_response_callback_) {
-        return;
-    }
-    handle_message(msg, serial_response_callback_);
 }
 
 void Communications::poll_ethernet() {
@@ -90,98 +45,31 @@ void Communications::poll_ethernet() {
             StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
         }
         local_server_.poll([this](const std::string& msg, const LocalServer::ClientResponseCallback& client_respond) {
-            set_ethernet_response_callback(client_respond);
-            handle_ethernet_message(msg);
+            ethernet_send_ = client_respond;
+            active_transport_ = definitions::Transport::kEthernet;
+            handle_message(msg);
         });
     }
 
     last_link_up_ = link_up;
 }
 
-////////////////////////////////////// Private Methods //////////////////////////////////////
-
-Communications::Communications()
-    : ethernet_response_callback_(nullptr),
-      serial_response_callback_(nullptr),
-      local_server_(LocalServer::instance()),
-      last_link_up_(true),
-      pending_respond_(nullptr) {}
-
-void Communications::handle_message(const std::string& msg, const std::function<void(const std::string&)>& respond) {
-    const std::string trimmed = utils::trim(msg);
-    if (trimmed.empty()) {
-        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
+void Communications::poll_serial() {
+    if (hal_general().serial_available() <= 0) {
         return;
     }
 
-    if (utils::starts_with(trimmed, "EVT:")) {
-        handle_event(trimmed, respond);
+    const std::string msg = utils::trim(hal_general().serial_read_line());
+    if (msg.empty()) {
         return;
     }
 
-    handle_command(trimmed, respond);
-}
-
-void Communications::handle_command(const std::string& msg, const std::function<void(const std::string&)>& respond) {
-    const std::string base_command = msg.substr(0, msg.find(','));
-    const definitions::CommandEntry* cmd = utils::find_command(base_command);
-    if (!cmd) {
-        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
-        return;
-    }
-
-    if (cmd->command == definitions::CommandType::kLogOn) {
-        logger().set_enabled(true);
-        respond(utils::to_scpi(definitions::ResponseType::kStatusOn));
-        return;
-    }
-    if (cmd->command == definitions::CommandType::kLogOff) {
-        logger().set_enabled(false);
-        respond(utils::to_scpi(definitions::ResponseType::kStatusOff));
-        return;
-    }
-    if (cmd->command == definitions::CommandType::kLogQuery) {
-        respond(utils::to_scpi(logger().is_enabled() ? definitions::ResponseType::kStatusOn : definitions::ResponseType::kStatusOff));
-        return;
-    }
-
-    uint32_t extra = 0;
-    if (cmd->command == definitions::CommandType::kValveOpen || cmd->command == definitions::CommandType::kValveClose ||
-        cmd->command == definitions::CommandType::kValveState) {
-        extra = parse_valve_pin(msg);
-        if (extra == 0) {
-            respond(utils::to_scpi(definitions::ResponseType::kErrorInvalidParam));
-            return;
-        }
-    }
-
-    pending_respond_ = respond;
-    if (!StateMachine::instance().queue_command({cmd->command, extra}, kCommsQueueTimeoutMs)) {
-        pending_respond_ = nullptr;
-        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
-    }
-}
-
-void Communications::handle_event(const std::string& msg, const std::function<void(const std::string&)>& respond) {
-    // "EVT:" with nothing after it
-    if (msg.length() <= 4) {
-        respond(utils::to_scpi(definitions::ResponseType::kErrorEmptyEvent));
-        return;
-    }
-
-    const definitions::EventEntry* evt = utils::find_event(msg);
-    if (!evt) {
-        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownEvent));
-        return;
-    }
-
-    if (!StateMachine::instance().queue_event(evt->event, kCommsQueueTimeoutMs)) {
-        respond(utils::to_scpi(definitions::ResponseType::kErrorUnknownEvent));
-    }
+    active_transport_ = definitions::Transport::kSerial;
+    handle_message(msg);
 }
 
 void Communications::handle_response(const definitions::Command& cmd) {
-    if (!pending_respond_) {
+    if (pending_transport_ == definitions::Transport::kNone) {
         return;
     }
 
@@ -204,18 +92,9 @@ void Communications::handle_response(const definitions::Command& cmd) {
         case definitions::CommandType::kTempOutRead:
         case definitions::CommandType::kTempBathRead:
         case definitions::CommandType::kTempMixRead:
-        case definitions::CommandType::kFlowRead: {
-            float val;
-            std::memcpy(&val, &cmd.extra, sizeof(float));
-            if (std::isnan(val)) {
-                response = utils::to_scpi(definitions::ResponseType::kErrorSensorFault);
-                break;
-            }
-            char buf[16];
-            std::snprintf(buf, sizeof(buf), "%.2f", val);
-            response = buf;
+        case definitions::CommandType::kFlowRead:
+            response = utils::format_sensor_value(cmd.extra);
             break;
-        }
         // State query: extra holds the SystemState enum value cast to uint32_t
         case definitions::CommandType::kStateQuery:
             response = utils::state_name(static_cast<definitions::SystemState>(cmd.extra));
@@ -230,8 +109,105 @@ void Communications::handle_response(const definitions::Command& cmd) {
             break;
     }
 
-    pending_respond_(response);
-    pending_respond_ = nullptr;
+    if (pending_transport_ == definitions::Transport::kEthernet && ethernet_send_) {
+        ethernet_send_(response);
+    } else if (pending_transport_ == definitions::Transport::kSerial && serial_send_) {
+        serial_send_(response);
+    }
+    pending_transport_ = definitions::Transport::kNone;
+}
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+Communications::Communications()
+    : ethernet_send_(nullptr),
+      serial_send_(nullptr),
+      active_transport_(definitions::Transport::kNone),
+      pending_transport_(definitions::Transport::kNone),
+      local_server_(LocalServer::instance()),
+      last_link_up_(true) {}
+
+void Communications::handle_message(const std::string& msg) {
+    const std::string trimmed = utils::trim(msg);
+    if (trimmed.empty()) {
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
+        return;
+    }
+
+    if (utils::starts_with(trimmed, "EVT:")) {
+        handle_event(trimmed);
+        return;
+    }
+
+    handle_command(trimmed);
+}
+
+void Communications::handle_command(const std::string& msg) {
+    const std::string base_command = msg.substr(0, msg.find(','));
+    const definitions::CommandEntry* cmd = utils::find_command(base_command);
+    if (!cmd) {
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
+        return;
+    }
+
+    if (cmd->command == definitions::CommandType::kLogOn) {
+        logger().set_enabled(true);
+        respond_now(utils::to_scpi(definitions::ResponseType::kStatusOn));
+        return;
+    }
+    if (cmd->command == definitions::CommandType::kLogOff) {
+        logger().set_enabled(false);
+        respond_now(utils::to_scpi(definitions::ResponseType::kStatusOff));
+        return;
+    }
+    if (cmd->command == definitions::CommandType::kLogQuery) {
+        respond_now(utils::to_scpi(logger().is_enabled() ? definitions::ResponseType::kStatusOn : definitions::ResponseType::kStatusOff));
+        return;
+    }
+
+    uint32_t extra = 0;
+    if (cmd->command == definitions::CommandType::kValveOpen || cmd->command == definitions::CommandType::kValveClose ||
+        cmd->command == definitions::CommandType::kValveState) {
+        extra = parse_valve_pin(msg);
+        if (extra == 0) {
+            respond_now(utils::to_scpi(definitions::ResponseType::kErrorInvalidParam));
+            return;
+        }
+    }
+
+    pending_transport_ = active_transport_;
+    if (!StateMachine::instance().queue_command({cmd->command, extra}, kCommsQueueTimeoutMs)) {
+        pending_transport_ = definitions::Transport::kNone;
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
+    }
+}
+
+void Communications::handle_event(const std::string& msg) {
+    if (msg.length() <= 4) {
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorEmptyEvent));
+        return;
+    }
+
+    const definitions::EventEntry* evt = utils::find_event(msg);
+    if (!evt) {
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownEvent));
+        return;
+    }
+
+    if (!StateMachine::instance().queue_event(evt->event, kCommsQueueTimeoutMs)) {
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownEvent));
+    }
+}
+
+void Communications::respond_now(const std::string& response) {
+    if (active_transport_ == definitions::Transport::kEthernet && ethernet_send_) {
+        ethernet_send_(response);
+        return;
+    }
+    if (active_transport_ == definitions::Transport::kSerial && serial_send_) {
+        serial_send_(response);
+        return;
+    }
 }
 
 uint32_t Communications::parse_valve_pin(const std::string& msg) const {

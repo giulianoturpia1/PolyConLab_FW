@@ -111,6 +111,24 @@ class HALGeneral {
     ///
     virtual int serial_read() = 0;
 
+    ///
+    /// @brief Read one line from serial, stopping at '\n' or when no bytes remain
+    ///
+    /// @return std::string Accumulated characters, excluding the terminating '\n'
+    ///
+    virtual std::string serial_read_line() {
+        std::string line;
+        while (serial_available() > 0) {
+            int ch = serial_read();
+            if (ch < 0)
+                break;
+            if (static_cast<char>(ch) == '\n')
+                break;
+            line += static_cast<char>(ch);
+        }
+        return line;
+    }
+
     // ==================== Logging ====================
 
     ///

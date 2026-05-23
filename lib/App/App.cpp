@@ -1,6 +1,5 @@
 #include "App.hpp"
 
-#include <Ethernet.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -26,7 +25,6 @@
 #endif
 
 constexpr uint8_t kEthernetMacLength = 6;
-constexpr uint16_t kAppServerPort = 80;
 constexpr uint8_t kValveCount = 2;
 constexpr uint8_t kTemperatureSensorCount = 4;
 constexpr uint32_t kAppStartupDelayMs = 1000;
@@ -35,9 +33,8 @@ constexpr UBaseType_t kAppTaskPriority = 2;
 constexpr uint32_t kAppTaskStackSize = 4096;
 constexpr char kAppTaskName[] = "app_task";
 
-std::array<byte, kEthernetMacLength> mac = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
-IPAddress ip(192, 168, 1, 1);
-EthernetServer server_(kAppServerPort);
+std::array<uint8_t, kEthernetMacLength> mac = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+std::array<uint8_t, 4> ip_addr = {192, 168, 1, 1};
 
 namespace modules {
 
@@ -79,9 +76,7 @@ App::App()
       level_switch_(modules::LevelSwitch::instance()) {}
 
 void App::initialize_network_server() {
-    // Initialize Ethernet server and related settings
-    communications_.initialize_server(server_, mac, ip);
-    communications_.set_serial_response_callback([this](const std::string& response) { hal_.serial_println(response); });
+    communications_.initialize_server(mac, ip_addr, [this](const std::string& response) { hal_.serial_println(response); });
 }
 
 void App::initialize_devices() {
@@ -123,7 +118,7 @@ void App::set_response_queues() {
 }
 
 void App::initialize_system() {
-    // Initialize Network Server
+    // Initialize Ethernet server
     initialize_network_server();
 
     // Initialize Devices
@@ -132,6 +127,8 @@ void App::initialize_system() {
     // Create and Initialize State Machine
     state_machine_.initialize();
     state_machine_.create_task();
+    // Wire deferred responses: for every command outcome the SM fires handle_response(),
+    // which sends the formatted SCPI string to whichever transport originated the command.
     state_machine_.set_response_callback([](const definitions::Command& cmd) { Communications::instance().handle_response(cmd); });
 
     // Create Tasks for all modules except State Machine

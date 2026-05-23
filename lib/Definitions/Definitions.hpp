@@ -155,6 +155,15 @@ enum class ResponseType {
 };
 
 ///
+/// @brief Communication transport that originated a command or response.
+///
+enum class Transport {
+    kNone,      ///< No active transport (idle / after response delivery)
+    kEthernet,  ///< Command received over Ethernet TCP
+    kSerial     ///< Command received over Serial
+};
+
+///
 /// @brief Command structure used for representing a command in the system.
 ///
 struct Command {
