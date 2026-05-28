@@ -11,6 +11,9 @@
 
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -71,6 +74,7 @@ class LocalServer {
 
     bool is_initialized_;
     bool ethernet_link_up_;
+    SemaphoreHandle_t spi_mutex_;  ///< Protects all W5x00 SPI calls from concurrent task access.
 };
 
 }  // namespace modules

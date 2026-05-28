@@ -8,10 +8,6 @@ static const modules::TaggedLogger kLog("main");
 
 void setup() {
     modules::App::instance().begin();
-
-    vTaskStartScheduler();
-
-    kLog.error("Error: El scheduler no se pudo iniciar.");
 }
 
 void loop() {}

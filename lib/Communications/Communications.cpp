@@ -125,7 +125,7 @@ Communications::Communications()
       active_transport_(definitions::Transport::kNone),
       pending_transport_(definitions::Transport::kNone),
       local_server_(LocalServer::instance()),
-      last_link_up_(true) {}
+      last_link_up_(false) {}
 
 void Communications::handle_message(const std::string& msg) {
     const std::string trimmed = utils::trim(msg);
