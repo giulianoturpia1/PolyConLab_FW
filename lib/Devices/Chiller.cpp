@@ -2,14 +2,11 @@
 
 #include <freertos/task.h>
 
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr uint32_t kChillerTimeoutMs = 20;
 constexpr TickType_t kChillerTaskWatchdogTicks = portMAX_DELAY;
-constexpr UBaseType_t kChillerTaskPriority = 2;
-constexpr UBaseType_t kChillerQueueLength = 8;
-constexpr uint32_t kChillerTaskStackSize = 2048;
 constexpr char kChillerTaskName[] = "chiller_task";
 
 namespace modules {
@@ -28,13 +25,14 @@ bool Chiller::create_task() {
         return true;
     }
 
-    queue_ = xQueueCreate(kChillerQueueLength, sizeof(definitions::CommandType));
+    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
         kLog.error("No se pudo crear la cola del chiller.");
         return false;
     }
 
-    if (xTaskCreate(task_entry, kChillerTaskName, kChillerTaskStackSize, this, kChillerTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(task_entry, kChillerTaskName, config::kChillerTaskStackSize, this, config::kDeviceTaskPriority, nullptr,
+                                config::kI2cCoreId) != pdPASS) {
         kLog.error("No se pudo crear la tarea del chiller.");
         vQueueDelete(queue_);
         queue_ = nullptr;
@@ -116,7 +114,7 @@ bool Chiller::publish_response(const definitions::Command& response) {
         return false;
     }
 
-    return response_queue_->publish(response, kChillerTimeoutMs);
+    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
 }
 
 void Chiller::task_entry(void* param) {

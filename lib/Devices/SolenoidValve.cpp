@@ -4,14 +4,11 @@
 
 #include <algorithm>
 
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr uint32_t kSolenoidValveTimeoutMs = 20;
 constexpr TickType_t kSolenoidValveTaskWatchdogTicks = portMAX_DELAY;
-constexpr UBaseType_t kSolenoidValveTaskPriority = 2;
-constexpr UBaseType_t kSolenoidValveQueueLength = 8;
-constexpr uint32_t kSolenoidValveTaskStackSize = 3072;
 constexpr char kSolenoidValveTaskName[] = "valve_task";
 
 struct ValveCommand {
@@ -35,13 +32,14 @@ bool SolenoidValve::create_task() {
         return true;
     }
 
-    queue_ = xQueueCreate(kSolenoidValveQueueLength, sizeof(ValveCommand));
+    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(ValveCommand));
     if (queue_ == nullptr) {
         kLog.error("No se pudo crear la cola de valvulas.");
         return false;
     }
 
-    if (xTaskCreate(task_entry, kSolenoidValveTaskName, kSolenoidValveTaskStackSize, this, kSolenoidValveTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(task_entry, kSolenoidValveTaskName, config::kSolenoidValveTaskStackSize, this, config::kDeviceTaskPriority,
+                                nullptr, config::kI2cCoreId) != pdPASS) {
         kLog.error("No se pudo crear la tarea de valvulas.");
         vQueueDelete(queue_);
         queue_ = nullptr;
@@ -201,7 +199,7 @@ bool SolenoidValve::publish_response(const definitions::Command& response) {
         return false;
     }
 
-    return response_queue_->publish(response, kSolenoidValveTimeoutMs);
+    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
 }
 
 void SolenoidValve::task_entry(void* param) {

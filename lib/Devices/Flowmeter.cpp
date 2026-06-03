@@ -5,14 +5,11 @@
 #include <cmath>
 #include <cstring>
 
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr uint32_t kFlowmeterTimeoutMs = 20;
 constexpr TickType_t kFlowmeterTaskWatchdogTicks = portMAX_DELAY;
-constexpr UBaseType_t kFlowmeterTaskPriority = 2;
-constexpr UBaseType_t kFlowmeterQueueLength = 8;
-constexpr uint32_t kFlowmeterTaskStackSize = 3072;
 constexpr char kFlowmeterTaskName[] = "flowmeter_task";
 
 static volatile uint32_t flow_pulses = 0;           ///< Raw pulse counter, incremented by isrFlowMeter.
@@ -56,13 +53,14 @@ bool Flowmeter::create_task() {
         return true;
     }
 
-    queue_ = xQueueCreate(kFlowmeterQueueLength, sizeof(definitions::CommandType));
+    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
         kLog.error("No se pudo crear la cola del caudalimetro.");
         return false;
     }
 
-    if (xTaskCreate(task_entry, kFlowmeterTaskName, kFlowmeterTaskStackSize, this, kFlowmeterTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(task_entry, kFlowmeterTaskName, config::kFlowmeterTaskStackSize, this, config::kDeviceTaskPriority, nullptr,
+                                config::kI2cCoreId) != pdPASS) {
         kLog.error("No se pudo crear la tarea del caudalimetro.");
         vQueueDelete(queue_);
         queue_ = nullptr;
@@ -164,7 +162,7 @@ bool Flowmeter::publish_response(const definitions::Command& response) {
         return false;
     }
 
-    return response_queue_->publish(response, kFlowmeterTimeoutMs);
+    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
 }
 
 void Flowmeter::task_entry(void* param) {

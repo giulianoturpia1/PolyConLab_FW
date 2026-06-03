@@ -1,6 +1,7 @@
 #include "StateMachine.hpp"
 
 #include "CheckupState.hpp"
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "HardErrorState.hpp"
 #include "Helpers.hpp"
@@ -26,15 +27,6 @@
 static QueueHandle_t gStateEventQueue = nullptr;
 static QueueHandle_t gStateCommandQueue = nullptr;
 static QueueHandle_t gStateResponseQueue = nullptr;
-constexpr uint32_t kStateMachineTaskPeriodMs = 20;
-constexpr UBaseType_t kStateMachineTaskPriority = 3;
-constexpr UBaseType_t kStateMachineQueueLength = 16;
-constexpr uint32_t kStateMachineTaskStackSize = 4096;
-constexpr unsigned long kCommandFeedbackTimeoutMs = 1000;
-constexpr uint32_t kStateMachineCommandTimeoutMs = 10;
-constexpr uint8_t kMaxEventsPerTick = 4;
-constexpr uint8_t kMaxCommandsPerTick = 4;
-constexpr uint8_t kMaxResponsesPerTick = 4;
 definitions::SystemEvent currentEvent = definitions::SystemEvent::kPowerOn;
 definitions::Command currentCommand = {definitions::CommandType::kHeaterOff, 0};
 definitions::Command currentResponse = {definitions::CommandType::kHeaterOff, 0};
@@ -75,9 +67,9 @@ bool StateMachine::create_task() {
     task_started = true;
     taskEXIT_CRITICAL(&startMux);
 
-    gStateEventQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::SystemEvent));
-    gStateCommandQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::Command));
-    gStateResponseQueue = xQueueCreate(kStateMachineQueueLength, sizeof(definitions::Command));
+    gStateEventQueue = xQueueCreate(config::kStateMachineQueueLength, sizeof(definitions::SystemEvent));
+    gStateCommandQueue = xQueueCreate(config::kStateMachineQueueLength, sizeof(definitions::Command));
+    gStateResponseQueue = xQueueCreate(config::kStateMachineQueueLength, sizeof(definitions::Command));
     if (gStateEventQueue == nullptr || gStateCommandQueue == nullptr || gStateResponseQueue == nullptr) {
         kLog.error("No se pudo crear la cola de la maquina de estados.");
         if (gStateEventQueue != nullptr) {
@@ -98,7 +90,8 @@ bool StateMachine::create_task() {
         return false;
     }
 
-    if (xTaskCreate(task_entry, kStateMachineTaskName, kStateMachineTaskStackSize, nullptr, kStateMachineTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(task_entry, kStateMachineTaskName, config::kStateMachineTaskStackSize, nullptr,
+                                config::kStateMachineTaskPriority, nullptr, config::kSpiCoreId) != pdPASS) {
         kLog.error("No se pudo crear la tarea de la maquina de estados.");
         vQueueDelete(gStateEventQueue);
         vQueueDelete(gStateCommandQueue);
@@ -331,7 +324,7 @@ void StateMachine::process_response(const definitions::Command& response) {
 
 void StateMachine::attend_queues() {
     if (gStateEventQueue != nullptr) {
-        for (uint8_t i = 0; i < kMaxEventsPerTick; ++i) {
+        for (uint8_t i = 0; i < config::kMaxEventsPerTick; ++i) {
             if (xQueueReceive(gStateEventQueue, &currentEvent, 0) != pdPASS) {
                 break;
             }
@@ -340,7 +333,7 @@ void StateMachine::attend_queues() {
     }
 
     if (gStateCommandQueue != nullptr) {
-        for (uint8_t i = 0; i < kMaxCommandsPerTick; ++i) {
+        for (uint8_t i = 0; i < config::kMaxCommandsPerTick; ++i) {
             if (xQueueReceive(gStateCommandQueue, &currentCommand, 0) != pdPASS) {
                 break;
             }
@@ -349,7 +342,7 @@ void StateMachine::attend_queues() {
     }
 
     if (gStateResponseQueue != nullptr) {
-        for (uint8_t i = 0; i < kMaxResponsesPerTick; ++i) {
+        for (uint8_t i = 0; i < config::kMaxResponsesPerTick; ++i) {
             if (xQueueReceive(gStateResponseQueue, &currentResponse, 0) != pdPASS) {
                 break;
             }
@@ -390,7 +383,7 @@ void StateMachine::handle_command_feedback_timeout() {
         return;
     }
     const unsigned long now_ms = hal_general().millis();
-    if ((now_ms - pendingCommandTimeMs_) >= kCommandFeedbackTimeoutMs) {
+    if ((now_ms - pendingCommandTimeMs_) >= config::kCommandFeedbackTimeoutMs) {
         std::string logMessage = "Timeout esperando confirmacion de ejecucion para comando pendiente: ";
         logMessage += utils::command_name(pendingCommand_.type);
         // Special case for valve commands to include the valve number in the log.
@@ -413,7 +406,7 @@ void StateMachine::task_entry(void* param) {
     while (true) {
         // Tick executes one FSM cycle including queue intake and state logic.
         StateMachine::instance().tick();
-        vTaskDelay(pdMS_TO_TICKS(kStateMachineTaskPeriodMs));
+        vTaskDelay(pdMS_TO_TICKS(config::kStateMachineTaskPeriodMs));
     }
 }
 

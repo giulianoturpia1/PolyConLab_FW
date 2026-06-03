@@ -54,6 +54,17 @@ FreeRTOS is used to make the firmware responsive, modular, and safe under concur
 - Control loops (`StateMachine` and `App`) run periodically and concurrently by utilizing the FreeRTOS scheduler.
 - Producers enqueue commands/events; consumers process asynchronously.
 
+#### 1.2.1. Core Responsibilities
+
+The ESP32 is dual-core, in particular, the main target device we are using (PLC 38AR) is dual-core. Tasks are explicitly pinned to cores to isolate bus traffic:
+
+| Core | Tasks | Rationale |
+|------|-------|-----------|
+| **0 (PRO\_CPU)** | `App`, `StateMachine` | Ethernet polling drives SPI/APB traffic. Keeping these together avoids cross-core coordination overhead. |
+| **1 (APP\_CPU)** | All device tasks (`Thermocouple`, `Heater`, `Pump`, `Chiller`, `SolenoidValve`, `Flowmeter`, `LevelSwitch`) | I2C and GPIO operations. Isolating them from Core 0 prevents SPI APB bursts from time-slicing into I2C transactions, which can corrupt I2C timing on the ESP32. |
+
+The `Thermocouple` task is intentionally set to a higher priority than the other device tasks (see `Config.hpp`) so it is never preempted mid-I2C-transaction by a same-core peer.
+
 ### 1.3. Startup and Runtime Flow
 
 At boot, `src/main.cpp` calls `App::instance().begin()`. From there, `App` performs the high-level initialization sequence:
@@ -119,3 +130,33 @@ lib/
 ### 2.1. Overview
 
 The devices are the actual hardware components that the PLC interacts with, such as sensors, actuators, communication modules, etc. Each device has its own driver that implements the necessary functionality to interface with the hardware. The device drivers utilize the HAL to perform hardware-specific operations, allowing for a clean separation between hardware abstraction and device logic.
+
+## 3. Runtime Configuration
+
+All tunable firmware parameters are centralised in a single header:
+
+```
+lib/Definitions/Config.hpp
+```
+
+Constants are grouped under the `config::` namespace. The file is the **only place** that should be edited when adjusting timing, task scheduling, or network settings.
+
+### 3.1. Encaspulation
+
+| Group | Examples |
+|-------|---------|
+| **Task Periods** | `kAppTaskPeriodMs`, `kStateMachineTaskPeriodMs` |
+| **Task Priorities** | `kAppTaskPriority`, `kThermocoupleTaskPriority`, `kDeviceTaskPriority` |
+| **Core Affinity** | `kSpiCoreId` (Core 0), `kI2cCoreId` (Core 1) |
+| **Stack Sizes** | `kAppTaskStackSize`, `kThermocoupleTaskStackSize`, … |
+| **Queue Depths** | `kStateMachineQueueLength`, `kDeviceQueueLength` |
+| **Timeouts** | `kCommandFeedbackTimeoutMs`, `kCommsQueueTimeoutMs`, `kSpiMutexPollTimeoutMs`, … |
+| **SM Tick Limits** | `kMaxEventsPerTick`, `kMaxCommandsPerTick`, `kMaxResponsesPerTick` |
+| **Network** | `kEthernetPort` *(pending)*, `kSerialBaudRate` *(pending)* |
+
+On the other hand, the following are not included here, since the configuration parameters are meant to be modified at any firmware release.
+
+- **Protocol definitions** (SCPI command strings, state names, response maps) → `Definitions.hpp`
+- **Hardware pin assignments and I2C addresses** → `PLC38AR.hpp` / `PLC19R.hpp`
+- **Task name strings** — debug identifiers that belong next to the task they describe
+- **`portMAX_DELAY` watchdog ticks** — a design decision ("block until work arrives"), not a tunable parameter

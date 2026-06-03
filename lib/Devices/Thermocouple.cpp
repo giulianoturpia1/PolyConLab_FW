@@ -6,15 +6,12 @@
 #include <cmath>
 #include <cstring>
 
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
 
-constexpr uint32_t kThermocoupleTimeoutMs = 20;
 constexpr TickType_t kThermocoupleTaskWatchdogTicks = portMAX_DELAY;
-constexpr UBaseType_t kThermocoupleTaskPriority = 2;
-constexpr UBaseType_t kThermocoupleQueueLength = 8;
-constexpr uint32_t kThermocoupleTaskStackSize = 3072;
 constexpr char kThermocoupleTaskName[] = "thermocouple_task";
 
 struct ThermocoupleCommand {
@@ -38,13 +35,14 @@ bool Thermocouple::create_task() {
         return true;
     }
 
-    queue_ = xQueueCreate(kThermocoupleQueueLength, sizeof(ThermocoupleCommand));
+    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(ThermocoupleCommand));
     if (queue_ == nullptr) {
         kLog.error("No se pudo crear la cola de termocuplas.");
         return false;
     }
 
-    if (xTaskCreate(task_entry, kThermocoupleTaskName, kThermocoupleTaskStackSize, this, kThermocoupleTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(task_entry, kThermocoupleTaskName, config::kThermocoupleTaskStackSize, this,
+                                config::kThermocoupleTaskPriority, nullptr, config::kI2cCoreId) != pdPASS) {
         kLog.error("No se pudo crear la tarea de termocuplas.");
         vQueueDelete(queue_);
         queue_ = nullptr;
@@ -190,7 +188,7 @@ bool Thermocouple::publish_response(const definitions::Command& response) {
         return false;
     }
 
-    return response_queue_->publish(response, kThermocoupleTimeoutMs);
+    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
 }
 
 void Thermocouple::task_entry(void* param) {
