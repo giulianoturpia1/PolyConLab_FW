@@ -9,7 +9,6 @@
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr TickType_t kFlowmeterTaskWatchdogTicks = portMAX_DELAY;
 constexpr char kFlowmeterTaskName[] = "flowmeter_task";
 
 static volatile uint32_t flow_pulses = 0;           ///< Raw pulse counter, incremented by isrFlowMeter.
@@ -170,7 +169,7 @@ void Flowmeter::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kFlowRead;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kFlowmeterTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command);
         }
         if (self->queue_ == nullptr) {

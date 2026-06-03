@@ -6,7 +6,6 @@
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr TickType_t kHeaterTaskWatchdogTicks = portMAX_DELAY;
 constexpr char kHeaterTaskName[] = "heater_task";
 
 namespace modules {
@@ -122,7 +121,7 @@ void Heater::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kHeaterOff;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kHeaterTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command);
         }
         if (self->queue_ == nullptr) {

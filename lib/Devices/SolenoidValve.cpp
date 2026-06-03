@@ -8,7 +8,6 @@
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr TickType_t kSolenoidValveTaskWatchdogTicks = portMAX_DELAY;
 constexpr char kSolenoidValveTaskName[] = "valve_task";
 
 struct ValveCommand {
@@ -207,7 +206,7 @@ void SolenoidValve::task_entry(void* param) {
     ValveCommand command = {definitions::CommandType::kValveClose, 0};
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kSolenoidValveTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command.command, command.pin);
         }
         if (self->queue_ == nullptr) {

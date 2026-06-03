@@ -126,6 +126,17 @@ constexpr UBaseType_t kStateMachineQueueLength = 16;
 ///
 constexpr UBaseType_t kDeviceQueueLength = 8;
 
+///
+/// @brief Queue block time for all device tasks.
+///
+/// How long a device task suspends itself waiting for a command to arrive in
+/// its queue. Set to @c portMAX_DELAY so the task blocks indefinitely and
+/// consumes no CPU while idle. To add timeout handling (e.g. log a warning if
+/// no command arrives within N ms), change this value and add the corresponding
+/// branch in each task loop.
+///
+constexpr TickType_t kDeviceWaitTicks = portMAX_DELAY;
+
 // ── Timeout Constants (ms) ────────────────────────────────────────────────────
 
 ///

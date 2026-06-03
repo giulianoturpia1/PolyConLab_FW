@@ -11,7 +11,6 @@
 #include "Helpers.hpp"
 #include "Logger.hpp"
 
-constexpr TickType_t kThermocoupleTaskWatchdogTicks = portMAX_DELAY;
 constexpr char kThermocoupleTaskName[] = "thermocouple_task";
 
 struct ThermocoupleCommand {
@@ -196,7 +195,7 @@ void Thermocouple::task_entry(void* param) {
     ThermocoupleCommand command;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kThermocoupleTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command.command, command.address);
         }
         if (self->queue_ == nullptr) {

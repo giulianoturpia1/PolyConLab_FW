@@ -6,7 +6,6 @@
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr TickType_t kLevelSwitchTaskWatchdogTicks = portMAX_DELAY;
 constexpr char kLevelSwitchTaskName[] = "level_switch_task";
 
 namespace modules {
@@ -102,7 +101,7 @@ void LevelSwitch::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kLevelSwitchState;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kLevelSwitchTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command);
         }
         if (self->queue_ == nullptr) {

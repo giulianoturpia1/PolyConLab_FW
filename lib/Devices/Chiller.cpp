@@ -6,7 +6,6 @@
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr TickType_t kChillerTaskWatchdogTicks = portMAX_DELAY;
 constexpr char kChillerTaskName[] = "chiller_task";
 
 namespace modules {
@@ -122,7 +121,7 @@ void Chiller::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kChillerOff;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kChillerTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command);
         }
         if (self->queue_ == nullptr) {

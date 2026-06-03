@@ -6,7 +6,6 @@
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr TickType_t kPumpTaskWatchdogTicks = portMAX_DELAY;
 constexpr char kPumpTaskName[] = "pump_task";
 
 namespace modules {
@@ -122,7 +121,7 @@ void Pump::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kPumpOff;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kPumpTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command);
         }
         if (self->queue_ == nullptr) {
