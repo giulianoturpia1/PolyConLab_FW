@@ -58,7 +58,8 @@ bool LevelSwitch::begin(uint32_t pin) {
 }
 
 bool LevelSwitch::status() const {
-    return hal_general().digital_read(pin_);
+    // El sensor de nivel está activo-bajo: 0V significa cerrado/alto lógico.
+    return hal_general().digital_read(pin_) == PIN_LOW;
 }
 
 uint32_t LevelSwitch::pin() const {
@@ -79,9 +80,12 @@ LevelSwitch::LevelSwitch() : pin_(0), status_(false), queue_(nullptr), response_
 
 bool LevelSwitch::process_command(definitions::CommandType command) {
     switch (command) {
-        case definitions::CommandType::kLevelSwitchState:
-            publish_response({definitions::CommandType::kLevelSwitchState, 0});
+        case definitions::CommandType::kLevelSwitchState: {
+            // Invertimos la lectura física porque el sensor es activo-bajo.
+            const uint32_t level_state = hal_general().digital_read(pin_) == PIN_LOW ? PIN_HIGH : PIN_LOW;
+            publish_response({definitions::CommandType::kLevelSwitchState, level_state});
             return true;
+        }
 
         default:
             return false;
