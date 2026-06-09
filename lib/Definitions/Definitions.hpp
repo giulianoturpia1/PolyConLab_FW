@@ -124,6 +124,7 @@ enum class CommandType {
     kLogOn,
     kLogOff,
     kLogQuery,
+    kFaultQuery,  ///< SYST:FAULT? — returns comma-separated list of devices that failed init, or "NONE"
 
     // Internal sentinel — never appears in kCommandMap or over the wire.
     // Used to route command errors through the unified response callback.
@@ -239,7 +240,7 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
     {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<CommandEntry, 23> kCommandMap = {{
+constexpr std::array<CommandEntry, 24> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
     {("OUTP:HEAT?"), CommandType::kHeaterState},
@@ -263,6 +264,7 @@ constexpr std::array<CommandEntry, 23> kCommandMap = {{
     {("SYST:LOG ON"), CommandType::kLogOn},
     {("SYST:LOG OFF"), CommandType::kLogOff},
     {("SYST:LOG?"), CommandType::kLogQuery},
+    {("SYST:FAULT?"), CommandType::kFaultQuery},
 }};
 
 constexpr std::array<ResponseEntry, 14> kResponseMap = {{

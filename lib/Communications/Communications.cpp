@@ -2,6 +2,7 @@
 
 #include "Config.hpp"
 #include "Definitions.hpp"
+#include "FaultRegistry.hpp"
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
@@ -162,6 +163,12 @@ void Communications::handle_command(const std::string& msg) {
     }
     if (cmd->command == definitions::CommandType::kLogQuery) {
         respond_now(utils::to_scpi(logger().is_enabled() ? definitions::ResponseType::kStatusOn : definitions::ResponseType::kStatusOff));
+        return;
+    }
+    if (cmd->command == definitions::CommandType::kFaultQuery) {
+        // Return a comma-separated list of devices that failed hardware
+        // initialisation, or "NONE" if all devices started successfully.
+        respond_now(modules::FaultRegistry::instance().get());
         return;
     }
 
