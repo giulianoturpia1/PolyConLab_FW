@@ -54,7 +54,7 @@ class Flowmeter {
     /// @param pinFlow_ Device pin.
     /// @param pulsesPerLiter Calibration constant: sensor pulses per liter. Defaults to 450.0.
     ///
-    bool begin(uint32_t pinFlow_, float pulsesPerLiter = 450.0f);
+    bool begin(uint32_t pinFlow_, float pulsesPerLiter = definitions::kFlowmeterPulsesPerLiter);
 
     ///
     /// @brief Stop the flowmeter. Detach interrupts and end timer.

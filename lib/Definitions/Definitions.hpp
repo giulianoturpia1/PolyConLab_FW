@@ -29,6 +29,13 @@ constexpr uint8_t kMaxSolenoidValves = 8;
 constexpr uint8_t kMaxThermocouples = 5;
 
 ///
+///@brief Flowmeter calibration constant: sensor pulses per liter. Adjust this value based on the specific flowmeter used and its
+/// calibration data.
+///
+///
+constexpr float kFlowmeterPulsesPerLiter = 489.125f;
+
+///
 /// @brief System states for the Finite State Machine. Refer to the design documentation for details.
 ///
 ///
