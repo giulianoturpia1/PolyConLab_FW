@@ -3,10 +3,13 @@
 #include "Chiller.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
+#include "Logger.hpp"
 #include "Pump.hpp"
 #include "StateMachine.hpp"
 
 namespace modules {
+
+static const TaggedLogger kLog("StartupState");
 
 definitions::SystemState StartupState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
@@ -25,7 +28,7 @@ definitions::SystemState StartupState::handle_event(StateMachine* context, defin
 
 void StartupState::on_enter(StateMachine* context) {
     (void) context;
-    hal_general().log("Iniciando Estado: STARTUP");
+    kLog.info("Iniciando Estado: STARTUP");
     apply_safe_outputs();
 }
 

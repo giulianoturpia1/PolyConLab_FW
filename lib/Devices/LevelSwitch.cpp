@@ -3,6 +3,7 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kLevelSwitchTimeoutMs = 20;
 constexpr TickType_t kLevelSwitchTaskWatchdogTicks = portMAX_DELAY;
@@ -12,6 +13,8 @@ constexpr uint32_t kLevelSwitchTaskStackSize = 2048;
 constexpr char kLevelSwitchTaskName[] = "level_switch_task";
 
 namespace modules {
+
+static const TaggedLogger kLog("LevelSwitch");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -27,12 +30,12 @@ bool LevelSwitch::create_task() {
 
     queue_ = xQueueCreate(kLevelSwitchQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del interruptor de nivel.");
+        kLog.error("No se pudo crear la cola del interruptor de nivel.");
         return false;
     }
 
     if (xTaskCreate(task_entry, kLevelSwitchTaskName, kLevelSwitchTaskStackSize, this, kLevelSwitchTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del interruptor de nivel.");
+        kLog.error("No se pudo crear la tarea del interruptor de nivel.");
         vQueueDelete(queue_);
         queue_ = nullptr;
         return false;
@@ -47,7 +50,7 @@ void LevelSwitch::set_response_queue(interfaces::ICommandResponseQueue* queue) {
 
 bool LevelSwitch::begin(uint32_t pin) {
     if (pin == 0) {
-        hal_general().log("Pin invalido para el interruptor de nivel.");
+        kLog.error("Pin invalido para el interruptor de nivel.");
         return false;
     }
 

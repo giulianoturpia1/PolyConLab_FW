@@ -3,13 +3,16 @@
 
 #include "App.hpp"
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
+
+static const modules::TaggedLogger kLog("main");
 
 void setup() {
     modules::App::instance().begin();
 
     vTaskStartScheduler();
 
-    modules::hal_general().log("Error: El scheduler no se pudo iniciar.");
+    kLog.error("Error: El scheduler no se pudo iniciar.");
 }
 
 void loop() {}

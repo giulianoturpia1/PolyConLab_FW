@@ -12,6 +12,7 @@
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
 #include "LevelSwitch.hpp"
+#include "Logger.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -40,6 +41,8 @@ EthernetServer server_(kAppServerPort);
 
 namespace modules {
 
+static const TaggedLogger kLog("App");
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
 App& App::instance() {
@@ -49,7 +52,7 @@ App& App::instance() {
 
 void App::begin() {
     hal_.serial_begin(115200);
-    hal_.log("Iniciando Configuracion...");
+    kLog.info("Iniciando Configuracion...");
     hal_.delay(kAppStartupDelayMs);
 
     // Initialize all system modules
@@ -58,7 +61,7 @@ void App::begin() {
     // Start the App task which will run the main loop
     create_task();
 
-    hal_.log("Configuracion Completada");
+    kLog.info("Configuracion Completada");
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
@@ -78,7 +81,7 @@ App::App()
 void App::initialize_network_server() {
     // Initialize Ethernet server and related settings
     communications_.initialize_server(server_, mac, ip);
-    communications_.set_serial_response_callback([this](const std::string& response) { hal_.log(response.c_str()); });
+    communications_.set_serial_response_callback([this](const std::string& response) { hal_.serial_println(response); });
 }
 
 void App::initialize_devices() {
@@ -140,12 +143,12 @@ void App::initialize_system() {
 void App::create_task() {
     static bool task_started = false;
     if (task_started) {
-        hal_.log("La tarea de App ya esta en ejecucion.");
+        kLog.warning("La tarea de App ya esta en ejecucion.");
         return;
     }
 
     if (xTaskCreate(App::task_entry, kAppTaskName, kAppTaskStackSize, nullptr, kAppTaskPriority, nullptr) != pdPASS) {
-        hal_.log("No se pudo crear la tarea de App.");
+        kLog.error("No se pudo crear la tarea de App.");
         return;
     }
 }

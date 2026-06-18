@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kFlowmeterTimeoutMs = 20;
 constexpr TickType_t kFlowmeterTaskWatchdogTicks = portMAX_DELAY;
@@ -20,6 +21,8 @@ static portMUX_TYPE flowMux = portMUX_INITIALIZER_UNLOCKED;
 static hw_timer_t* flowTimer = nullptr;
 
 namespace modules {
+
+static const TaggedLogger kLog("Flowmeter");
 
 //////////////////////////////////// Flow Meter Interrupt Service Routines ////////////////////////////
 
@@ -55,12 +58,12 @@ bool Flowmeter::create_task() {
 
     queue_ = xQueueCreate(kFlowmeterQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del caudalimetro.");
+        kLog.error("No se pudo crear la cola del caudalimetro.");
         return false;
     }
 
     if (xTaskCreate(task_entry, kFlowmeterTaskName, kFlowmeterTaskStackSize, this, kFlowmeterTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del caudalimetro.");
+        kLog.error("No se pudo crear la tarea del caudalimetro.");
         vQueueDelete(queue_);
         queue_ = nullptr;
         return false;
@@ -81,7 +84,7 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
     }
 
     if (pinFlow_ == 0) {
-        hal_general().log("Pin invalido para el caudalimetro.");
+        kLog.error("Pin invalido para el caudalimetro.");
         return false;
     }
 
@@ -145,22 +148,22 @@ bool Flowmeter::queue_command(definitions::CommandType command, uint32_t timeout
 Flowmeter::Flowmeter() : pin_(0), status_(false), pulsesPerLiter_(450.0f), queue_(nullptr), response_queue_(nullptr) {}
 
 bool Flowmeter::process_command(definitions::CommandType command) {
-    if (command != definitions::CommandType::kFlowBegin && command != definitions::CommandType::kFlowStop &&
+    if (command != definitions::CommandType::kFlowOn && command != definitions::CommandType::kFlowOff &&
         command != definitions::CommandType::kFlowRead && command != definitions::CommandType::kFlowStatus) {
         return false;
     }
 
     switch (command) {
-        case definitions::CommandType::kFlowBegin: {
+        case definitions::CommandType::kFlowOn: {
             // Carry the actual success/failure in extra so the StateMachine can distinguish them.
             const bool ok = begin(pin_);
-            publish_response({definitions::CommandType::kFlowBegin, ok ? 1u : 0u});
+            publish_response({definitions::CommandType::kFlowOn, ok ? 1u : 0u});
             return true;
         }
 
-        case definitions::CommandType::kFlowStop: {
+        case definitions::CommandType::kFlowOff: {
             stop(pin_);
-            publish_response({definitions::CommandType::kFlowStop, 1u});
+            publish_response({definitions::CommandType::kFlowOff, 1u});
             return true;
         }
 

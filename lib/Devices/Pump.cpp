@@ -3,6 +3,7 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kPumpTimeoutMs = 20;
 constexpr TickType_t kPumpTaskWatchdogTicks = portMAX_DELAY;
@@ -12,6 +13,8 @@ constexpr uint32_t kPumpTaskStackSize = 2048;
 constexpr char kPumpTaskName[] = "pump_task";
 
 namespace modules {
+
+static const TaggedLogger kLog("Pump");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -27,12 +30,12 @@ bool Pump::create_task() {
 
     queue_ = xQueueCreate(kPumpQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola de la bomba.");
+        kLog.error("No se pudo crear la cola de la bomba.");
         return false;
     }
 
     if (xTaskCreate(task_entry, kPumpTaskName, kPumpTaskStackSize, this, kPumpTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea de la bomba.");
+        kLog.error("No se pudo crear la tarea de la bomba.");
         vQueueDelete(queue_);
         queue_ = nullptr;
         return false;
@@ -47,7 +50,7 @@ void Pump::set_response_queue(interfaces::ICommandResponseQueue* queue) {
 
 bool Pump::begin(uint32_t pin) {
     if (pin == 0) {
-        hal_general().log("Pin invalido para la bomba.");
+        kLog.error("Pin invalido para la bomba.");
         return false;
     }
 

@@ -3,6 +3,7 @@
 #include <freertos/task.h>
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kChillerTimeoutMs = 20;
 constexpr TickType_t kChillerTaskWatchdogTicks = portMAX_DELAY;
@@ -12,6 +13,8 @@ constexpr uint32_t kChillerTaskStackSize = 2048;
 constexpr char kChillerTaskName[] = "chiller_task";
 
 namespace modules {
+
+static const TaggedLogger kLog("Chiller");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -27,12 +30,12 @@ bool Chiller::create_task() {
 
     queue_ = xQueueCreate(kChillerQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola del chiller.");
+        kLog.error("No se pudo crear la cola del chiller.");
         return false;
     }
 
     if (xTaskCreate(task_entry, kChillerTaskName, kChillerTaskStackSize, this, kChillerTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea del chiller.");
+        kLog.error("No se pudo crear la tarea del chiller.");
         vQueueDelete(queue_);
         queue_ = nullptr;
         return false;
@@ -47,7 +50,7 @@ void Chiller::set_response_queue(interfaces::ICommandResponseQueue* queue) {
 
 bool Chiller::begin(uint32_t pin) {
     if (pin == 0) {
-        hal_general().log("Pin invalido para el chiller.");
+        kLog.error("Pin invalido para el chiller.");
         return false;
     }
 

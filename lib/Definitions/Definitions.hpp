@@ -14,7 +14,6 @@
 #include <stdint.h>
 
 #include <array>
-#include <map>
 #include <string>
 
 namespace definitions {
@@ -112,8 +111,8 @@ enum class CommandType {
     kTempMixRead,
 
     // Flow meter command
-    kFlowBegin,
-    kFlowStop,
+    kFlowOn,
+    kFlowOff,
     kFlowRead,
     kFlowStatus,
 
@@ -122,7 +121,12 @@ enum class CommandType {
 
     // Diagnostics/Status
     kPing,
-    kStateQuery
+    kStateQuery,
+
+    // System commands
+    kLogOn,
+    kLogOff,
+    kLogQuery
 };
 
 ///
@@ -145,51 +149,51 @@ enum class ResponseType {
 /// @brief Command structure used for representing a command in the system.
 ///
 struct Command {
-    CommandType command;  ///< Command type identifier
-    uint32_t extra;       ///< Generic extra field: pin number or I2C address depending on command
+    CommandType type;  ///< Command type identifier
+    uint32_t extra;    ///< Generic extra field: pin number or I2C address depending on command
 };
 
 ///
-/// @brief Mapping of command strings to CommandType enums for parsing incoming messages.
+/// @brief Single entry in the SCPI command lookup table: maps a command string to its CommandType.
 ///
-struct CommandMap {
-    const char* name;     //< Command string (e.g., "HEATER ON")
-    CommandType command;  //< Corresponding CommandType enum
+struct CommandEntry {
+    const char* name;     ///< SCPI command string (e.g., "OUTP:HEAT ON")
+    CommandType command;  ///< Corresponding CommandType enum value
 };
 
 ///
-/// @brief Mapping of command enums to canonical response identifiers.
+/// @brief Single entry in the command-response lookup table: maps a CommandType to its ResponseType.
 ///
-struct CommandResponseMap {
-    CommandType command;
-    ResponseType response;
+struct CommandResponseEntry {
+    CommandType command;    ///< Command type used as the lookup key
+    ResponseType response;  ///< Canonical response to send after this command executes
 };
 
 ///
-/// @brief Mapping of event strings to SystemEvent enums for parsing incoming messages.
+/// @brief Single entry in the SCPI event lookup table: maps an event string to its SystemEvent.
 ///
-struct EventMap {
-    const char* name;   //< Event string (e.g., "POWER ON")
-    SystemEvent event;  //< Corresponding SystemEvent enum
+struct EventEntry {
+    const char* name;   ///< SCPI event string (e.g., "EVT:PAUSE")
+    SystemEvent event;  ///< Corresponding SystemEvent enum value
 };
 
 ///
-/// @brief Canonical response messages used by communications handlers.
+/// @brief Single entry in the SCPI response lookup table: maps a ResponseType to its wire string.
 ///
-struct ResponseMap {
-    const char* name;   //< Canonical response name (e.g., "ERROR:UNKNOWN COMMAND")
-    ResponseType type;  //< Response identifier
+struct ResponseEntry {
+    const char* name;   ///< Canonical response string sent over the wire (e.g., "ON", "-100,'Command error'")
+    ResponseType type;  ///< Response type identifier
 };
 
 ///
-/// @brief Mapping of SystemState enums to human-readable state names.
+/// @brief Single entry in the state name lookup table: maps a SystemState to its display name.
 ///
-struct StateNameMap {
+struct StateNameEntry {
     SystemState state;  ///< System state enum value
     const char* name;   ///< Human-readable state name (e.g., "STARTUP")
 };
 
-constexpr std::array<EventMap, 21> kEventMap = {{
+constexpr std::array<EventEntry, 21> kEventMap = {{
     {("EVT:POWER ON"), SystemEvent::kPowerOn},
     {("EVT:INIT OK"), SystemEvent::kInitOk},
     {("EVT:SCADA OK"), SystemEvent::kScadaOk},
@@ -213,7 +217,7 @@ constexpr std::array<EventMap, 21> kEventMap = {{
     {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<CommandMap, 23> kCommandMap = {{
+constexpr std::array<CommandEntry, 26> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
     {("OUTP:HEAT?"), CommandType::kHeaterState},
@@ -230,19 +234,22 @@ constexpr std::array<CommandMap, 23> kCommandMap = {{
     {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead},
     {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
     {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
-    {("OUTP:FLOW ON"), CommandType::kFlowBegin},
-    {("OUTP:FLOW OFF"), CommandType::kFlowStop},
+    {("OUTP:FLOW ON"), CommandType::kFlowOn},
+    {("OUTP:FLOW OFF"), CommandType::kFlowOff},
     {("OUTP:FLOW?"), CommandType::kFlowStatus},
     {("MEAS:FLOW?"), CommandType::kFlowRead},
     {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
     {("PING"), CommandType::kPing},
     {("STATE?"), CommandType::kStateQuery},
+    {("SYST:LOG ON"), CommandType::kLogOn},
+    {("SYST:LOG OFF"), CommandType::kLogOff},
+    {("SYST:LOG?"), CommandType::kLogQuery},
 }};
 
-constexpr std::array<ResponseMap, 10> kResponseMap = {{
-    {"-100,’COMANDO DESCONOCIDO’", ResponseType::kErrorUnknownCommand},
-    {"-200,’EVENTO VACIO’", ResponseType::kErrorEmptyEvent},
-    {"-300,’EVENTO DESCONOCIDO’", ResponseType::kErrorUnknownEvent},
+constexpr std::array<ResponseEntry, 10> kResponseMap = {{
+    {"-100,’Command error’", ResponseType::kErrorUnknownCommand},
+    {"-200,’Execution error’", ResponseType::kErrorEmptyEvent},
+    {"-300,’Unknown event’", ResponseType::kErrorUnknownEvent},
     {"PONG", ResponseType::kPingOk},
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},
@@ -252,22 +259,36 @@ constexpr std::array<ResponseMap, 10> kResponseMap = {{
     {"LOW", ResponseType::kStatusLow},
 }};
 
-constexpr std::array<CommandResponseMap, 23> kCommandResponseMap = {{
-    {CommandType::kHeaterOn, ResponseType::kStatusOn},           {CommandType::kHeaterOff, ResponseType::kStatusOff},
-    {CommandType::kHeaterState, ResponseType::kStatusOn},        {CommandType::kPumpOn, ResponseType::kStatusOn},
-    {CommandType::kPumpOff, ResponseType::kStatusOff},           {CommandType::kPumpState, ResponseType::kStatusOn},
-    {CommandType::kChillerOn, ResponseType::kStatusOn},          {CommandType::kChillerOff, ResponseType::kStatusOff},
-    {CommandType::kChillerState, ResponseType::kStatusOn},       {CommandType::kValveOpen, ResponseType::kStatusOpen},
-    {CommandType::kValveClose, ResponseType::kStatusClosed},     {CommandType::kValveState, ResponseType::kStatusOpen},
-    {CommandType::kTempInRead, ResponseType::kStatusOn},         {CommandType::kTempOutRead, ResponseType::kStatusOn},
-    {CommandType::kTempBathRead, ResponseType::kStatusOn},       {CommandType::kTempMixRead, ResponseType::kStatusOn},
-    {CommandType::kFlowBegin, ResponseType::kStatusOn},          {CommandType::kFlowStop, ResponseType::kStatusOff},
-    {CommandType::kFlowRead, ResponseType::kStatusOn},           {CommandType::kFlowStatus, ResponseType::kStatusOn},
-    {CommandType::kLevelSwitchState, ResponseType::kStatusHigh}, {CommandType::kPing, ResponseType::kPingOk},
+constexpr std::array<CommandResponseEntry, 26> kCommandResponseMap = {{
+    {CommandType::kHeaterOn, ResponseType::kStatusOn},
+    {CommandType::kHeaterOff, ResponseType::kStatusOff},
+    {CommandType::kHeaterState, ResponseType::kStatusOn},
+    {CommandType::kPumpOn, ResponseType::kStatusOn},
+    {CommandType::kPumpOff, ResponseType::kStatusOff},
+    {CommandType::kPumpState, ResponseType::kStatusOn},
+    {CommandType::kChillerOn, ResponseType::kStatusOn},
+    {CommandType::kChillerOff, ResponseType::kStatusOff},
+    {CommandType::kChillerState, ResponseType::kStatusOn},
+    {CommandType::kValveOpen, ResponseType::kStatusOpen},
+    {CommandType::kValveClose, ResponseType::kStatusClosed},
+    {CommandType::kValveState, ResponseType::kStatusOpen},
+    {CommandType::kTempInRead, ResponseType::kStatusOn},
+    {CommandType::kTempOutRead, ResponseType::kStatusOn},
+    {CommandType::kTempBathRead, ResponseType::kStatusOn},
+    {CommandType::kTempMixRead, ResponseType::kStatusOn},
+    {CommandType::kFlowOn, ResponseType::kStatusOn},
+    {CommandType::kFlowOff, ResponseType::kStatusOff},
+    {CommandType::kFlowRead, ResponseType::kStatusOn},
+    {CommandType::kFlowStatus, ResponseType::kStatusOn},
+    {CommandType::kLevelSwitchState, ResponseType::kStatusHigh},
+    {CommandType::kPing, ResponseType::kPingOk},
     {CommandType::kStateQuery, ResponseType::kPingOk},
+    {CommandType::kLogOn, ResponseType::kStatusOn},
+    {CommandType::kLogOff, ResponseType::kStatusOff},
+    {CommandType::kLogQuery, ResponseType::kStatusOn},
 }};
 
-constexpr std::array<StateNameMap, 7> kStateNameMap = {{
+constexpr std::array<StateNameEntry, 7> kStateNameMap = {{
     {SystemState::kStartup, "STARTUP"},
     {SystemState::kCheckup, "CHECKUP"},
     {SystemState::kManual, "MANUAL"},

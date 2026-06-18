@@ -7,6 +7,7 @@
 
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
+#include "Logger.hpp"
 
 constexpr uint32_t kThermocoupleTimeoutMs = 20;
 constexpr TickType_t kThermocoupleTaskWatchdogTicks = portMAX_DELAY;
@@ -22,6 +23,8 @@ struct ThermocoupleCommand {
 
 namespace modules {
 
+static const TaggedLogger kLog("Thermocouple");
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
 Thermocouple& Thermocouple::instance() {
@@ -36,12 +39,12 @@ bool Thermocouple::create_task() {
 
     queue_ = xQueueCreate(kThermocoupleQueueLength, sizeof(ThermocoupleCommand));
     if (queue_ == nullptr) {
-        hal_general().log("No se pudo crear la cola de termocuplas.");
+        kLog.error("No se pudo crear la cola de termocuplas.");
         return false;
     }
 
     if (xTaskCreate(task_entry, kThermocoupleTaskName, kThermocoupleTaskStackSize, this, kThermocoupleTaskPriority, nullptr) != pdPASS) {
-        hal_general().log("No se pudo crear la tarea de termocuplas.");
+        kLog.error("No se pudo crear la tarea de termocuplas.");
         vQueueDelete(queue_);
         queue_ = nullptr;
         return false;
@@ -61,7 +64,7 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
     Wire.setClock(100000);
 
     if (adds == nullptr || count == 0) {
-        hal_general().log("No se añadieron direcciones de thermocuplas para la inicializacion.");
+        kLog.warning("No se añadieron direcciones de thermocuplas para la inicializacion.");
         return false;
     }
 
@@ -79,24 +82,24 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
 }
 
 bool Thermocouple::add(uint32_t address) {
-    const std::string hex_addr = utils::hex_address(address);
+    const std::string hex_addr = utils::format_hex(address);
 
     uint8_t index = find_index(address);
     if (thermoc_count_ >= definitions::kMaxThermocouples) {
-        hal_general().log("No se pudo agregar la direccion de la termocupla: " + hex_addr + ". Se alcanzo el limite de capacidad.");
+        kLog.error("No se pudo agregar la direccion de la termocupla: " + hex_addr + ". Se alcanzo el limite de capacidad.");
         return false;  // Capacity limit reached
     }
 
     if (index < thermoc_count_) {
-        hal_general().log("La termocupla ya estaba registrada: " + hex_addr);
+        kLog.warning("La termocupla ya estaba registrada: " + hex_addr);
         return true;  // Address already registered, consider it a success
     }
 
     // Initialize MCP9600 at the current slot
     uint8_t slot_index = thermoc_count_;
-    hal_general().log("Iniciando termocupla en la direccion: " + hex_addr);
+    kLog.info("Iniciando termocupla en la direccion: " + hex_addr);
     if (!thermocouples_[slot_index].device.begin(address)) {
-        hal_general().log("No se pudo iniciar la termocupla en la direccion: " + hex_addr);
+        kLog.error("No se pudo iniciar la termocupla en la direccion: " + hex_addr);
         return false;
     }
 
@@ -118,7 +121,7 @@ bool Thermocouple::add(uint32_t address) {
 bool Thermocouple::remove(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        hal_general().log("Se intento eliminar una direccion no registrada: " + utils::hex_address(address));
+        kLog.warning("Se intento eliminar una direccion no registrada: " + utils::format_hex(address));
         return false;  // Address not found
     }
 
@@ -133,7 +136,7 @@ bool Thermocouple::remove(uint32_t address) {
 float Thermocouple::readCelcius(uint32_t address) {
     uint8_t index = find_index(address);
     if (index >= definitions::kMaxThermocouples) {
-        hal_general().log("Se intento leer una direccion no registrada: " + utils::hex_address(address));
+        kLog.warning("Se intento leer una direccion no registrada: " + utils::format_hex(address));
         return NAN;  // Return NaN if address not found
     }
 
@@ -171,7 +174,7 @@ uint8_t Thermocouple::find_index(uint32_t address) const {
 bool Thermocouple::process_command(definitions::CommandType command, uint32_t address) {
     uint32_t sensor_address = address;
     if (sensor_address == 0) {
-        hal_general().log("No se pudo procesar el comando. Direccion I2C invalida.");
+        kLog.error("No se pudo procesar el comando. Direccion I2C invalida.");
         return false;  // Invalid address
     }
 

@@ -1,9 +1,12 @@
 #include "PauseState.hpp"
 
 #include "HALGeneral.hpp"
+#include "Logger.hpp"
 #include "StateMachine.hpp"
 
 namespace modules {
+
+static const TaggedLogger kLog("PauseState");
 
 definitions::SystemState PauseState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     switch (event) {
@@ -22,7 +25,7 @@ definitions::SystemState PauseState::handle_event(StateMachine* context, definit
 
 void PauseState::on_enter(StateMachine* context) {
     (void) context;
-    hal_general().log("Iniciando Estado: PAUSE - Timers congelados y salida segura parcial");
+    kLog.info("Iniciando Estado: PAUSE - Timers congelados y salida segura parcial");
 }
 
 const char* PauseState::name() const {

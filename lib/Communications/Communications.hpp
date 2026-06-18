@@ -89,6 +89,8 @@ class Communications {
     /// @brief Trim and route an incoming message to the appropriate handler based on its prefix.
     /// Empty or whitespace-only messages respond with kErrorUnknownCommand.
     /// Messages starting with "EVT:" are forwarded to handle_event(); all others to handle_command().
+    /// System commands (e.g. "SYST:LOG ON") are registered in kCommandMap as CommandEntry records and handled inline
+    /// inside handle_command() without being queued to the StateMachine.
     /// Handlers receive an already-trimmed string.
     ///
     /// @param msg    Incoming raw message string.

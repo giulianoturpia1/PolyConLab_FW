@@ -11,6 +11,7 @@
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
 #include "LevelSwitch.hpp"
+#include "Logger.hpp"
 #include "Pump.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -19,6 +20,8 @@
 constexpr uint32_t kAcceptableTimeWindowMs = 100;
 
 namespace modules {
+
+static const TaggedLogger kLog("ManualState");
 
 definitions::SystemState ManualState::handle_event(StateMachine* context, definitions::SystemEvent event) {
     (void) context;
@@ -41,7 +44,7 @@ definitions::SystemState ManualState::handle_event(StateMachine* context, defini
 bool ManualState::dispatch_command(StateMachine* context, const definitions::Command& request) {
     (void) context;
 
-    switch (request.command) {
+    switch (request.type) {
         case definitions::CommandType::kHeaterOn:
             return Heater::instance().queue_command(definitions::CommandType::kHeaterOn, kAcceptableTimeWindowMs);
 
@@ -100,11 +103,11 @@ bool ManualState::dispatch_command(StateMachine* context, const definitions::Com
         case definitions::CommandType::kFlowStatus:
             return Flowmeter::instance().queue_command(definitions::CommandType::kFlowStatus, kAcceptableTimeWindowMs);
 
-        case definitions::CommandType::kFlowBegin:
-            return Flowmeter::instance().queue_command(definitions::CommandType::kFlowBegin, kAcceptableTimeWindowMs);
+        case definitions::CommandType::kFlowOn:
+            return Flowmeter::instance().queue_command(definitions::CommandType::kFlowOn, kAcceptableTimeWindowMs);
 
-        case definitions::CommandType::kFlowStop:
-            return Flowmeter::instance().queue_command(definitions::CommandType::kFlowStop, kAcceptableTimeWindowMs);
+        case definitions::CommandType::kFlowOff:
+            return Flowmeter::instance().queue_command(definitions::CommandType::kFlowOff, kAcceptableTimeWindowMs);
 
         case definitions::CommandType::kLevelSwitchState:
             return LevelSwitch::instance().queue_command(definitions::CommandType::kLevelSwitchState, kAcceptableTimeWindowMs);
@@ -115,7 +118,7 @@ bool ManualState::dispatch_command(StateMachine* context, const definitions::Com
 
 void ManualState::on_enter(StateMachine* context) {
     (void) context;
-    hal_general().log("Iniciando Estado: MANUAL - Esperando comandos del usuario");
+    kLog.info("Iniciando Estado: MANUAL - Esperando comandos del usuario");
 }
 
 const char* ManualState::name() const {
