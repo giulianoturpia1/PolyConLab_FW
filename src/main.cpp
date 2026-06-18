@@ -1,10 +1,13 @@
-#include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
+#include "App.hpp"
+#include "Logger.hpp"
+
+static const modules::TaggedLogger kLog("main");
 
 void setup() {
-    Serial.begin(9600);
+    modules::App::instance().begin();
 }
 
-void loop() {
-    Serial.println("Hello world!");
-    delay(1000);
-}
+void loop() {}
