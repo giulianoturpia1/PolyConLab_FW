@@ -22,7 +22,7 @@ static const TaggedLogger kLog("Flowmeter");
 
 //////////////////////////////////// Flow Meter Interrupt Service Routines ////////////////////////////
 
-// Counts one pulse per rising edge on the flow sensor pin.
+// Counts one pulse per falling edge on the flow sensor pin.
 // Only integer arithmetic: no float in ISR context.
 void IRAM_ATTR isrFlowMeter() {
     portENTER_CRITICAL_ISR(&flowMux);
@@ -87,11 +87,16 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
 
     pin_ = pinFlow_;
     pulsesPerLiter_ = pulsesPerLiter;
-    hal_general().pin_mode(pin_, PIN_MODE_INPUT);
+    hal_general().pin_mode(pin_, INPUT_PULLUP);
 
-    attachInterrupt(digitalPinToInterrupt(pinFlow_), isrFlowMeter, RISING);
+    attachInterrupt(digitalPinToInterrupt(27), isrFlowMeter, FALLING);
 
     flowTimer = timerBegin(0, 80, true);  // timer 0, prescaler 80 → 1 tick = 1 µs
+    if (flowTimer == nullptr) {
+        kLog.error("No se pudo inicializar el timer del caudalimetro.");
+        return false;
+    }
+
     timerAttachInterrupt(flowTimer, &isrTimerFlow, true);
     timerAlarmWrite(flowTimer, 1000000, true);  // 1 sec
     timerAlarmEnable(flowTimer);
@@ -114,13 +119,15 @@ float Flowmeter::readFlow() {
         return NAN;
     }
 
-    // Read the snapshot captured by the last timer ISR tick (task-safe critical section).
-    uint32_t pulses;
+    // Read both counters in a single critical section for a consistent snapshot.
+    uint32_t pulses, pulses_raw;
     portENTER_CRITICAL(&flowMux);
     pulses = flow_pulses_snapshot;
+    pulses_raw = flow_pulses;
     portEXIT_CRITICAL(&flowMux);
 
     // Convert pulses/second → liters/minute in task context (safe for FPU).
+    kLog.debug("Calculando flujo: snapshot=" + std::to_string(pulses) + " raw=" + std::to_string(pulses_raw) + " pulsos");
     return (static_cast<float>(pulses) / pulsesPerLiter_) * 60.0f;
 }
 
@@ -152,6 +159,7 @@ bool Flowmeter::process_command(definitions::CommandType command) {
     float current_flow = readFlow();
     uint32_t flow_rate_bits;
     std::memcpy(&flow_rate_bits, &current_flow, sizeof(float));
+    kLog.info("Publicando respuesta del flujo:" + std::string(" L/min ") + std::to_string(current_flow));
     publish_response({definitions::CommandType::kFlowRead, flow_rate_bits});
     return true;
 }

@@ -25,6 +25,7 @@
 #endif
 
 #include "Config.hpp"
+#include "FaultRegistry.hpp"
 
 constexpr uint8_t kEthernetMacLength = 6;
 constexpr uint8_t kValveCount = 2;
@@ -78,20 +79,49 @@ void App::initialize_network_server() {
 }
 
 void App::initialize_devices() {
-    pump_.begin(static_cast<uint32_t>(definitions::Pins::kPump));
-    chiller_.begin(static_cast<uint32_t>(definitions::Pins::kChiller));
-    heater_.begin(static_cast<uint32_t>(definitions::Pins::kHeater));
+    // Reset the fault registry before each initialisation pass so that a
+    // physical reset produces a fresh fault list.
+    FaultRegistry::instance().clear();
+
+    if (!pump_.begin(static_cast<uint32_t>(definitions::Pins::kPump))) {
+        kLog.error("Fallo al inicializar PUMP.");
+        FaultRegistry::instance().add("PUMP");
+    }
+    if (!chiller_.begin(static_cast<uint32_t>(definitions::Pins::kChiller))) {
+        kLog.error("Fallo al inicializar CHILLER.");
+        FaultRegistry::instance().add("CHILLER");
+    }
+    if (!heater_.begin(static_cast<uint32_t>(definitions::Pins::kHeater))) {
+        kLog.error("Fallo al inicializar HEATER.");
+        FaultRegistry::instance().add("HEATER");
+    }
 
     const std::array<uint32_t, kValveCount> valve_pins = {static_cast<uint32_t>(definitions::Pins::kValve1),
                                                           static_cast<uint32_t>(definitions::Pins::kValve2)};
+    // SolenoidValve::begin() returns void (GPIO setup never fails on ESP32).
     valves_.begin(valve_pins.data(), valve_pins.size());
 
     const std::array<uint32_t, kTemperatureSensorCount> i2c_addresses = {
         static_cast<uint32_t>(definitions::Addresses::kTempIn), static_cast<uint32_t>(definitions::Addresses::kTempOut),
         static_cast<uint32_t>(definitions::Addresses::kTempBath), static_cast<uint32_t>(definitions::Addresses::kTempMix)};
-    thermocouples_.begin(i2c_addresses.data(), i2c_addresses.size());
-    flowmeter_.begin(static_cast<uint32_t>(definitions::Pins::kFlowmeter));
-    level_switch_.begin(static_cast<uint32_t>(definitions::Pins::kLevelSwitch));
+    if (!thermocouples_.begin(i2c_addresses.data(), i2c_addresses.size())) {
+        kLog.error("Fallo al inicializar THERMOCOUPLES.");
+        FaultRegistry::instance().add("THERMOCOUPLES");
+    }
+    if (!flowmeter_.begin(static_cast<uint32_t>(definitions::Pins::kFlowmeter))) {
+        kLog.error("Fallo al inicializar FLOWMETER.");
+        FaultRegistry::instance().add("FLOWMETER");
+    }
+    if (!level_switch_.begin(static_cast<uint32_t>(definitions::Pins::kLevelSwitch))) {
+        kLog.error("Fallo al inicializar LEVEL_SWITCH.");
+        FaultRegistry::instance().add("LEVEL_SWITCH");
+    }
+
+    if (FaultRegistry::instance().has_faults()) {
+        kLog.warning("Dispositivos con fallo de inicializacion: " + FaultRegistry::instance().get());
+    } else {
+        kLog.info("Todos los dispositivos inicializados correctamente.");
+    }
 }
 
 void App::create_tasks() {
