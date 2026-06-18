@@ -1,7 +1,7 @@
 ///
 ///@file Flowmeter.hpp
 ///@author F. Galietta, G. Turpia, S. Miranda (proyectopolyconlab@gmail.com)
-///@brief Flowmeter control module for the reactor system.
+///@brief Flowmeter sensor module for the reactor system.
 ///@version 0.1
 ///@date 08-04-2026
 ///
@@ -59,9 +59,7 @@ class Flowmeter {
     ///
     /// @brief Stop the flowmeter. Detach interrupts and end timer.
     ///
-    /// @param pinFlow_ Device pin.
-    ///
-    void stop(uint32_t pinFlow_);
+    void stop();
 
     ///
     /// @brief Read flow rate in liters per minute. Returns the latest calculated flow rate based on pulse counts in the last second.
@@ -71,14 +69,14 @@ class Flowmeter {
     float readFlow();
 
     ///
-    /// @brief Get the flowmeter status.
+    /// @brief Get the flowmeter hardware status.
     ///
-    /// @return true if flowmeter is ON, false otherwise.
+    /// @return true if the interrupt and timer are active, false otherwise.
     ///
     bool status() const;
 
     ///
-    /// @brief Get the flowmeter relay pin.
+    /// @brief Get the flow sensor input pin.
     ///
     /// @return uint32_t
     ///
@@ -103,11 +101,11 @@ class Flowmeter {
     Flowmeter& operator=(Flowmeter&&) = delete;
 
     ///
-    /// @brief Process a Flowmeter command directly, without queueing. Used as a fallback when the queue is unavailable.
+    /// @brief Process a Flowmeter command from the task loop. Only kFlowRead is accepted;
+    /// all other command types return false immediately.
     ///
     /// @param command Command to be processed.
-    /// @return true
-    /// @return false
+    /// @return true if the command was handled and a response published, false otherwise.
     ///
     bool process_command(definitions::CommandType command);
 
@@ -126,8 +124,8 @@ class Flowmeter {
     ///
     static void task_entry(void* param);
 
-    uint32_t pin_;                                       ///< Pin used for flowmeter control
-    bool status_;                                        ///< Current flowmeter status
+    uint32_t pin_;                                       ///< Input pin for the flow sensor pulse signal
+    bool status_;                                        ///< True when the hardware interrupt and timer are active
     float pulsesPerLiter_;                               ///< Calibration constant: sensor pulses per liter
     QueueHandle_t queue_;                                ///< FreeRTOS queue handle for flowmeter commands
     interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses

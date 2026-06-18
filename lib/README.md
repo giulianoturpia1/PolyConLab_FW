@@ -21,6 +21,7 @@ Some libraries may contain additional files, such as configuration files, exampl
 ## 1. Firmware Implementation Details
 
 This section summarizes how the firmware is assembled and executed at runtime. The core idea is simple: `App` boots and wires the system, `StateMachine` coordinates decisions, and device modules execute actions asynchronously through FreeRTOS queues/tasks.
+Since the project utilizes Arduino as the Framework (due to the libraries needed for utilizing the ESP-32 PLC's) which uses the ESP-IDF, the `vTaskStartScheduler()` function is run automatically after setting up the device and does not need to be run in the main application.
 
 The runtime is organized around two central components:
 

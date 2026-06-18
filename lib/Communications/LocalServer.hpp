@@ -11,11 +11,12 @@
 
 #pragma once
 
-#include <Ethernet.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #include <array>
+#include <cstdint>
 #include <functional>
-#include <memory>
 #include <string>
 
 namespace modules {
@@ -35,14 +36,10 @@ class LocalServer {
     static LocalServer& instance();
 
     ///
-    /// @brief Initialize the server with an EthernetServer instance
-    ///
-    void initialize(EthernetServer& server);
-
-    ///
     /// @brief Start the Ethernet server and validate link/hardware.
+    /// Accepts MAC address and IP address as plain byte arrays (no Arduino types required).
     ///
-    bool begin(const std::array<byte, 6>& mac, const IPAddress& ip);
+    bool begin(const std::array<uint8_t, 6>& mac, const std::array<uint8_t, 4>& ip);
 
     ///
     /// @brief Poll for new client data and dispatch messages through the provided handler.
@@ -75,16 +72,9 @@ class LocalServer {
     ///
     void restart_server();
 
-    ///
-    /// @brief Create a response callback for a specific client connection.
-    ///
-    ClientResponseCallback create_response_callback(std::shared_ptr<EthernetClient> client);
-
-    EthernetServer* ethernet_server_;
     bool is_initialized_;
     bool ethernet_link_up_;
-    std::array<byte, 6> ethernet_mac_address_;
-    IPAddress ethernet_ip_address_;
+    SemaphoreHandle_t spi_mutex_;  ///< Protects all W5x00 SPI calls from concurrent task access.
 };
 
 }  // namespace modules

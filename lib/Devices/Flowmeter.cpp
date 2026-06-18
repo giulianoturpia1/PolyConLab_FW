@@ -103,8 +103,8 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
     return true;
 }
 
-void Flowmeter::stop(uint32_t pinFlow_) {
-    detachInterrupt(digitalPinToInterrupt(pinFlow_));
+void Flowmeter::stop() {
+    detachInterrupt(digitalPinToInterrupt(pin_));
     if (flowTimer != nullptr) {
         timerEnd(flowTimer);
         flowTimer = nullptr;
@@ -148,42 +148,15 @@ bool Flowmeter::queue_command(definitions::CommandType command, uint32_t timeout
 Flowmeter::Flowmeter() : pin_(0), status_(false), pulsesPerLiter_(450.0f), queue_(nullptr), response_queue_(nullptr) {}
 
 bool Flowmeter::process_command(definitions::CommandType command) {
-    if (command != definitions::CommandType::kFlowOn && command != definitions::CommandType::kFlowOff &&
-        command != definitions::CommandType::kFlowRead && command != definitions::CommandType::kFlowStatus) {
+    if (command != definitions::CommandType::kFlowRead) {
         return false;
     }
 
-    switch (command) {
-        case definitions::CommandType::kFlowOn: {
-            // Carry the actual success/failure in extra so the StateMachine can distinguish them.
-            const bool ok = begin(pin_);
-            publish_response({definitions::CommandType::kFlowOn, ok ? 1u : 0u});
-            return true;
-        }
-
-        case definitions::CommandType::kFlowOff: {
-            stop(pin_);
-            publish_response({definitions::CommandType::kFlowOff, 1u});
-            return true;
-        }
-
-        case definitions::CommandType::kFlowStatus: {
-            const bool current_status = status();
-            publish_response({definitions::CommandType::kFlowStatus, current_status ? 1u : 0u});
-            return true;
-        }
-
-        case definitions::CommandType::kFlowRead: {
-            float current_flow = readFlow();
-            uint32_t flow_rate_bits;
-            std::memcpy(&flow_rate_bits, &current_flow, sizeof(float));
-            publish_response({definitions::CommandType::kFlowRead, flow_rate_bits});
-            return true;
-        }
-
-        default:
-            return false;
-    }
+    float current_flow = readFlow();
+    uint32_t flow_rate_bits;
+    std::memcpy(&flow_rate_bits, &current_flow, sizeof(float));
+    publish_response({definitions::CommandType::kFlowRead, flow_rate_bits});
+    return true;
 }
 
 bool Flowmeter::publish_response(const definitions::Command& response) {

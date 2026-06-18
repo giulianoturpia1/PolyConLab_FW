@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -46,31 +47,6 @@ inline bool starts_with(const std::string& value, const char* prefix) {
     }
     const size_t prefix_len = std::strlen(prefix);
     return value.size() >= prefix_len && value.compare(0, prefix_len, prefix) == 0;
-}
-
-///
-/// @brief Format an integer value as a "0xNN" hex string.
-///
-/// @param value Value to format.
-/// @return std::string Hex string (e.g. "0x60").
-///
-inline std::string format_hex(uint32_t value) {
-    char buf[11];
-    snprintf(buf, sizeof(buf), "0x%02X", value);
-    return buf;
-}
-
-///
-/// @brief Format a float with specified precision.
-///
-/// @param value Float value to format.
-/// @param precision Number of decimal places.
-/// @return std::string Formatted string.
-///
-inline std::string format_float(float value, int precision) {
-    char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%.*f", precision, value);
-    return std::string(buffer);
 }
 
 ///
@@ -151,6 +127,49 @@ inline const char* command_name(const definitions::CommandType command) {
     const auto it = std::find_if(definitions::kCommandMap.begin(), definitions::kCommandMap.end(),
                                  [command](const definitions::CommandEntry& entry) { return entry.command == command; });
     return it != definitions::kCommandMap.end() ? it->name : "UNKNOWN";
+}
+
+///
+/// @brief Format an integer value as a "0xNN" hex string.
+///
+/// @param value Value to format.
+/// @return std::string Hex string (e.g. "0x60").
+///
+inline std::string format_hex(uint32_t value) {
+    char buf[11];
+    snprintf(buf, sizeof(buf), "0x%02X", value);
+    return buf;
+}
+
+///
+/// @brief Format a float with specified precision.
+///
+/// @param value Float value to format.
+/// @param precision Number of decimal places.
+/// @return std::string Formatted string.
+///
+inline std::string format_float(float value, int precision) {
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "%.*f", precision, value);
+    return std::string(buffer);
+}
+
+///
+/// @brief Unpack an IEEE-754 float stored in a uint32_t and format it to 2 decimal places.
+///
+/// Sensor modules pack float readings into Command::extra via memcpy. This function
+/// reverses that packing and formats the result for the SCPI wire format.
+///
+/// @param bits Raw uint32_t holding the IEEE-754 bit pattern of a float.
+/// @return std::string Formatted value (e.g. "25.50") or SCPI error string.
+///
+inline std::string format_sensor_value(uint32_t bits) {
+    float val;
+    std::memcpy(&val, &bits, sizeof(float));
+    if (std::isnan(val)) {
+        return to_scpi(definitions::ResponseType::kErrorSensorFault);
+    }
+    return format_float(val, 2);
 }
 
 }  // namespace utils
