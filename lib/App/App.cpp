@@ -24,13 +24,11 @@
 #include "PLC19R.hpp"
 #endif
 
+#include "Config.hpp"
+
 constexpr uint8_t kEthernetMacLength = 6;
 constexpr uint8_t kValveCount = 2;
 constexpr uint8_t kTemperatureSensorCount = 4;
-constexpr uint32_t kAppStartupDelayMs = 1000;
-constexpr uint32_t kAppTaskPeriodMs = 20;
-constexpr UBaseType_t kAppTaskPriority = 2;
-constexpr uint32_t kAppTaskStackSize = 4096;
 constexpr char kAppTaskName[] = "app_task";
 
 std::array<uint8_t, kEthernetMacLength> mac = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
@@ -50,7 +48,7 @@ App& App::instance() {
 void App::begin() {
     hal_.serial_begin(115200);
     kLog.info("Iniciando Configuracion...");
-    hal_.delay(kAppStartupDelayMs);
+    hal_.delay(config::kAppStartupDelayMs);
 
     // Initialize all system modules
     initialize_system();
@@ -145,7 +143,8 @@ void App::create_task() {
         return;
     }
 
-    if (xTaskCreate(App::task_entry, kAppTaskName, kAppTaskStackSize, nullptr, kAppTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(App::task_entry, kAppTaskName, config::kAppTaskStackSize, nullptr, config::kAppTaskPriority, nullptr,
+                                config::kSpiCoreId) != pdPASS) {
         kLog.error("No se pudo crear la tarea de App.");
         return;
     }
@@ -160,7 +159,7 @@ void App::tick() {
 void App::task_entry(void* param) {
     while (true) {
         App::instance().tick();
-        vTaskDelay(pdMS_TO_TICKS(kAppTaskPeriodMs));
+        vTaskDelay(pdMS_TO_TICKS(config::kAppTaskPeriodMs));
     }
 }
 

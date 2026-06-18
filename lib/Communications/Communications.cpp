@@ -1,5 +1,6 @@
 #include "Communications.hpp"
 
+#include "Config.hpp"
 #include "Definitions.hpp"
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
@@ -15,8 +16,6 @@
 namespace modules {
 
 static const TaggedLogger kLog("Communications");
-
-constexpr uint32_t kCommsQueueTimeoutMs = 20;
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -125,7 +124,8 @@ Communications::Communications()
       active_transport_(definitions::Transport::kNone),
       pending_transport_(definitions::Transport::kNone),
       local_server_(LocalServer::instance()),
-      last_link_up_(false) {}
+      last_link_up_(true) {}  // true = assume link is up at construction so the first
+                              // poll_ethernet() tick does not fire a spurious kUnpause.
 
 void Communications::handle_message(const std::string& msg) {
     const std::string trimmed = utils::trim(msg);
@@ -176,7 +176,7 @@ void Communications::handle_command(const std::string& msg) {
     }
 
     pending_transport_ = active_transport_;
-    if (!StateMachine::instance().queue_command({cmd->command, extra}, kCommsQueueTimeoutMs)) {
+    if (!StateMachine::instance().queue_command({cmd->command, extra}, config::kCommsQueueTimeoutMs)) {
         pending_transport_ = definitions::Transport::kNone;
         respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
     }
@@ -194,7 +194,7 @@ void Communications::handle_event(const std::string& msg) {
         return;
     }
 
-    if (!StateMachine::instance().queue_event(evt->event, kCommsQueueTimeoutMs)) {
+    if (!StateMachine::instance().queue_event(evt->event, config::kCommsQueueTimeoutMs)) {
         respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownEvent));
     }
 }

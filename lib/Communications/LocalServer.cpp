@@ -5,6 +5,7 @@
 
 #include <memory>
 
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
@@ -58,7 +59,7 @@ bool LocalServer::begin(const std::array<uint8_t, 6>& mac, const std::array<uint
 ///
 static LocalServer::ClientResponseCallback create_response_callback(std::shared_ptr<EthernetClient> client, SemaphoreHandle_t spi_mutex) {
     return [client, spi_mutex](const std::string& response) {
-        if (xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(10)) != pdTRUE) {
+        if (xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(config::kSpiMutexCallbackTimeoutMs)) != pdTRUE) {
             kLog.warning("callback: no se pudo tomar el mutex SPI, respuesta descartada: " + response);
             return;
         }
@@ -74,16 +75,17 @@ static LocalServer::ClientResponseCallback create_response_callback(std::shared_
 }
 
 void LocalServer::poll(const ClientMessageHandler& handler) {
-    // Hold the SPI mutex for the entire W5x00 read sequence so the response
-    // callback (called from the SM task) cannot interleave SPI frames with us.
-    if (xSemaphoreTake(spi_mutex_, pdMS_TO_TICKS(5)) != pdTRUE) {
-        kLog.warning("poll: no se pudo tomar el mutex SPI, saltando tick.");
+    // Check link / hardware status first — these are read-only PHY queries and do
+    // not need the mutex because no other task sends SPI frames at this point.
+    if (!ensure_connection()) {
+        kLog.warning("poll: ensure_connection fallo, Ethernet no disponible.");
         return;
     }
 
-    if (!ensure_connection()) {
-        kLog.warning("poll: ensure_connection fallo, Ethernet no disponible.");
-        xSemaphoreGive(spi_mutex_);
+    // Acquire the mutex only for the actual W5x00 data I/O so the response
+    // callback (called from the SM task) cannot interleave SPI frames with us.
+    if (xSemaphoreTake(spi_mutex_, pdMS_TO_TICKS(config::kSpiMutexPollTimeoutMs)) != pdTRUE) {
+        kLog.warning("poll: no se pudo tomar el mutex SPI, saltando tick.");
         return;
     }
 

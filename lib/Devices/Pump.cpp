@@ -2,14 +2,10 @@
 
 #include <freertos/task.h>
 
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr uint32_t kPumpTimeoutMs = 20;
-constexpr TickType_t kPumpTaskWatchdogTicks = portMAX_DELAY;
-constexpr UBaseType_t kPumpTaskPriority = 2;
-constexpr UBaseType_t kPumpQueueLength = 8;
-constexpr uint32_t kPumpTaskStackSize = 2048;
 constexpr char kPumpTaskName[] = "pump_task";
 
 namespace modules {
@@ -28,13 +24,14 @@ bool Pump::create_task() {
         return true;
     }
 
-    queue_ = xQueueCreate(kPumpQueueLength, sizeof(definitions::CommandType));
+    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
         kLog.error("No se pudo crear la cola de la bomba.");
         return false;
     }
 
-    if (xTaskCreate(task_entry, kPumpTaskName, kPumpTaskStackSize, this, kPumpTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(task_entry, kPumpTaskName, config::kPumpTaskStackSize, this, config::kDeviceTaskPriority, nullptr,
+                                config::kI2cCoreId) != pdPASS) {
         kLog.error("No se pudo crear la tarea de la bomba.");
         vQueueDelete(queue_);
         queue_ = nullptr;
@@ -116,7 +113,7 @@ bool Pump::publish_response(const definitions::Command& response) {
         return false;
     }
 
-    return response_queue_->publish(response, kPumpTimeoutMs);
+    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
 }
 
 void Pump::task_entry(void* param) {
@@ -124,7 +121,7 @@ void Pump::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kPumpOff;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kPumpTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command);
         }
         if (self->queue_ == nullptr) {

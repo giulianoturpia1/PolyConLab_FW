@@ -2,14 +2,10 @@
 
 #include <freertos/task.h>
 
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr uint32_t kHeaterTimeoutMs = 20;
-constexpr TickType_t kHeaterTaskWatchdogTicks = portMAX_DELAY;
-constexpr UBaseType_t kHeaterTaskPriority = 2;
-constexpr UBaseType_t kHeaterQueueLength = 8;
-constexpr uint32_t kHeaterTaskStackSize = 2048;
 constexpr char kHeaterTaskName[] = "heater_task";
 
 namespace modules {
@@ -28,13 +24,14 @@ bool Heater::create_task() {
         return true;
     }
 
-    queue_ = xQueueCreate(kHeaterQueueLength, sizeof(definitions::CommandType));
+    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
         kLog.error("No se pudo crear la cola del calentador.");
         return false;
     }
 
-    if (xTaskCreate(task_entry, kHeaterTaskName, kHeaterTaskStackSize, this, kHeaterTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(task_entry, kHeaterTaskName, config::kHeaterTaskStackSize, this, config::kDeviceTaskPriority, nullptr,
+                                config::kI2cCoreId) != pdPASS) {
         kLog.error("No se pudo crear la tarea del calentador.");
         vQueueDelete(queue_);
         queue_ = nullptr;
@@ -116,7 +113,7 @@ bool Heater::publish_response(const definitions::Command& response) {
         return false;
     }
 
-    return response_queue_->publish(response, kHeaterTimeoutMs);
+    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
 }
 
 void Heater::task_entry(void* param) {
@@ -124,7 +121,7 @@ void Heater::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kHeaterOff;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kHeaterTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command);
         }
         if (self->queue_ == nullptr) {

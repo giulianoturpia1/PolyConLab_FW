@@ -2,14 +2,10 @@
 
 #include <freertos/task.h>
 
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
-constexpr uint32_t kLevelSwitchTimeoutMs = 20;
-constexpr TickType_t kLevelSwitchTaskWatchdogTicks = portMAX_DELAY;
-constexpr UBaseType_t kLevelSwitchTaskPriority = 2;
-constexpr UBaseType_t kLevelSwitchQueueLength = 8;
-constexpr uint32_t kLevelSwitchTaskStackSize = 2048;
 constexpr char kLevelSwitchTaskName[] = "level_switch_task";
 
 namespace modules {
@@ -28,13 +24,14 @@ bool LevelSwitch::create_task() {
         return true;
     }
 
-    queue_ = xQueueCreate(kLevelSwitchQueueLength, sizeof(definitions::CommandType));
+    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(definitions::CommandType));
     if (queue_ == nullptr) {
         kLog.error("No se pudo crear la cola del interruptor de nivel.");
         return false;
     }
 
-    if (xTaskCreate(task_entry, kLevelSwitchTaskName, kLevelSwitchTaskStackSize, this, kLevelSwitchTaskPriority, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(task_entry, kLevelSwitchTaskName, config::kLevelSwitchTaskStackSize, this, config::kDeviceTaskPriority,
+                                nullptr, config::kI2cCoreId) != pdPASS) {
         kLog.error("No se pudo crear la tarea del interruptor de nivel.");
         vQueueDelete(queue_);
         queue_ = nullptr;
@@ -100,7 +97,7 @@ bool LevelSwitch::publish_response(const definitions::Command& response) {
         return false;
     }
 
-    return response_queue_->publish(response, kLevelSwitchTimeoutMs);
+    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
 }
 
 void LevelSwitch::task_entry(void* param) {
@@ -108,7 +105,7 @@ void LevelSwitch::task_entry(void* param) {
     definitions::CommandType command = definitions::CommandType::kLevelSwitchState;
 
     while (true) {
-        if (xQueueReceive(self->queue_, &command, kLevelSwitchTaskWatchdogTicks) == pdPASS) {
+        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
             self->process_command(command);
         }
         if (self->queue_ == nullptr) {
