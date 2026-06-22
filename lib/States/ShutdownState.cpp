@@ -67,14 +67,14 @@ const char* ShutdownState::name() const {
 }
 
 void ShutdownState::apply_safe_outputs() {
-    Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
-    Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
-    Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
+    Heater::instance().queue_command({definitions::CommandType::kHeaterOff, 0u}, 10);
+    Pump::instance().queue_command({definitions::CommandType::kPumpOff, 0u}, 10);
+    Chiller::instance().queue_command({definitions::CommandType::kChillerOff, 0u}, 10);
 }
 
 void ShutdownState::close_all_valves_if_supported() {
-    SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve1), 10);
-    SolenoidValve::instance().queue_command(definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve2), 10);
+    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve1)}, 10);
+    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve2)}, 10);
 }
 
 }  // namespace modules

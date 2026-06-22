@@ -20,6 +20,7 @@
 
 #include "Definitions.hpp"
 #include "ICommandResponseQueue.hpp"
+#include "IDevice.hpp"
 
 namespace modules {
 
@@ -27,7 +28,7 @@ namespace modules {
 /// @brief Singleton solenoid valve controller. It supports multiple valves and manages their states.
 /// Valves are identified by their pin numbers.
 ///
-class SolenoidValve {
+class SolenoidValve : public interfaces::IDevice {
    public:
     ///
     /// @brief Get the singleton instance of the SolenoidValve controller.
@@ -110,15 +111,14 @@ class SolenoidValve {
     ///
     uint8_t count() const;
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
     ///
-    /// @brief Queue a valve command in the module's local queue.
+    /// @copydoc interfaces::IDevice::queue_command(const definitions::Command&, uint32_t)
+    /// @note cmd.extra carries the target valve pin number.
     ///
-    /// @param command Command to be sent.
-    /// @param pin Pin for valve control.
-    /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if command was queued, false otherwise.
-    ///
-    bool queue_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms = 0);
+    bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) override;
 
    private:
     SolenoidValve();

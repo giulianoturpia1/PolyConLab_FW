@@ -75,12 +75,16 @@ uint32_t Heater::pin() const {
     return pin_;
 }
 
-bool Heater::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
+bool Heater::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kHeaterOn || type == definitions::CommandType::kHeaterOff ||
+           type == definitions::CommandType::kHeaterState;
+}
+
+bool Heater::queue_command(const definitions::Command& cmd, uint32_t timeout_ms) {
     if (queue_ == nullptr) {
         return false;
     }
-
-    return xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
+    return xQueueSend(queue_, &cmd.type, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////

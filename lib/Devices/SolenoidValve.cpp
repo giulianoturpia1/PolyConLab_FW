@@ -143,13 +143,17 @@ uint8_t SolenoidValve::count() const {
     return valve_count_;
 }
 
-bool SolenoidValve::queue_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {
-    const ValveCommand queue_command = {command, pin};
+bool SolenoidValve::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kValveOpen || type == definitions::CommandType::kValveClose ||
+           type == definitions::CommandType::kValveState;
+}
+
+bool SolenoidValve::queue_command(const definitions::Command& cmd, uint32_t timeout_ms) {
+    const ValveCommand vc = {cmd.type, cmd.extra};
     if (queue_ == nullptr) {
         return false;
     }
-
-    return xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
+    return xQueueSend(queue_, &vc, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////

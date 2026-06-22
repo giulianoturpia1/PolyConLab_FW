@@ -17,13 +17,14 @@
 
 #include "Definitions.hpp"
 #include "ICommandResponseQueue.hpp"
+#include "IDevice.hpp"
 
 namespace modules {
 
 ///
 /// @brief Singleton pump controller. Handles basic on/off and status logic.
 ///
-class Pump {
+class Pump : public interfaces::IDevice {
    public:
     ///
     /// @brief Get the singleton instance of the Pump controller.
@@ -75,14 +76,11 @@ class Pump {
     ///
     uint32_t pin() const;
 
-    ///
-    /// @brief Queue a pump command in the module's local queue.
-    ///
-    /// @param command Command to be sent.
-    /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if command was queued, false otherwise.
-    ///
-    bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+    /// @copydoc interfaces::IDevice::queue_command(const definitions::Command&, uint32_t)
+    bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) override;
 
    private:
     Pump();

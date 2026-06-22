@@ -24,6 +24,7 @@
 #include "Adafruit_MCP9600.h"
 #include "Definitions.hpp"
 #include "ICommandResponseQueue.hpp"
+#include "IDevice.hpp"
 
 namespace modules {
 
@@ -31,7 +32,7 @@ namespace modules {
 /// @brief Singleton Thermocouple Amplifier controller. It supports multiple Thermocouple Amplifiers and manages their states.
 /// Thermocouple Amplifiers are identified by their I2C addresses.
 ///
-class Thermocouple {
+class Thermocouple : public interfaces::IDevice {
    public:
     ///
     /// @brief Get the singleton instance of the Thermocouple controller.
@@ -97,15 +98,14 @@ class Thermocouple {
     ///
     uint8_t count() const;
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
     ///
-    /// @brief Queue a Thermocouple Amplifier command through the module queue.
+    /// @copydoc interfaces::IDevice::queue_command(const definitions::Command&, uint32_t)
+    /// @note Resolves cmd.type to the corresponding I2C address internally (kTempInRead → kTempIn, etc.).
     ///
-    /// @param command Command to be sent.
-    /// @param address Address of the Thermocouple Amplifier.
-    /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if command was queued, false otherwise.
-    ///
-    bool queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms = 0);
+    bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) override;
 
    private:
     Thermocouple();

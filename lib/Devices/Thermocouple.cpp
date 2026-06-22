@@ -11,6 +11,12 @@
 #include "Helpers.hpp"
 #include "Logger.hpp"
 
+#if defined(PLC_38AR)
+#include "PLC38AR.hpp"
+#elif defined(PLC_19R)
+#include "PLC19R.hpp"
+#endif
+
 constexpr char kThermocoupleTaskName[] = "thermocouple_task";
 
 struct ThermocoupleCommand {
@@ -140,12 +146,33 @@ uint8_t Thermocouple::count() const {
     return thermoc_count_;
 }
 
-bool Thermocouple::queue_command(definitions::CommandType command, uint32_t address, uint32_t timeout_ms) {
-    const ThermocoupleCommand queue_command = {command, address};
-    if (queue_ == nullptr || xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+bool Thermocouple::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kTempInRead || type == definitions::CommandType::kTempOutRead ||
+           type == definitions::CommandType::kTempBathRead || type == definitions::CommandType::kTempMixRead;
+}
+
+bool Thermocouple::queue_command(const definitions::Command& cmd, uint32_t timeout_ms) {
+    uint32_t address;
+    switch (cmd.type) {
+        case definitions::CommandType::kTempInRead:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempIn);
+            break;
+        case definitions::CommandType::kTempOutRead:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempOut);
+            break;
+        case definitions::CommandType::kTempBathRead:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempBath);
+            break;
+        case definitions::CommandType::kTempMixRead:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempMix);
+            break;
+        default:
+            return false;
+    }
+    const ThermocoupleCommand tc = {cmd.type, address};
+    if (queue_ == nullptr || xQueueSend(queue_, &tc, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
-
     return true;
 }
 

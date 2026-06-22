@@ -37,9 +37,9 @@ const char* StartupState::name() const {
 }
 
 void StartupState::apply_safe_outputs() {
-    Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
-    Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
-    Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
+    Heater::instance().queue_command({definitions::CommandType::kHeaterOff, 0u}, 10);
+    Pump::instance().queue_command({definitions::CommandType::kPumpOff, 0u}, 10);
+    Chiller::instance().queue_command({definitions::CommandType::kChillerOff, 0u}, 10);
 }
 
 }  // namespace modules

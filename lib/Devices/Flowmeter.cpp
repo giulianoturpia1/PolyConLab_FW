@@ -139,11 +139,14 @@ uint32_t Flowmeter::pin() const {
     return pin_;
 }
 
-bool Flowmeter::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
-    if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
+bool Flowmeter::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kFlowRead;
+}
+
+bool Flowmeter::queue_command(const definitions::Command& cmd, uint32_t timeout_ms) {
+    if (queue_ == nullptr || xQueueSend(queue_, &cmd.type, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
         return false;
     }
-
     return true;
 }
 
