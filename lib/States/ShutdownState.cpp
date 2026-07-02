@@ -1,20 +1,8 @@
 #include "ShutdownState.hpp"
 
-#include "Chiller.hpp"
-#include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
-#include "Heater.hpp"
 #include "Logger.hpp"
-#include "Pump.hpp"
-#include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
-#include "Thermocouple.hpp"
-
-#if defined(PLC_38AR)
-#include "PLC38AR.hpp"
-#elif defined(PLC_19R)
-#include "PLC19R.hpp"
-#endif
 
 namespace modules {
 
@@ -27,9 +15,6 @@ definitions::SystemState ShutdownState::handle_event(StateMachine* context, defi
         case definitions::SystemEvent::kShutdownComplete:
             completed_ = true;
             return definitions::SystemState::kStartup;
-        case definitions::SystemEvent::kFaultCritical:
-        case definitions::SystemEvent::kShutdownButton:
-            return definitions::SystemState::kHardError;
         default:
             return definitions::SystemState::kShutdown;
     }
@@ -59,22 +44,11 @@ void ShutdownState::on_enter(StateMachine* context) {
     completed_ = false;
     kLog.info("Iniciando Estado: SHUTDOWN - Parada ordenada y guardado de estado");
     apply_safe_outputs();
-    close_all_valves_if_supported();
+    close_all_valves();
 }
 
 const char* ShutdownState::name() const {
     return "SHUTDOWN";
-}
-
-void ShutdownState::apply_safe_outputs() {
-    Heater::instance().queue_command({definitions::CommandType::kHeaterOff, 0u}, 10);
-    Pump::instance().queue_command({definitions::CommandType::kPumpOff, 0u}, 10);
-    Chiller::instance().queue_command({definitions::CommandType::kChillerOff, 0u}, 10);
-}
-
-void ShutdownState::close_all_valves_if_supported() {
-    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve1)}, 10);
-    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve2)}, 10);
 }
 
 }  // namespace modules

@@ -10,12 +10,7 @@
 #include "HALGeneral.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
-
-#if defined(PLC_38AR)
-#include "PLC38AR.hpp"
-#elif defined(PLC_19R)
-#include "PLC19R.hpp"
-#endif
+#include "TargetDefinitions.hpp"
 
 constexpr char kThermocoupleTaskName[] = "thermocouple_task";
 

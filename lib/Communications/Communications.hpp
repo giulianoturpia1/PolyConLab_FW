@@ -39,6 +39,12 @@ namespace modules {
 /// Inline commands (SYST:LOG*, invalid params, unknown) respond immediately via respond_now()
 /// without involving pending_transport_.
 ///
+/// @note Closing the Serial connection (e.g. closing the COM port or unplugging the USB
+/// cable) resets the whole board — the USB-serial bridge's DTR/RTS auto-reset circuit pulses
+/// EN — not just the Serial transport. This also drops the Ethernet connection, since the
+/// entire firmware, including the Ethernet server, reboots. See PCL-69. Note this is a
+/// hardware limitation of the platforms used, not a software limitation of the Communications module.
+///
 class Communications {
    public:
     ///

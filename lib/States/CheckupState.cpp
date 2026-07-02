@@ -1,19 +1,8 @@
 #include "CheckupState.hpp"
 
-#include "Chiller.hpp"
 #include "DeviceDispatcher.hpp"
-#include "HALGeneral.hpp"
-#include "Heater.hpp"
 #include "Logger.hpp"
-#include "Pump.hpp"
-#include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
-
-#if defined(PLC_38AR)
-#include "PLC38AR.hpp"
-#elif defined(PLC_19R)
-#include "PLC19R.hpp"
-#endif
 
 constexpr uint32_t kCheckupTimeWindowMs = 200;
 
@@ -33,9 +22,6 @@ definitions::SystemState CheckupState::handle_event(StateMachine* context, defin
             break;
         case definitions::SystemEvent::kFaultRecoverable:
             return definitions::SystemState::kSoftError;
-        case definitions::SystemEvent::kFaultCritical:
-        case definitions::SystemEvent::kShutdownButton:
-            return definitions::SystemState::kHardError;
         case definitions::SystemEvent::kShutdown:
             return definitions::SystemState::kShutdown;
         default:
@@ -55,6 +41,7 @@ void CheckupState::on_enter(StateMachine* context) {
     sensorOk_ = false;
     kLog.info("Iniciando Estado: CHECKUP");
     apply_safe_outputs();
+    close_all_valves();
 }
 
 const char* CheckupState::name() const {
@@ -76,19 +63,6 @@ bool CheckupState::dispatch_command(StateMachine* context, const definitions::Co
         default:
             return false;
     }
-}
-
-void CheckupState::apply_safe_outputs() {
-    Heater::instance().queue_command({definitions::CommandType::kHeaterOff, 0u}, 10);
-    Pump::instance().queue_command({definitions::CommandType::kPumpOff, 0u}, 10);
-    Chiller::instance().queue_command({definitions::CommandType::kChillerOff, 0u}, 10);
-#if defined(PLC_38AR)
-    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(Q0_1)}, 10);
-    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(Q0_3)}, 10);
-#elif defined(PLC_19R)
-    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(R1_1)}, 10);
-    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(R1_2)}, 10);
-#endif
 }
 
 }  // namespace modules

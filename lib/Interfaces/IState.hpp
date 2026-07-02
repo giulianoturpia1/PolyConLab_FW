@@ -78,6 +78,16 @@ class IState {
     IState& operator=(const IState&) = delete;
     IState(IState&&) = delete;
     IState& operator=(IState&&) = delete;
+
+    ///
+    /// @brief Turn off all actuators (Heater, Pump, Chiller). Call from on_enter() when entering any safe or error state.
+    ///
+    static void apply_safe_outputs();
+
+    ///
+    /// @brief Close both solenoid valves. No-op on targets that do not define valve pins.
+    ///
+    static void close_all_valves();
 };
 
 }  // namespace interfaces

@@ -25,8 +25,6 @@ class SoftErrorState final : public IState {
     bool retryRequested_ = false;
     bool ackRequested_ = false;
     bool conditionCleared_ = false;
-
-    void apply_safe_outputs();
 };
 
 }  // namespace modules

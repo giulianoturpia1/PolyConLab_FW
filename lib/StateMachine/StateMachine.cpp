@@ -18,11 +18,7 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
-#if defined(PLC_38AR)
-#include "PLC38AR.hpp"
-#elif defined(PLC_19R)
-#include "PLC19R.hpp"
-#endif
+#include "TargetDefinitions.hpp"
 
 static QueueHandle_t gStateEventQueue = nullptr;
 static QueueHandle_t gStateCommandQueue = nullptr;
@@ -239,10 +235,15 @@ bool StateMachine::response_matches_command(const definitions::Command& request,
 }
 
 void StateMachine::process_event(definitions::SystemEvent event) {
-    // Special handling for communication loss event: pause the system regardless of current state.
+    // Global transitions handled before delegating to the active state.
     if (event == definitions::SystemEvent::kCommunicationLost) {
         kLog.info("Conexion Ethernet perdida, pausando sistema.");
         transition_to(definitions::SystemState::kPause);
+        return;
+    }
+    if (event == definitions::SystemEvent::kFaultCritical || event == definitions::SystemEvent::kShutdownButton) {
+        kLog.error("Fallo critico detectado, transicionando a HARD_ERROR.");
+        transition_to(definitions::SystemState::kHardError);
         return;
     }
 

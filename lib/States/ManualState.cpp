@@ -20,9 +20,6 @@ definitions::SystemState ManualState::handle_event(StateMachine* context, defini
             return definitions::SystemState::kShutdown;
         case definitions::SystemEvent::kFaultRecoverable:
             return definitions::SystemState::kSoftError;
-        case definitions::SystemEvent::kFaultCritical:
-        case definitions::SystemEvent::kShutdownButton:
-            return definitions::SystemState::kHardError;
         default:
             return definitions::SystemState::kManual;
     }

@@ -1,18 +1,7 @@
 #include "HardErrorState.hpp"
 
-#include "Chiller.hpp"
-#include "HALGeneral.hpp"
-#include "Heater.hpp"
 #include "Logger.hpp"
-#include "Pump.hpp"
-#include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
-
-#if defined(PLC_38AR)
-#include "PLC38AR.hpp"
-#elif defined(PLC_19R)
-#include "PLC19R.hpp"
-#endif
 
 namespace modules {
 
@@ -47,24 +36,11 @@ void HardErrorState::on_enter(StateMachine* context) {
     conditionsOk_ = false;
     kLog.error("Iniciando Estado: HARD_ERROR - Sistema bloqueado");
     apply_safe_outputs();
-    close_all_valves_if_supported();
+    close_all_valves();
 }
 
 const char* HardErrorState::name() const {
     return "HARD_ERROR";
-}
-
-void HardErrorState::apply_safe_outputs() {
-    Heater::instance().queue_command({definitions::CommandType::kHeaterOff, 0u}, 10);
-    Pump::instance().queue_command({definitions::CommandType::kPumpOff, 0u}, 10);
-    Chiller::instance().queue_command({definitions::CommandType::kChillerOff, 0u}, 10);
-}
-
-void HardErrorState::close_all_valves_if_supported() {
-#if defined(PLC_38AR) || defined(PLC_19R)
-    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve1)}, 10);
-    SolenoidValve::instance().queue_command({definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve2)}, 10);
-#endif
 }
 
 }  // namespace modules

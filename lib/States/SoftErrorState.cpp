@@ -1,10 +1,6 @@
 #include "SoftErrorState.hpp"
 
-#include "Chiller.hpp"
-#include "HALGeneral.hpp"
-#include "Heater.hpp"
 #include "Logger.hpp"
-#include "Pump.hpp"
 #include "StateMachine.hpp"
 
 namespace modules {
@@ -22,8 +18,6 @@ definitions::SystemState SoftErrorState::handle_event(StateMachine* context, def
         case definitions::SystemEvent::kConditionCleared:
             conditionCleared_ = true;
             break;
-        case definitions::SystemEvent::kFaultCritical:
-        case definitions::SystemEvent::kShutdownButton:
         case definitions::SystemEvent::kEStop:
         case definitions::SystemEvent::kTooManyRetries:
             return definitions::SystemState::kHardError;
@@ -58,12 +52,6 @@ void SoftErrorState::on_enter(StateMachine* context) {
 
 const char* SoftErrorState::name() const {
     return "SOFT_ERROR";
-}
-
-void SoftErrorState::apply_safe_outputs() {
-    Heater::instance().queue_command({definitions::CommandType::kHeaterOff, 0u}, 10);
-    Pump::instance().queue_command({definitions::CommandType::kPumpOff, 0u}, 10);
-    Chiller::instance().queue_command({definitions::CommandType::kChillerOff, 0u}, 10);
 }
 
 }  // namespace modules

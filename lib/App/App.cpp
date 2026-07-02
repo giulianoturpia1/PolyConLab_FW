@@ -7,7 +7,9 @@
 
 #include "Chiller.hpp"
 #include "Communications.hpp"
+#include "Config.hpp"
 #include "DeviceDispatcher.hpp"
+#include "FaultRegistry.hpp"
 #include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
@@ -17,16 +19,8 @@
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
 #include "StateMachineResponseQueue.hpp"
+#include "TargetDefinitions.hpp"
 #include "Thermocouple.hpp"
-
-#if defined(PLC_38AR)
-#include "PLC38AR.hpp"
-#elif defined(PLC_19R)
-#include "PLC19R.hpp"
-#endif
-
-#include "Config.hpp"
-#include "FaultRegistry.hpp"
 
 constexpr uint8_t kEthernetMacLength = 6;
 constexpr uint8_t kValveCount = 2;
