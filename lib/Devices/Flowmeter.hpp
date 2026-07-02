@@ -19,6 +19,7 @@
 
 #include "Definitions.hpp"
 #include "ICommandResponseQueue.hpp"
+#include "IDevice.hpp"
 
 namespace modules {
 
@@ -26,7 +27,7 @@ namespace modules {
 /// @brief Singleton Flowmeter controller. It manages the flowmeter sensor and its readings.
 /// The flowmeter measures flow by pulses managed by an interrupt service routine, and calculates flow rate in liters per minute.
 ///
-class Flowmeter {
+class Flowmeter : public interfaces::IDevice {
    public:
     ///
     /// @brief Get the singleton instance of the Flowmeter controller.
@@ -82,13 +83,11 @@ class Flowmeter {
     ///
     uint32_t pin() const;
 
-    ///
-    /// @brief Queue a Flowmeter command through the module queue.
-    /// @param command Command to be sent.
-    /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if command was queued, false otherwise.
-    ///
-    bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+    /// @copydoc interfaces::IDevice::queue_command(const definitions::Command&, uint32_t)
+    bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) override;
 
    private:
     Flowmeter();

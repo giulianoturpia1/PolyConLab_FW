@@ -20,9 +20,6 @@ class StartupState final : public IState {
     definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) override;
     void on_enter(StateMachine* context) override;
     const char* name() const override;
-
-   private:
-    void apply_safe_outputs();
 };
 
 }  // namespace modules

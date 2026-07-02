@@ -147,6 +147,10 @@ python -m pre-commit run --all-files
 
 If you are using Windows and PlatformIO is unable to find the COM port of your ESP32-based PLC, ensure that you have the necessary drivers installed. You may need to install the CP210x USB to UART Bridge VCP Drivers, which can be found on the Silicon Labs [website](https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers).
 
+### 6.1.1. Ethernet Connection Drops When Serial Is Disconnected
+
+Closing the Serial connection (closing the COM port, closing a serial monitor, or unplugging the USB cable) resets the whole PLC, not just the Serial transport. Since the USB-port is meant to be used as a programming interface and limited serial debugging, internaly, the PLC resets each time a Serial connection is dropped. For this reason, any active Ethernet/SCADA session is dropped, meaning it is meant to happen should debugging take place while using SCADA-like features.
+
 ### 6.2. Industrial Shields Library Issues
 
 If you encounter issues related to the Industrial Shields library, the only known method of fixing this issue is by deleting the `.pio` folder in the project directory and also deleting the `.platformio` folder. This folder is usually located in the user's home directory.

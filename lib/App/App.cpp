@@ -7,6 +7,9 @@
 
 #include "Chiller.hpp"
 #include "Communications.hpp"
+#include "Config.hpp"
+#include "DeviceDispatcher.hpp"
+#include "FaultRegistry.hpp"
 #include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
 #include "Heater.hpp"
@@ -16,16 +19,8 @@
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
 #include "StateMachineResponseQueue.hpp"
+#include "TargetDefinitions.hpp"
 #include "Thermocouple.hpp"
-
-#if defined(PLC_38AR)
-#include "PLC38AR.hpp"
-#elif defined(PLC_19R)
-#include "PLC19R.hpp"
-#endif
-
-#include "Config.hpp"
-#include "FaultRegistry.hpp"
 
 constexpr uint8_t kEthernetMacLength = 6;
 constexpr uint8_t kValveCount = 2;
@@ -151,6 +146,13 @@ void App::initialize_system() {
 
     // Initialize Devices
     initialize_devices();
+
+    // Build device list for IDevice routing in DeviceDispatcher::forward_to_device().
+    // Order determines priority; the first device that accepts() a command wins.
+    static interfaces::IDevice* const kDevices[] = {
+        &heater_, &pump_, &chiller_, &valves_, &thermocouples_, &flowmeter_, &level_switch_,
+    };
+    DeviceDispatcher::instance().set_devices(kDevices, sizeof(kDevices) / sizeof(kDevices[0]));
 
     // Create and Initialize State Machine
     state_machine_.initialize();

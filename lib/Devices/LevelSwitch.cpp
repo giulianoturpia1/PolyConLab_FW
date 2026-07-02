@@ -66,12 +66,15 @@ uint32_t LevelSwitch::pin() const {
     return pin_;
 }
 
-bool LevelSwitch::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
+bool LevelSwitch::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kLevelSwitchState;
+}
+
+bool LevelSwitch::queue_command(const definitions::Command& cmd, uint32_t timeout_ms) {
     if (queue_ == nullptr) {
         return false;
     }
-
-    return xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
+    return xQueueSend(queue_, &cmd.type, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////

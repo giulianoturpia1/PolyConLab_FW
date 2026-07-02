@@ -28,8 +28,6 @@ class CheckupState final : public IState {
    private:
     bool scadaOk_ = false;
     bool sensorOk_ = false;
-
-    void apply_safe_outputs();
 };
 
 }  // namespace modules

@@ -75,12 +75,16 @@ uint32_t Pump::pin() const {
     return pin_;
 }
 
-bool Pump::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
+bool Pump::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kPumpOn || type == definitions::CommandType::kPumpOff ||
+           type == definitions::CommandType::kPumpState;
+}
+
+bool Pump::queue_command(const definitions::Command& cmd, uint32_t timeout_ms) {
     if (queue_ == nullptr) {
         return false;
     }
-
-    return xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
+    return xQueueSend(queue_, &cmd.type, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////

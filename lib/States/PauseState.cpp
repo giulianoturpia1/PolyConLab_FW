@@ -1,6 +1,5 @@
 #include "PauseState.hpp"
 
-#include "HALGeneral.hpp"
 #include "Logger.hpp"
 #include "StateMachine.hpp"
 
@@ -15,9 +14,6 @@ definitions::SystemState PauseState::handle_event(StateMachine* context, definit
                                                                                      : context->get_previous_state();
         case definitions::SystemEvent::kShutdown:
             return definitions::SystemState::kShutdown;
-        case definitions::SystemEvent::kFaultCritical:
-        case definitions::SystemEvent::kShutdownButton:
-            return definitions::SystemState::kHardError;
         default:
             return definitions::SystemState::kPause;
     }

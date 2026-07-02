@@ -7,12 +7,7 @@
 #include "Helpers.hpp"
 #include "Logger.hpp"
 #include "StateMachine.hpp"
-
-#if defined(PLC_38AR)
-#include "PLC38AR.hpp"
-#elif defined(PLC_19R)
-#include "PLC19R.hpp"
-#endif
+#include "TargetDefinitions.hpp"
 
 namespace modules {
 
