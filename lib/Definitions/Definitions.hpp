@@ -33,7 +33,21 @@ constexpr uint8_t kMaxThermocouples = 5;
 /// calibration data.
 ///
 ///
-constexpr float kFlowmeterPulsesPerLiter = 489.125f;
+constexpr float kFlowmeterPulsesPerLiter = 28.75f;  // 489.125f;
+
+///
+///@brief Reference flow rate in liters per second for the flowmeter. Adjust based on the specific flowmeter used.
+///
+///
+constexpr float kReferenceFlow =
+    0.015f;  ///< Reference flow rate in liters per second for the flowmeter. Adjust based on the specific flowmeter used.
+
+///
+///@brief Frequency of pulses per second for the flowmeter. Adjust based on the specific flowmeter used. Refers to kReferenceFlow
+///
+///
+constexpr float kReferenceFrequencyofPulsesPerSecond =
+    12.5f;  ///< Frequency of pulses per second for the flowmeter. Adjust based on the specific flowmeter used.
 
 ///
 /// @brief System states for the Finite State Machine. Refer to the design documentation for details.

@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "Config.hpp"
+#include "Definitions.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
 
@@ -15,6 +16,9 @@ static volatile uint32_t flow_pulses = 0;           ///< Raw pulse counter, incr
 static volatile uint32_t flow_pulses_snapshot = 0;  ///< Pulses captured in the last 1-second window by isrTimerFlow.
 static portMUX_TYPE flowMux = portMUX_INITIALIZER_UNLOCKED;
 static hw_timer_t* flowTimer = nullptr;
+int timeWindowSeconds = 1;
+long secondfromScaler = 1000000;
+long timeWindowfromScaler = timeWindowSeconds * secondfromScaler;  // timeWindowSeconds seconds
 
 namespace modules {
 
@@ -98,7 +102,7 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
     }
 
     timerAttachInterrupt(flowTimer, &isrTimerFlow, true);
-    timerAlarmWrite(flowTimer, 1000000, true);  // 1 sec
+    timerAlarmWrite(flowTimer, timeWindowfromScaler, true);
     timerAlarmEnable(flowTimer);
 
     status_ = true;
@@ -128,7 +132,10 @@ float Flowmeter::readFlow() {
 
     // Convert pulses/second → liters/minute in task context (safe for FPU).
     kLog.debug("Calculando flujo: snapshot=" + std::to_string(pulses) + " raw=" + std::to_string(pulses_raw) + " pulsos");
-    return (static_cast<float>(pulses) / pulsesPerLiter_) * 60.0f;
+    float pulseFrequency = static_cast<float>(pulses) / static_cast<float>(timeWindowSeconds);  // pulses per second
+
+    return float((pulseFrequency * definitions::kReferenceFlow) / definitions::kReferenceFrequencyofPulsesPerSecond) *
+           60.0f;  // Convert to liters per minute
 }
 
 bool Flowmeter::status() const {
