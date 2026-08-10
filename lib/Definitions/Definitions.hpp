@@ -180,9 +180,9 @@ enum class ResponseType {
 /// @brief Communication transport that originated a command or response.
 ///
 enum class Transport {
-    kNone,      ///< No active transport (idle / after response delivery)
-    kEthernet,  ///< Command received over Ethernet TCP
-    kSerial     ///< Command received over Serial
+    kNone,   ///< No active transport (idle / after response delivery)
+    kWifi,   ///< Command received over WiFi TCP
+    kSerial  ///< Command received over Serial
 };
 
 ///

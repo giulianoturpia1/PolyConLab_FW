@@ -17,18 +17,18 @@
 #include <string>
 
 #include "Definitions.hpp"
-#include "LocalServer.hpp"
+#include "WifiServer.hpp"
 
 namespace modules {
 
 ///
-/// @brief Communications manager that routes SCPI messages from Ethernet and Serial transports.
+/// @brief Communications manager that routes SCPI messages from WiFi and Serial transports.
 /// Implemented as a singleton.
 ///
-/// Incoming messages are tagged with their origin transport (Ethernet or Serial) and dispatched
+/// Incoming messages are tagged with their origin transport (WiFi or Serial) and dispatched
 /// by handle_message(). Responses are delivered through a transport-specific path:
 ///
-///   - Ethernet: ethernet_send_, set per-message to the connected TCP client's write function.
+///   - WiFi: network_send_, set per-message to the connected TCP client's write function.
 ///
 ///   - Serial: serial_send_, supplied once at initialisation via initialize_server().
 ///
@@ -41,9 +41,9 @@ namespace modules {
 ///
 /// @note Closing the Serial connection (e.g. closing the COM port or unplugging the USB
 /// cable) resets the whole board — the USB-serial bridge's DTR/RTS auto-reset circuit pulses
-/// EN — not just the Serial transport. This also drops the Ethernet connection, since the
-/// entire firmware, including the Ethernet server, reboots. See PCL-69. Note this is a
-/// hardware limitation of the platforms used, not a software limitation of the Communications module.
+/// EN — not just the Serial transport. This also drops the WiFi connection, since the entire
+/// firmware, including the WiFi server, reboots. See PCL-69. Note this is a hardware limitation
+/// of the platforms used, not a software limitation of the Communications module.
 ///
 class Communications {
    public:
@@ -53,21 +53,18 @@ class Communications {
     static Communications& instance();
 
     ///
-    /// @brief Initialize the communications layer: start the Ethernet TCP server and wire the
-    /// Serial response path.
+    /// @brief Initialize the communications layer: join WiFi, start the TCP server and wire the
+    /// Serial response path. WiFi credentials and static IP are read from @c config::.
     ///
-    /// @param mac         6-byte MAC address for the network interface.
-    /// @param ip          4-byte static IP address to assign to the interface.
     /// @param serial_send Callable that writes a SCPI response string to the Serial port.
     ///
-    void initialize_server(const std::array<uint8_t, 6>& mac, const std::array<uint8_t, 4>& ip,
-                           std::function<void(const std::string&)> serial_send);
+    void initialize_server(std::function<void(const std::string&)> serial_send);
 
     ///
-    /// @brief Poll the Ethernet server for messages and dispatch them.
+    /// @brief Poll the WiFi server for messages and dispatch them.
     /// Handles link status checking and queues connectivity events if the link changes.
     ///
-    void poll_ethernet();
+    void poll_wifi();
 
     ///
     /// @brief Poll the serial port for messages and dispatch them.
@@ -117,7 +114,7 @@ class Communications {
 
     ///
     /// @brief Send a response string immediately to the transport that is currently active.
-    /// Routes to ethernet_send_ when active_transport_ is kEthernet,
+    /// Routes to network_send_ when active_transport_ is kWifi,
     /// or to serial_send_ when active_transport_ is kSerial.
     ///
     /// @param response SCPI-formatted response string.
@@ -132,19 +129,15 @@ class Communications {
     ///
     uint32_t parse_valve_pin(const std::string& msg) const;
 
-    std::function<void(const std::string&)> ethernet_send_;
-    ///< TCP client write function for the message currently being processed.
-    ///< Overwritten by poll_ethernet() on every incoming message.
-    std::function<void(const std::string&)> serial_send_;
-    ///< Serial write function. Supplied once via initialize_server() and reused for every response.
-    definitions::Transport active_transport_;
-    ///< Transport of the message currently being dispatched. Set before handle_message().
-    definitions::Transport pending_transport_;  ///< Transport of the in-flight device command awaiting a StateMachine response.
-    ///< Set in handle_command() before queuing; cleared in handle_response() after delivery.
-    LocalServer& local_server_;
-    ///< Reference to the LocalServer singleton for Ethernet communication.
-    bool last_link_up_;
-    ///< Last known Ethernet link status; used to detect changes and queue connectivity events.
+    std::function<void(const std::string&)> network_send_;  ///< TCP client write function for the message currently being processed.
+                                                            ///< Overwritten by poll_wifi() on every incoming message.
+    std::function<void(const std::string&)>
+        serial_send_;  ///< Serial write function. Supplied once via initialize_server() and reused for every response.
+    definitions::Transport active_transport_;   ///< Transport of the message currently being dispatching. Set before handle_message().
+    definitions::Transport pending_transport_;  ///< Transport of the in-flight device command awaiting a StateMachine response. Set in
+                                                ///< handle_command() before queuing; cleared in handle_response() after delivery.
+    WifiServer& wifi_server_;                   ///< Reference to the WifiServer singleton for WiFi communication.
+    bool last_link_up_;                         ///< Last known WiFi link status; used to detect changes and queue connectivity events.
 };
 
 }  // namespace modules

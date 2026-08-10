@@ -20,28 +20,27 @@ Communications& Communications::instance() {
     return instance;
 }
 
-void Communications::initialize_server(const std::array<uint8_t, 6>& mac, const std::array<uint8_t, 4>& ip,
-                                       std::function<void(const std::string&)> serial_send) {
+void Communications::initialize_server(std::function<void(const std::string&)> serial_send) {
     serial_send_ = std::move(serial_send);
-    local_server_.begin(mac, ip);
+    wifi_server_.begin();
 }
 
-void Communications::poll_ethernet() {
-    const bool link_up = local_server_.is_link_up();
+void Communications::poll_wifi() {
+    const bool link_up = wifi_server_.is_link_up();
 
     if (!link_up) {
         if (last_link_up_) {
-            kLog.info("Ethernet desconectado. Pausando sistema.");
+            kLog.info("WiFi desconectado. Pausando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kCommunicationLost);
         }
     } else {
         if (!last_link_up_) {
-            kLog.info("Ethernet reconectado. Reanudando sistema.");
+            kLog.info("WiFi reconectado. Reanudando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
         }
-        local_server_.poll([this](const std::string& msg, const LocalServer::ClientResponseCallback& client_respond) {
-            ethernet_send_ = client_respond;
-            active_transport_ = definitions::Transport::kEthernet;
+        wifi_server_.poll([this](const std::string& msg, const WifiServer::ClientResponseCallback& client_respond) {
+            network_send_ = client_respond;
+            active_transport_ = definitions::Transport::kWifi;
             handle_message(msg);
         });
     }
@@ -104,24 +103,21 @@ void Communications::handle_response(const definitions::Command& cmd) {
             break;
     }
 
-    if (pending_transport_ == definitions::Transport::kEthernet && ethernet_send_) {
-        ethernet_send_(response);
-    } else if (pending_transport_ == definitions::Transport::kSerial && serial_send_) {
-        serial_send_(response);
-    }
+    respond_now(response);
+
     pending_transport_ = definitions::Transport::kNone;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
 Communications::Communications()
-    : ethernet_send_(nullptr),
+    : network_send_(nullptr),
       serial_send_(nullptr),
       active_transport_(definitions::Transport::kNone),
       pending_transport_(definitions::Transport::kNone),
-      local_server_(LocalServer::instance()),
+      wifi_server_(WifiServer::instance()),
       last_link_up_(true) {}  // true = assume link is up at construction so the first
-                              // poll_ethernet() tick does not fire a spurious kUnpause.
+                              // poll_wifi() tick does not fire a spurious kUnpause.
 
 void Communications::handle_message(const std::string& msg) {
     const std::string trimmed = utils::trim(msg);
@@ -202,8 +198,8 @@ void Communications::handle_event(const std::string& msg) {
 }
 
 void Communications::respond_now(const std::string& response) {
-    if (active_transport_ == definitions::Transport::kEthernet && ethernet_send_) {
-        ethernet_send_(response);
+    if (active_transport_ == definitions::Transport::kWifi && network_send_) {
+        network_send_(response);
         return;
     }
     if (active_transport_ == definitions::Transport::kSerial && serial_send_) {

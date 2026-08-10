@@ -237,7 +237,7 @@ bool StateMachine::response_matches_command(const definitions::Command& request,
 void StateMachine::process_event(definitions::SystemEvent event) {
     // Global transitions handled before delegating to the active state.
     if (event == definitions::SystemEvent::kCommunicationLost) {
-        kLog.info("Conexion Ethernet perdida, pausando sistema.");
+        kLog.info("Conexion perdida, pausando sistema.");
         transition_to(definitions::SystemState::kPause);
         return;
     }
