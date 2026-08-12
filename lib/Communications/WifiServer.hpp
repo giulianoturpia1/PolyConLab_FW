@@ -18,6 +18,8 @@
 #include <functional>
 #include <string>
 
+#include "Definitions.hpp"
+
 namespace modules {
 
 ///
@@ -39,8 +41,7 @@ namespace modules {
 ///
 class WifiServer {
    public:
-    /// @brief Connected client identity (its IP packed as uint32_t); 0 = none.
-    using ClientId = uint32_t;
+    using ClientId = definitions::ClientId;
     using ClientResponseCallback = std::function<void(const std::string&)>;
     using ClientMessageHandler = std::function<void(const std::string&, ClientId, const ClientResponseCallback&)>;
 

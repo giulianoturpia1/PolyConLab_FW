@@ -187,6 +187,12 @@ enum class Transport {
 };
 
 ///
+/// @brief Identity of a connected client (its IP packed as uint32_t); 0 = none/unknown.
+/// Used by the authorization layer to tell clients apart, independent of the transport.
+///
+using ClientId = uint32_t;
+
+///
 /// @brief Command structure used for representing a command in the system.
 ///
 struct Command {
