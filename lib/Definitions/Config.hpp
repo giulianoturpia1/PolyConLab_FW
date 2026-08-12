@@ -84,6 +84,29 @@ constexpr uint32_t kClientMutexPollTimeoutMs = 5;
 ///
 constexpr uint32_t kClientMutexCallbackTimeoutMs = 10;
 
+///
+/// @brief Maximum time in milliseconds EthernetServer::poll() waits to acquire the
+///        SPI mutex before skipping the current tick.
+///
+constexpr uint32_t kSpiMutexPollTimeoutMs = 5;
+
+///
+/// @brief Maximum time in milliseconds the response callback waits to acquire
+///        the SPI mutex before discarding the response.
+///
+constexpr uint32_t kSpiMutexCallbackTimeoutMs = 10;
+
+// ── Ethernet transport (used only when -DTRANSPORT_ETHERNET selects EthernetServer) ──
+
+/// @brief MAC address for the Ethernet interface.
+constexpr std::array<uint8_t, 6> kEthernetMac = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+
+/// @brief Static IPv4 address for the Ethernet interface. SCADA connects here.
+constexpr std::array<uint8_t, 4> kEthernetIp = {192, 168, 1, 100};
+
+/// @brief TCP port the Ethernet SCPI server listens on (SCADA default is 80).
+constexpr uint16_t kEthernetPort = 80;
+
 // ── Task Periods ─────────────────────────────────────────────────────────────
 
 ///

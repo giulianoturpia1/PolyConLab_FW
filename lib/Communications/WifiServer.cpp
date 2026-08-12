@@ -143,7 +143,7 @@ bool WifiServer::ensure_connection() {
     return is_initialized_;
 }
 
-bool WifiServer::is_link_up() const {
+bool WifiServer::is_available() const {
     return wifi_link_up_ && is_initialized_;
 }
 

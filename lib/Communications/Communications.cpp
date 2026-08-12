@@ -22,26 +22,31 @@ Communications& Communications::instance() {
 
 void Communications::initialize_server(std::function<void(const std::string&)> serial_send) {
     serial_send_ = std::move(serial_send);
-    wifi_server_.begin();
+    server_.begin();
 }
 
-void Communications::poll_wifi() {
-    const bool link_up = wifi_server_.is_link_up();
+void Communications::poll() {
+    poll_network();
+    poll_serial();
+}
 
-    if (!link_up) {
-        if (last_link_up_) {
+void Communications::poll_network() {
+    const bool available = server_.is_available();
+
+    if (!available) {
+        if (last_available_) {
             kLog.info("WiFi desconectado. Pausando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kCommunicationLost);
             authorizer_.release();
         }
     } else {
-        if (!last_link_up_) {
+        if (!last_available_) {
             kLog.info("WiFi reconectado. Reanudando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
         }
-        wifi_server_.poll(
-            [this](const std::string& msg, definitions::ClientId client_id, const WifiServer::ClientResponseCallback& client_respond) {
-                network_send_ = client_respond;
+        server_.poll(
+            [this](const std::string& msg, definitions::ClientId client_id, const TcpServer::ClientResponseCallback& client_respond) {
+                active_responder_ = client_respond;
                 active_transport_ = definitions::Transport::kWifi;
                 active_client_ = client_id;
                 if (authorizer_.claim(client_id)) {
@@ -51,7 +56,7 @@ void Communications::poll_wifi() {
             });
     }
 
-    last_link_up_ = link_up;
+    last_available_ = available;
 }
 
 void Communications::poll_serial() {
@@ -66,11 +71,12 @@ void Communications::poll_serial() {
 
     active_transport_ = definitions::Transport::kSerial;
     active_client_ = 0;  // serial console has no client id
+    active_responder_ = serial_send_;
     handle_message(msg);
 }
 
 void Communications::handle_response(const definitions::Command& cmd) {
-    if (pending_transport_ == definitions::Transport::kNone) {
+    if (!pending_responder_) {
         return;
     }
 
@@ -110,21 +116,22 @@ void Communications::handle_response(const definitions::Command& cmd) {
             break;
     }
 
-    respond_now(response);
-
-    pending_transport_ = definitions::Transport::kNone;
+    // Deliver through the responder captured when the command was queued, so the reply reaches the
+    // client that issued it — not merely whatever transport happens to be active now.
+    pending_responder_(response);
+    pending_responder_ = nullptr;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
 Communications::Communications()
-    : network_send_(nullptr),
-      serial_send_(nullptr),
+    : serial_send_(nullptr),
+      active_responder_(nullptr),
+      pending_responder_(nullptr),
       active_transport_(definitions::Transport::kNone),
-      pending_transport_(definitions::Transport::kNone),
       active_client_(0),
-      wifi_server_(WifiServer::instance()),
-      last_link_up_(true) {}  // assume up at boot so the first poll_wifi() tick won't fire a spurious kUnpause
+      server_(TcpServer::instance()),
+      last_available_(true) {}  // assume up at boot so the first poll_network() tick won't fire a spurious kUnpause
 
 void Communications::handle_message(const std::string& msg) {
     const std::string trimmed = utils::trim(msg);
@@ -156,39 +163,45 @@ void Communications::handle_command(const std::string& msg) {
         return;
     }
 
-    if (cmd->command == definitions::CommandType::kLogOn) {
-        logger().set_enabled(true);
-        respond_now(utils::to_scpi(definitions::ResponseType::kStatusOn));
-        return;
-    }
-    if (cmd->command == definitions::CommandType::kLogOff) {
-        logger().set_enabled(false);
-        respond_now(utils::to_scpi(definitions::ResponseType::kStatusOff));
-        return;
-    }
-    if (cmd->command == definitions::CommandType::kLogQuery) {
-        respond_now(utils::to_scpi(logger().is_enabled() ? definitions::ResponseType::kStatusOn : definitions::ResponseType::kStatusOff));
-        return;
-    }
-    if (cmd->command == definitions::CommandType::kFaultQuery) {
-        // Comma-separated list of devices that failed init, or "NONE".
-        respond_now(modules::FaultRegistry::instance().get());
-        return;
-    }
-
+    // Commands answered locally return here; valve commands compute their pin and fall through to
+    // the queue; every other command falls through unchanged.
     uint32_t extra = 0;
-    if (cmd->command == definitions::CommandType::kValveOpen || cmd->command == definitions::CommandType::kValveClose ||
-        cmd->command == definitions::CommandType::kValveState) {
-        extra = parse_valve_pin(msg);
-        if (extra == 0) {
-            respond_now(utils::to_scpi(definitions::ResponseType::kErrorInvalidParam));
+    switch (cmd->command) {
+        case definitions::CommandType::kLogOn:
+            logger().set_enabled(true);
+            respond_now(utils::to_scpi(definitions::ResponseType::kStatusOn));
+            return;
+        case definitions::CommandType::kLogOff:
+            logger().set_enabled(false);
+            respond_now(utils::to_scpi(definitions::ResponseType::kStatusOff));
+            return;
+        case definitions::CommandType::kLogQuery: {
+            const definitions::ResponseType state =
+                logger().is_enabled() ? definitions::ResponseType::kStatusOn : definitions::ResponseType::kStatusOff;
+            respond_now(utils::to_scpi(state));
             return;
         }
+        case definitions::CommandType::kFaultQuery:
+            // Comma-separated list of devices that failed init, or "NONE".
+            respond_now(modules::FaultRegistry::instance().get());
+            return;
+        case definitions::CommandType::kValveOpen:
+        case definitions::CommandType::kValveClose:
+        case definitions::CommandType::kValveState:
+            extra = parse_valve_pin(msg);
+            if (extra == 0) {
+                respond_now(utils::to_scpi(definitions::ResponseType::kErrorInvalidParam));
+                return;
+            }
+            break;
+        default:
+            break;
     }
 
-    pending_transport_ = active_transport_;
+    // Queue the commands not handled above to the StateMachine.
+    pending_responder_ = active_responder_;
     if (!StateMachine::instance().queue_command({cmd->command, extra}, config::kCommsQueueTimeoutMs)) {
-        pending_transport_ = definitions::Transport::kNone;
+        pending_responder_ = nullptr;
         respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
     }
 }
@@ -211,13 +224,8 @@ void Communications::handle_event(const std::string& msg) {
 }
 
 void Communications::respond_now(const std::string& response) {
-    if (active_transport_ == definitions::Transport::kWifi && network_send_) {
-        network_send_(response);
-        return;
-    }
-    if (active_transport_ == definitions::Transport::kSerial && serial_send_) {
-        serial_send_(response);
-        return;
+    if (active_responder_) {
+        active_responder_(response);
     }
 }
 

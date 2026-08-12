@@ -18,7 +18,7 @@
 #include <functional>
 #include <string>
 
-#include "Definitions.hpp"
+#include "ITcpServer.hpp"
 
 namespace modules {
 
@@ -33,18 +33,14 @@ namespace modules {
 /// StateMachine task while @c poll() runs on the App task.
 ///
 /// @note Unlike a station, an access point has no uplink to lose: once started it stays up until
-/// the PLC resets. @c is_link_up() therefore reports whether the AP was brought up, not client
+/// the PLC resets. @c is_available() therefore reports whether the AP was brought up, not client
 /// presence — so the "communication lost" pause no longer triggers on a client disconnect.
 ///
 /// @note This is a single-client server: it serves one connected SCADA client at a time, matching
 /// the current firmware.
 ///
-class WifiServer {
+class WifiServer final : public ITcpServer {
    public:
-    using ClientId = definitions::ClientId;
-    using ClientResponseCallback = std::function<void(const std::string&)>;
-    using ClientMessageHandler = std::function<void(const std::string&, ClientId, const ClientResponseCallback&)>;
-
     ///
     /// @brief Get the singleton instance of WifiServer.
     ///
@@ -56,12 +52,12 @@ class WifiServer {
     ///
     /// @return true when the AP is up and the server is listening, false if the AP failed to start.
     ///
-    bool begin();
+    bool begin() override;
 
     ///
     /// @brief Poll for new client data and dispatch messages through the provided handler.
     ///
-    void poll(const ClientMessageHandler& handler);
+    void poll(const ClientMessageHandler& handler) override;
 
     ///
     /// @brief Check that the access point is running. An AP has no uplink to lose, so this simply
@@ -69,12 +65,13 @@ class WifiServer {
     ///
     /// @return true when the AP is up, false otherwise.
     ///
-    bool ensure_connection();
+    bool ensure_connection() override;
 
     ///
-    /// @brief Return the latest known AP availability status.
+    /// @brief Whether the access point is up. A SoftAP has no uplink to lose, so this reflects
+    /// whether begin() successfully brought the AP up.
     ///
-    bool is_link_up() const;
+    bool is_available() const override;
 
    private:
     WifiServer();
