@@ -17,11 +17,24 @@
 namespace modules {
 
 ///
-/// @brief Owns the operator-role state and decides whether a sender may actuate.
+/// @brief Owns the operator/observer role state and decides whether a sender may actuate.
 ///
-/// Serial is always privileged. Over WiFi the first client to interact claims the role
-/// (first-client-wins); actuation is gated to the operator while read-only queries stay open.
-/// State-only and Logger-free, so it unit-tests natively.
+/// Every client that talks to the PLC is one of two roles. The @b operator is the single
+/// privileged client: it may issue actuation commands — those that drive a physical output
+/// (heater/pump/chiller on-off, valve open-close) — as well as every read-only command. The local
+/// Serial console is always an operator, since it has physical access. An @b observer is any other
+/// client: read-only, so state/sensor queries, PING, STATE?, SYST:LOG* and SYST:FAULT? are allowed
+/// but actuation is rejected with kErrorNotOperator. Observers can watch the plant without acting.
+///
+/// Over WiFi the role is unclaimed at boot (operator_id_ == 0). The first client to interact claims
+/// it (first-client-wins) via claim(); every later client stays an observer until the operator
+/// leaves. release() — called when the WiFi link drops — clears the role so the next client can
+/// claim it.
+///
+/// @note With config::kApMaxClients == 1 only one WiFi station can associate at a time, so in
+/// practice the sole connected client is always the operator and the observer path is exercised
+/// only against Serial. The gate is written for the general multi-client case and takes effect for
+/// additional observers as soon as the client cap is raised.
 ///
 class Authorizer {
    public:
