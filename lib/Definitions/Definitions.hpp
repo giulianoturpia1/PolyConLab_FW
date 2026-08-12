@@ -204,6 +204,7 @@ struct Command {
 struct CommandEntry {
     const char* name;     ///< SCPI command string (e.g., "OUTP:HEAT ON")
     CommandType command;  ///< Corresponding CommandType enum value
+    bool actuates;        ///< True if the command drives a physical output (requires the operator role)
 };
 
 ///
@@ -263,30 +264,30 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
 }};
 
 constexpr std::array<CommandEntry, 24> kCommandMap = {{
-    {("OUTP:HEAT ON"), CommandType::kHeaterOn},
-    {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
-    {("OUTP:HEAT?"), CommandType::kHeaterState},
-    {("OUTP:PUMP ON"), CommandType::kPumpOn},
-    {("OUTP:PUMP OFF"), CommandType::kPumpOff},
-    {("OUTP:PUMP?"), CommandType::kPumpState},
-    {("OUTP:CHILL ON"), CommandType::kChillerOn},
-    {("OUTP:CHILL OFF"), CommandType::kChillerOff},
-    {("OUTP:CHILL?"), CommandType::kChillerState},
-    {("OUTP:VALV OPEN"), CommandType::kValveOpen},
-    {("OUTP:VALV CLOSE"), CommandType::kValveClose},
-    {("OUTP:VALV?"), CommandType::kValveState},
-    {("MEAS:TEMP:IN?"), CommandType::kTempInRead},
-    {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead},
-    {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
-    {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
-    {("MEAS:FLOW?"), CommandType::kFlowRead},
-    {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
-    {("PING"), CommandType::kPing},
-    {("STATE?"), CommandType::kStateQuery},
-    {("SYST:LOG ON"), CommandType::kLogOn},
-    {("SYST:LOG OFF"), CommandType::kLogOff},
-    {("SYST:LOG?"), CommandType::kLogQuery},
-    {("SYST:FAULT?"), CommandType::kFaultQuery},
+    {("OUTP:HEAT ON"), CommandType::kHeaterOn, true},
+    {("OUTP:HEAT OFF"), CommandType::kHeaterOff, true},
+    {("OUTP:HEAT?"), CommandType::kHeaterState, false},
+    {("OUTP:PUMP ON"), CommandType::kPumpOn, true},
+    {("OUTP:PUMP OFF"), CommandType::kPumpOff, true},
+    {("OUTP:PUMP?"), CommandType::kPumpState, false},
+    {("OUTP:CHILL ON"), CommandType::kChillerOn, true},
+    {("OUTP:CHILL OFF"), CommandType::kChillerOff, true},
+    {("OUTP:CHILL?"), CommandType::kChillerState, false},
+    {("OUTP:VALV OPEN"), CommandType::kValveOpen, true},
+    {("OUTP:VALV CLOSE"), CommandType::kValveClose, true},
+    {("OUTP:VALV?"), CommandType::kValveState, false},
+    {("MEAS:TEMP:IN?"), CommandType::kTempInRead, false},
+    {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead, false},
+    {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead, false},
+    {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead, false},
+    {("MEAS:FLOW?"), CommandType::kFlowRead, false},
+    {("MEAS:LEVEL?"), CommandType::kLevelSwitchState, false},
+    {("PING"), CommandType::kPing, false},
+    {("STATE?"), CommandType::kStateQuery, false},
+    {("SYST:LOG ON"), CommandType::kLogOn, false},
+    {("SYST:LOG OFF"), CommandType::kLogOff, false},
+    {("SYST:LOG?"), CommandType::kLogQuery, false},
+    {("SYST:FAULT?"), CommandType::kFaultQuery, false},
 }};
 
 constexpr std::array<ResponseEntry, 15> kResponseMap = {{

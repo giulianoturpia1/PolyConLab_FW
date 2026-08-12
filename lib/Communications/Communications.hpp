@@ -114,12 +114,21 @@ class Communications {
     void respond_now(const std::string& response);
 
     ///
-    /// @brief Whether the sender of the current message may issue actuation commands.
-    /// Serial is always privileged; over WiFi only the operator (first client to interact) may actuate.
+    /// @brief Whether the sender of the current message holds the operator role.
+    /// Serial is always privileged; over WiFi only the operator (first client to interact) qualifies.
     ///
-    /// @return true if the current sender may actuate, false otherwise.
+    /// @return true if the current sender is the operator, false otherwise.
     ///
     bool sender_is_operator() const;
+
+    ///
+    /// @brief Whether the current sender may run @p cmd: non-actuation commands are open to all,
+    /// actuation requires the operator role.
+    ///
+    /// @param cmd Matched command table entry.
+    /// @return true if the command may proceed, false if it must be rejected.
+    ///
+    bool is_authorized(const definitions::CommandEntry& cmd) const;
 
     ///
     /// @brief Extract the valve index from a SCPI valve command and map it to the hardware pin.

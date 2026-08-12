@@ -153,7 +153,7 @@ void Communications::handle_command(const std::string& msg) {
     }
 
     // Only the operator (or serial) may drive physical outputs; queries stay open.
-    if (utils::is_actuation_command(cmd->command) && !sender_is_operator()) {
+    if (!is_authorized(*cmd)) {
         kLog.warning("Comando de actuacion rechazado: el cliente no es el operador.");
         respond_now(utils::to_scpi(definitions::ResponseType::kErrorNotOperator));
         return;
@@ -225,10 +225,11 @@ void Communications::respond_now(const std::string& response) {
 }
 
 bool Communications::sender_is_operator() const {
-    if (active_transport_ == definitions::Transport::kSerial) {
-        return true;  // serial is always privileged
-    }
-    return operator_id_ != 0 && active_client_ == operator_id_;
+    return utils::sender_is_operator(active_transport_, active_client_, operator_id_);
+}
+
+bool Communications::is_authorized(const definitions::CommandEntry& cmd) const {
+    return !cmd.actuates || sender_is_operator();
 }
 
 uint32_t Communications::parse_valve_pin(const std::string& msg) const {

@@ -130,26 +130,21 @@ inline const char* command_name(const definitions::CommandType command) {
 }
 
 ///
-/// @brief Whether a command drives a physical output (heater/pump/chiller on-off, valve open-close)
-/// and therefore requires the operator role. All other commands are read-only.
+/// @brief Whether a message sender holds operator privilege (pure authorization policy).
 ///
-/// @param command Command type to classify.
-/// @return bool True if the command actuates a physical output.
+/// Serial is the local physical console and is always privileged. Over WiFi, only the client
+/// holding the operator role may actuate; operator_id == 0 means the role is unclaimed.
 ///
-inline bool is_actuation_command(const definitions::CommandType command) {
-    switch (command) {
-        case definitions::CommandType::kHeaterOn:
-        case definitions::CommandType::kHeaterOff:
-        case definitions::CommandType::kPumpOn:
-        case definitions::CommandType::kPumpOff:
-        case definitions::CommandType::kChillerOn:
-        case definitions::CommandType::kChillerOff:
-        case definitions::CommandType::kValveOpen:
-        case definitions::CommandType::kValveClose:
-            return true;
-        default:
-            return false;
+/// @param transport   Transport the message arrived on.
+/// @param sender      Identity of the sending client (0 for serial).
+/// @param operator_id Client currently holding the operator role (0 = unclaimed).
+/// @return bool True if the sender holds operator privilege.
+///
+inline bool sender_is_operator(const definitions::Transport transport, const uint32_t sender, const uint32_t operator_id) {
+    if (transport == definitions::Transport::kSerial) {
+        return true;
     }
+    return operator_id != 0 && sender == operator_id;
 }
 
 ///
