@@ -56,9 +56,7 @@ constexpr bool kApHidden = false;
 ///
 /// @brief Maximum WiFi stations allowed to associate with the AP.
 ///
-/// The ESP32 SoftAP supports up to ~10, but this is capped at 1 until the
-/// operator/observer role layer enforces read-only observers (ADR-0001). Raise
-/// it only once actuation is gated, so additional clients can watch but not act.
+/// The ESP32 SoftAP supports up to 4 clients, but the current firmware is single-client only.
 ///
 constexpr uint8_t kApMaxClients = 1;
 

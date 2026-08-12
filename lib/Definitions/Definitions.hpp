@@ -170,6 +170,7 @@ enum class ResponseType {
     kErrorCommandRejected,  ///< Command not accepted in the current FSM state
     kErrorCommandTimeout,   ///< Device did not confirm command execution within timeout
     kErrorInvalidParam,     ///< Command parameter is out of range (e.g. valve number = 0)
+    kErrorNotOperator,      ///< Actuation command from a client that does not hold the operator role
     kErrorSensorFault,      ///< Sensor returned NaN (disconnected or CRC failure)
     kMeasTemp,              ///< Runtime-formatted temperature reading in Celsius — no static wire string
     kMeasFlow,              ///< Runtime-formatted flow rate in L/min — no static wire string
@@ -288,7 +289,7 @@ constexpr std::array<CommandEntry, 24> kCommandMap = {{
     {("SYST:FAULT?"), CommandType::kFaultQuery},
 }};
 
-constexpr std::array<ResponseEntry, 14> kResponseMap = {{
+constexpr std::array<ResponseEntry, 15> kResponseMap = {{
     {"-100,’UNKNOWN COMMAND’", ResponseType::kErrorUnknownCommand},
     {"-200,’EMPTY EVENT’", ResponseType::kErrorEmptyEvent},
     {"-300,’UNKNOWN EVENT’", ResponseType::kErrorUnknownEvent},
@@ -296,6 +297,7 @@ constexpr std::array<ResponseEntry, 14> kResponseMap = {{
     {"-102,’COMMAND TIMEOUT’", ResponseType::kErrorCommandTimeout},
     {"-220,’INVALID PARAMETER’", ResponseType::kErrorInvalidParam},
     {"-103,’SENSOR FAULT’", ResponseType::kErrorSensorFault},
+    {"-104,’NOT OPERATOR’", ResponseType::kErrorNotOperator},
     {"PONG", ResponseType::kPingOk},
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},

@@ -132,7 +132,9 @@ void WifiServer::poll(const ClientMessageHandler& handler) {
     auto client_ptr = std::make_shared<WiFiClient>(client);
     ClientResponseCallback respond = create_response_callback(client_ptr, client_mutex_);
 
-    handler(msg, respond);
+    const ClientId client_id = static_cast<ClientId>(client.remoteIP());
+
+    handler(msg, client_id, respond);
 }
 
 bool WifiServer::ensure_connection() {

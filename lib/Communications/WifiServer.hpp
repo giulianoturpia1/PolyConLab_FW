@@ -27,22 +27,22 @@ namespace modules {
 /// The PLC hosts its own WiFi network with a built-in DHCP server, so operator/observer devices
 /// connect directly to the PLC without an external router. Exposes a transport-agnostic
 /// request/response contract so the @c Communications module is decoupled from the link layer.
-/// The ESP32 radio is on-die, so there is no SPI bus and no SPI mutex is required. A
-/// @c client_mutex_ still serialises @c WiFiClient writes because the response callback runs on
-/// the StateMachine task while @c poll() runs on the App task.
+/// @c client_mutex_ serialises @c WiFiClient writes because the response callback runs on the
+/// StateMachine task while @c poll() runs on the App task.
 ///
 /// @note Unlike a station, an access point has no uplink to lose: once started it stays up until
 /// the PLC resets. @c is_link_up() therefore reports whether the AP was brought up, not client
 /// presence — so the "communication lost" pause no longer triggers on a client disconnect.
 ///
 /// @note This is a single-client server: it serves one connected SCADA client at a time, matching
-/// the current firmware protocol. Multi-client / operator-observer support is a separate change
-/// (see ADR-0001).
+/// the current firmware.
 ///
 class WifiServer {
    public:
+    /// @brief Connected client identity (its IP packed as uint32_t); 0 = none.
+    using ClientId = uint32_t;
     using ClientResponseCallback = std::function<void(const std::string&)>;
-    using ClientMessageHandler = std::function<void(const std::string&, const ClientResponseCallback&)>;
+    using ClientMessageHandler = std::function<void(const std::string&, ClientId, const ClientResponseCallback&)>;
 
     ///
     /// @brief Get the singleton instance of WifiServer.

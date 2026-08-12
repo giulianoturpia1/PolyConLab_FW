@@ -39,11 +39,8 @@ namespace modules {
 /// Inline commands (SYST:LOG*, invalid params, unknown) respond immediately via respond_now()
 /// without involving pending_transport_.
 ///
-/// @note Closing the Serial connection (e.g. closing the COM port or unplugging the USB
-/// cable) resets the whole board — the USB-serial bridge's DTR/RTS auto-reset circuit pulses
-/// EN — not just the Serial transport. This also drops the WiFi connection, since the entire
-/// firmware, including the WiFi server, reboots. See PCL-69. Note this is a hardware limitation
-/// of the platforms used, not a software limitation of the Communications module.
+/// @note Closing the Serial connection (COM port close or USB unplug) pulses the USB-serial
+/// bridge's DTR/RTS auto-reset (EN), rebooting the whole board and dropping WiFi too. See PCL-69.
 ///
 class Communications {
    public:
@@ -73,8 +70,7 @@ class Communications {
 
     ///
     /// @brief Format a command outcome and deliver the SCPI string to the originating client.
-    /// Invoked by the StateMachine via its response callback for every command outcome,
-    /// both success and failure.
+    /// Invoked by the StateMachine for every command outcome, success or failure.
     ///
     /// @param cmd Outcome Command delivered by the StateMachine.
     ///
@@ -97,9 +93,7 @@ class Communications {
     void handle_message(const std::string& msg);
 
     ///
-    /// @brief Parse and dispatch a SCPI device command.
-    /// Logger commands respond immediately via respond_now(). All other commands store
-    /// active_transport_ into pending_transport_ and enqueue to the StateMachine.
+    /// @brief Parse, authorize and dispatch a SCPI device command.
     ///
     /// @param msg Trimmed SCPI command string.
     ///
@@ -113,13 +107,19 @@ class Communications {
     void handle_event(const std::string& msg);
 
     ///
-    /// @brief Send a response string immediately to the transport that is currently active.
-    /// Routes to network_send_ when active_transport_ is kWifi,
-    /// or to serial_send_ when active_transport_ is kSerial.
+    /// @brief Send a response immediately to the currently active transport.
     ///
     /// @param response SCPI-formatted response string.
     ///
     void respond_now(const std::string& response);
+
+    ///
+    /// @brief Whether the sender of the current message may issue actuation commands.
+    /// Serial is always privileged; over WiFi only the operator (first client to interact) may actuate.
+    ///
+    /// @return true if the current sender may actuate, false otherwise.
+    ///
+    bool sender_is_operator() const;
 
     ///
     /// @brief Extract the valve index from a SCPI valve command and map it to the hardware pin.
@@ -136,6 +136,8 @@ class Communications {
     definitions::Transport active_transport_;   ///< Transport of the message currently being dispatching. Set before handle_message().
     definitions::Transport pending_transport_;  ///< Transport of the in-flight device command awaiting a StateMachine response. Set in
                                                 ///< handle_command() before queuing; cleared in handle_response() after delivery.
+    WifiServer::ClientId active_client_;        ///< WiFi sender of the current message; 0 for serial.
+    WifiServer::ClientId operator_id_;          ///< WiFi client holding the operator role; 0 = unclaimed.
     WifiServer& wifi_server_;                   ///< Reference to the WifiServer singleton for WiFi communication.
     bool last_link_up_;                         ///< Last known WiFi link status; used to detect changes and queue connectivity events.
 };
