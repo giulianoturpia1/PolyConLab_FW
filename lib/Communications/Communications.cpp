@@ -177,6 +177,26 @@ void Communications::handle_command(const std::string& msg) {
         }
     }
 
+    // Parse SCADA setpoint: TEMP:SET:IN,<float>
+    if (cmd->command == definitions::CommandType::kTempSetIn) {
+        size_t comma_pos = msg.find(',');
+        if (comma_pos == std::string::npos || comma_pos + 1 >= msg.length()) {
+            respond_now(utils::to_scpi(definitions::ResponseType::kErrorInvalidParam));
+            return;
+        }
+        std::string arg = utils::trim(msg.substr(comma_pos + 1));
+        try {
+            float sp = std::stof(arg);
+            uint32_t bits = 0;
+            static_assert(sizeof(float) == sizeof(uint32_t), "float/uint32_t size mismatch");
+            std::memcpy(&bits, &sp, sizeof(bits));
+            extra = bits;
+        } catch (...) {
+            respond_now(utils::to_scpi(definitions::ResponseType::kErrorInvalidParam));
+            return;
+        }
+    }
+
     pending_transport_ = active_transport_;
     if (!StateMachine::instance().queue_command({cmd->command, extra}, config::kCommsQueueTimeoutMs)) {
         pending_transport_ = definitions::Transport::kNone;

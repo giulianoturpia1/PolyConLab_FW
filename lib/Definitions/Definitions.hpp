@@ -120,6 +120,9 @@ enum class CommandType {
     // Flow meter command
     kFlowRead,
 
+    // Manual setpoint from SCADA: pack IEEE-754 float into Command::extra
+    kTempSetIn,
+
     // Level switch command
     kLevelSwitchState,
 
@@ -247,7 +250,7 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
     {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<CommandEntry, 24> kCommandMap = {{
+constexpr std::array<CommandEntry, 25> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
     {("OUTP:HEAT?"), CommandType::kHeaterState},
@@ -264,6 +267,7 @@ constexpr std::array<CommandEntry, 24> kCommandMap = {{
     {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead},
     {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
     {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
+    {("TEMP:SET:IN"), CommandType::kTempSetIn},
     {("MEAS:FLOW?"), CommandType::kFlowRead},
     {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
     {("PING"), CommandType::kPing},
@@ -291,7 +295,7 @@ constexpr std::array<ResponseEntry, 14> kResponseMap = {{
     {"LOW", ResponseType::kStatusLow},
 }};
 
-constexpr std::array<CommandResponseEntry, 23> kCommandResponseMap = {{
+constexpr std::array<CommandResponseEntry, 24> kCommandResponseMap = {{
     {CommandType::kHeaterOn, ResponseType::kStatusOn},
     {CommandType::kHeaterOff, ResponseType::kStatusOff},
     {CommandType::kHeaterState, ResponseType::kStatusOn},
@@ -315,6 +319,7 @@ constexpr std::array<CommandResponseEntry, 23> kCommandResponseMap = {{
     {CommandType::kLogOn, ResponseType::kStatusOn},
     {CommandType::kLogOff, ResponseType::kStatusOff},
     {CommandType::kLogQuery, ResponseType::kStatusOn},
+    {CommandType::kTempSetIn, ResponseType::kStatusOn},
 }};
 
 constexpr std::array<StateNameEntry, 7> kStateNameMap = {{
