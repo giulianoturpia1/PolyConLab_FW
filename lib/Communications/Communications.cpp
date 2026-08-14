@@ -32,7 +32,7 @@ void Communications::poll_wifi() {
         if (last_link_up_) {
             kLog.info("WiFi desconectado. Pausando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kCommunicationLost);
-            operator_id_ = 0;  // release the operator role
+            authorizer_.release();
         }
     } else {
         if (!last_link_up_) {
@@ -40,13 +40,11 @@ void Communications::poll_wifi() {
             StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
         }
         wifi_server_.poll(
-            [this](const std::string& msg, WifiServer::ClientId client_id, const WifiServer::ClientResponseCallback& client_respond) {
+            [this](const std::string& msg, definitions::ClientId client_id, const WifiServer::ClientResponseCallback& client_respond) {
                 network_send_ = client_respond;
                 active_transport_ = definitions::Transport::kWifi;
                 active_client_ = client_id;
-                // First client to interact claims the operator role.
-                if (operator_id_ == 0) {
-                    operator_id_ = client_id;
+                if (authorizer_.claim(client_id)) {
                     kLog.info("Rol de operador asignado al cliente " + std::to_string(client_id));
                 }
                 handle_message(msg);
@@ -125,7 +123,6 @@ Communications::Communications()
       active_transport_(definitions::Transport::kNone),
       pending_transport_(definitions::Transport::kNone),
       active_client_(0),
-      operator_id_(0),
       wifi_server_(WifiServer::instance()),
       last_link_up_(true) {}  // assume up at boot so the first poll_wifi() tick won't fire a spurious kUnpause
 
@@ -153,7 +150,7 @@ void Communications::handle_command(const std::string& msg) {
     }
 
     // Only the operator (or serial) may drive physical outputs; queries stay open.
-    if (utils::is_actuation_command(cmd->command) && !sender_is_operator()) {
+    if (!authorizer_.is_authorized(*cmd, active_transport_, active_client_)) {
         kLog.warning("Comando de actuacion rechazado: el cliente no es el operador.");
         respond_now(utils::to_scpi(definitions::ResponseType::kErrorNotOperator));
         return;
@@ -222,13 +219,6 @@ void Communications::respond_now(const std::string& response) {
         serial_send_(response);
         return;
     }
-}
-
-bool Communications::sender_is_operator() const {
-    if (active_transport_ == definitions::Transport::kSerial) {
-        return true;  // serial is always privileged
-    }
-    return operator_id_ != 0 && active_client_ == operator_id_;
 }
 
 uint32_t Communications::parse_valve_pin(const std::string& msg) const {

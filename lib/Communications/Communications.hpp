@@ -16,6 +16,7 @@
 #include <functional>
 #include <string>
 
+#include "Authorizer.hpp"
 #include "Definitions.hpp"
 #include "WifiServer.hpp"
 
@@ -38,6 +39,10 @@ namespace modules {
 ///
 /// Inline commands (SYST:LOG*, invalid params, unknown) respond immediately via respond_now()
 /// without involving pending_transport_.
+///
+/// Authorization is delegated to authorizer_ (see Authorizer): the local Serial console is always
+/// privileged; over WiFi the first client to interact claims the operator role, actuation commands
+/// are gated to the operator and read-only queries stay open. The role is released on link drop.
 ///
 /// @note Closing the Serial connection (COM port close or USB unplug) pulses the USB-serial
 /// bridge's DTR/RTS auto-reset (EN), rebooting the whole board and dropping WiFi too. See PCL-69.
@@ -114,14 +119,6 @@ class Communications {
     void respond_now(const std::string& response);
 
     ///
-    /// @brief Whether the sender of the current message may issue actuation commands.
-    /// Serial is always privileged; over WiFi only the operator (first client to interact) may actuate.
-    ///
-    /// @return true if the current sender may actuate, false otherwise.
-    ///
-    bool sender_is_operator() const;
-
-    ///
     /// @brief Extract the valve index from a SCPI valve command and map it to the hardware pin.
     ///
     /// @param msg Full SCPI valve command string.
@@ -136,8 +133,8 @@ class Communications {
     definitions::Transport active_transport_;   ///< Transport of the message currently being dispatching. Set before handle_message().
     definitions::Transport pending_transport_;  ///< Transport of the in-flight device command awaiting a StateMachine response. Set in
                                                 ///< handle_command() before queuing; cleared in handle_response() after delivery.
-    WifiServer::ClientId active_client_;        ///< WiFi sender of the current message; 0 for serial.
-    WifiServer::ClientId operator_id_;          ///< WiFi client holding the operator role; 0 = unclaimed.
+    definitions::ClientId active_client_;       ///< WiFi sender of the current message; 0 for serial.
+    Authorizer authorizer_;                     ///< Owns the operator-role state and the actuation gate.
     WifiServer& wifi_server_;                   ///< Reference to the WifiServer singleton for WiFi communication.
     bool last_link_up_;                         ///< Last known WiFi link status; used to detect changes and queue connectivity events.
 };
