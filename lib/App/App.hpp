@@ -67,7 +67,7 @@ class App {
     App& operator=(App&&) = delete;
 
     ///
-    /// @brief Initialize the Ethernet TCP server (bind, begin, link-check setup).
+    /// @brief Initialize the WiFi (SoftAP) TCP server (start AP, begin listening).
     /// Serial transport wiring is done separately in initialize_system().
     ///
     void initialize_network_server();

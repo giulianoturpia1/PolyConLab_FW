@@ -130,6 +130,29 @@ inline const char* command_name(const definitions::CommandType command) {
 }
 
 ///
+/// @brief Whether a command drives a physical output (heater/pump/chiller on-off, valve open-close)
+/// and therefore requires the operator role. All other commands are read-only.
+///
+/// @param command Command type to classify.
+/// @return bool True if the command actuates a physical output.
+///
+inline bool is_actuation_command(const definitions::CommandType command) {
+    switch (command) {
+        case definitions::CommandType::kHeaterOn:
+        case definitions::CommandType::kHeaterOff:
+        case definitions::CommandType::kPumpOn:
+        case definitions::CommandType::kPumpOff:
+        case definitions::CommandType::kChillerOn:
+        case definitions::CommandType::kChillerOff:
+        case definitions::CommandType::kValveOpen:
+        case definitions::CommandType::kValveClose:
+            return true;
+        default:
+            return false;
+    }
+}
+
+///
 /// @brief Format an integer value as a "0xNN" hex string.
 ///
 /// @param value Value to format.

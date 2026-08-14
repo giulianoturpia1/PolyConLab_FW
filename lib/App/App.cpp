@@ -22,13 +22,9 @@
 #include "TargetDefinitions.hpp"
 #include "Thermocouple.hpp"
 
-constexpr uint8_t kEthernetMacLength = 6;
 constexpr uint8_t kValveCount = 2;
 constexpr uint8_t kTemperatureSensorCount = 4;
 constexpr char kAppTaskName[] = "app_task";
-
-std::array<uint8_t, kEthernetMacLength> mac = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
-std::array<uint8_t, 4> ip_addr = {192, 168, 1, 1};
 
 namespace modules {
 
@@ -70,7 +66,9 @@ App::App()
       level_switch_(modules::LevelSwitch::instance()) {}
 
 void App::initialize_network_server() {
-    communications_.initialize_server(mac, ip_addr, [this](const std::string& response) { hal_.serial_println(response); });
+    // WiFi credentials and static IP are read from config::. The Serial response
+    // path is wired here as a fallback transport.
+    communications_.initialize_server([this](const std::string& response) { hal_.serial_println(response); });
 }
 
 void App::initialize_devices() {
@@ -141,7 +139,7 @@ void App::set_response_queues() {
 }
 
 void App::initialize_system() {
-    // Initialize Ethernet server
+    // Initialize WiFi server
     initialize_network_server();
 
     // Initialize Devices
@@ -184,7 +182,7 @@ void App::create_task() {
 
 void App::tick() {
     // Delegate all communication polling to Communications module
-    communications_.poll_ethernet();
+    communications_.poll_wifi();
     communications_.poll_serial();
 }
 

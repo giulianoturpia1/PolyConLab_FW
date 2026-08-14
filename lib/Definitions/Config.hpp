@@ -17,14 +17,79 @@
 
 #include <freertos/FreeRTOS.h>
 
+#include <array>
+#include <cstdint>
+
 namespace config {
+
+// ── Network / WiFi Access Point (SoftAP) ──────────────────────────────────────
+//
+// The PLC hosts its own WiFi network from inside the enclosure: it runs as a
+// WiFi access point with a built-in DHCP server, so operator/observer devices
+// connect directly to the PLC with no external router. The PLC always sits at
+// kApIp, and the SCADA application targets that fixed address.
+//
+// Credentials default to the placeholders below but may be overridden per
+// deployment through PlatformIO build_flags (e.g.
+// -DWIFI_AP_SSID='"MyRig"' -DWIFI_AP_PASSWORD='"secret12"') so they need not be
+// committed to source control.
+
+#ifndef WIFI_AP_SSID
+#define WIFI_AP_SSID "PolyConLab"  ///< TODO: override via build_flags per deployment.
+#endif
+#ifndef WIFI_AP_PASSWORD
+#define WIFI_AP_PASSWORD "polyconlab"  ///< WPA2 needs >= 8 chars; "" for an open network.
+#endif
+
+/// @brief SSID the PLC access point broadcasts.
+constexpr char kApSsid[] = WIFI_AP_SSID;
+
+/// @brief WPA2 passphrase for the access point (>= 8 chars, or "" for open).
+constexpr char kApPassword[] = WIFI_AP_PASSWORD;
+
+/// @brief 2.4 GHz channel (1-13). 1, 6 or 11 are the non-overlapping choices.
+constexpr uint8_t kApChannel = 1;
+
+/// @brief Broadcast the SSID (false) or hide it (true).
+constexpr bool kApHidden = false;
+
+///
+/// @brief Maximum WiFi stations allowed to associate with the AP.
+///
+/// The ESP32 SoftAP supports up to 4 clients, but the current firmware is single-client only.
+///
+constexpr uint8_t kApMaxClients = 1;
+
+/// @brief TCP port the SCPI server listens on (SCADA default is 80).
+constexpr uint16_t kWifiServerPort = 80;
+
+/// @brief Static IPv4 address of the PLC access point. SCADA connects here.
+constexpr std::array<uint8_t, 4> kApIp = {192, 168, 4, 1};
+
+/// @brief Gateway advertised by the AP's DHCP server (the PLC itself).
+constexpr std::array<uint8_t, 4> kApGateway = {192, 168, 4, 1};
+
+/// @brief Subnet mask handed out by the AP's DHCP server.
+constexpr std::array<uint8_t, 4> kApSubnet = {255, 255, 255, 0};
+
+///
+/// @brief Maximum time in milliseconds WifiServer::poll() waits to acquire the
+///        client mutex before skipping the current tick.
+///
+constexpr uint32_t kClientMutexPollTimeoutMs = 5;
+
+///
+/// @brief Maximum time in milliseconds the response callback waits to acquire
+///        the client mutex before discarding the response.
+///
+constexpr uint32_t kClientMutexCallbackTimeoutMs = 10;
 
 // ── Task Periods ─────────────────────────────────────────────────────────────
 
 ///
 /// @brief App task wakeup period in milliseconds.
 ///
-/// The App task polls Ethernet and serial. SCADA commands arrive at ~1 Hz, so
+/// The App task polls WiFi and serial. SCADA commands arrive at ~1 Hz, so
 /// 100 ms is more than responsive enough while reducing traffic on the scheduler.
 ///
 constexpr uint32_t kAppTaskPeriodMs = 100;
@@ -68,9 +133,9 @@ constexpr UBaseType_t kThermocoupleTaskPriority = 3;
 // ── Core Responsibilities (ESP32 dual-core) ──────────────────────────────────────────
 
 ///
-/// @brief ESP32 core ID for SPI-intensive tasks (App, StateMachine).
+/// @brief ESP32 core ID for network/control tasks (App, StateMachine).
 ///
-/// Keeping Ethernet/SPI work on Core 0 (PRO_CPU) isolates it from the I2C
+/// Keeping network and control work on Core 0 (PRO_CPU) isolates it from the I2C
 /// device tasks on Core 1.
 ///
 constexpr BaseType_t kSpiCoreId = 0;
@@ -167,18 +232,6 @@ constexpr uint32_t kStateMachineCommandTimeoutMs = 150;
 ///        response back to the StateMachine response queue.
 ///
 constexpr uint32_t kDeviceResponseTimeoutMs = 150;
-
-///
-/// @brief Maximum time in milliseconds @c LocalServer::poll() waits to acquire
-///        the SPI mutex before skipping the current tick.
-///
-constexpr uint32_t kSpiMutexPollTimeoutMs = 5;
-
-///
-/// @brief Maximum time in milliseconds the response callback waits to acquire
-///        the SPI mutex before discarding the response.
-///
-constexpr uint32_t kSpiMutexCallbackTimeoutMs = 10;
 
 // ── SM Queue-Drain Limits per Tick ────────────────────────────────────────────
 

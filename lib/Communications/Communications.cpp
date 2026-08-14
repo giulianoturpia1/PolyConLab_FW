@@ -20,30 +20,37 @@ Communications& Communications::instance() {
     return instance;
 }
 
-void Communications::initialize_server(const std::array<uint8_t, 6>& mac, const std::array<uint8_t, 4>& ip,
-                                       std::function<void(const std::string&)> serial_send) {
+void Communications::initialize_server(std::function<void(const std::string&)> serial_send) {
     serial_send_ = std::move(serial_send);
-    local_server_.begin(mac, ip);
+    wifi_server_.begin();
 }
 
-void Communications::poll_ethernet() {
-    const bool link_up = local_server_.is_link_up();
+void Communications::poll_wifi() {
+    const bool link_up = wifi_server_.is_link_up();
 
     if (!link_up) {
         if (last_link_up_) {
-            kLog.info("Ethernet desconectado. Pausando sistema.");
+            kLog.info("WiFi desconectado. Pausando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kCommunicationLost);
+            operator_id_ = 0;  // release the operator role
         }
     } else {
         if (!last_link_up_) {
-            kLog.info("Ethernet reconectado. Reanudando sistema.");
+            kLog.info("WiFi reconectado. Reanudando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
         }
-        local_server_.poll([this](const std::string& msg, const LocalServer::ClientResponseCallback& client_respond) {
-            ethernet_send_ = client_respond;
-            active_transport_ = definitions::Transport::kEthernet;
-            handle_message(msg);
-        });
+        wifi_server_.poll(
+            [this](const std::string& msg, WifiServer::ClientId client_id, const WifiServer::ClientResponseCallback& client_respond) {
+                network_send_ = client_respond;
+                active_transport_ = definitions::Transport::kWifi;
+                active_client_ = client_id;
+                // First client to interact claims the operator role.
+                if (operator_id_ == 0) {
+                    operator_id_ = client_id;
+                    kLog.info("Rol de operador asignado al cliente " + std::to_string(client_id));
+                }
+                handle_message(msg);
+            });
     }
 
     last_link_up_ = link_up;
@@ -60,6 +67,7 @@ void Communications::poll_serial() {
     }
 
     active_transport_ = definitions::Transport::kSerial;
+    active_client_ = 0;  // serial console has no client id
     handle_message(msg);
 }
 
@@ -104,24 +112,22 @@ void Communications::handle_response(const definitions::Command& cmd) {
             break;
     }
 
-    if (pending_transport_ == definitions::Transport::kEthernet && ethernet_send_) {
-        ethernet_send_(response);
-    } else if (pending_transport_ == definitions::Transport::kSerial && serial_send_) {
-        serial_send_(response);
-    }
+    respond_now(response);
+
     pending_transport_ = definitions::Transport::kNone;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
 Communications::Communications()
-    : ethernet_send_(nullptr),
+    : network_send_(nullptr),
       serial_send_(nullptr),
       active_transport_(definitions::Transport::kNone),
       pending_transport_(definitions::Transport::kNone),
-      local_server_(LocalServer::instance()),
-      last_link_up_(true) {}  // true = assume link is up at construction so the first
-                              // poll_ethernet() tick does not fire a spurious kUnpause.
+      active_client_(0),
+      operator_id_(0),
+      wifi_server_(WifiServer::instance()),
+      last_link_up_(true) {}  // assume up at boot so the first poll_wifi() tick won't fire a spurious kUnpause
 
 void Communications::handle_message(const std::string& msg) {
     const std::string trimmed = utils::trim(msg);
@@ -146,6 +152,13 @@ void Communications::handle_command(const std::string& msg) {
         return;
     }
 
+    // Only the operator (or serial) may drive physical outputs; queries stay open.
+    if (utils::is_actuation_command(cmd->command) && !sender_is_operator()) {
+        kLog.warning("Comando de actuacion rechazado: el cliente no es el operador.");
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorNotOperator));
+        return;
+    }
+
     if (cmd->command == definitions::CommandType::kLogOn) {
         logger().set_enabled(true);
         respond_now(utils::to_scpi(definitions::ResponseType::kStatusOn));
@@ -161,8 +174,7 @@ void Communications::handle_command(const std::string& msg) {
         return;
     }
     if (cmd->command == definitions::CommandType::kFaultQuery) {
-        // Return a comma-separated list of devices that failed hardware
-        // initialisation, or "NONE" if all devices started successfully.
+        // Comma-separated list of devices that failed init, or "NONE".
         respond_now(modules::FaultRegistry::instance().get());
         return;
     }
@@ -202,14 +214,21 @@ void Communications::handle_event(const std::string& msg) {
 }
 
 void Communications::respond_now(const std::string& response) {
-    if (active_transport_ == definitions::Transport::kEthernet && ethernet_send_) {
-        ethernet_send_(response);
+    if (active_transport_ == definitions::Transport::kWifi && network_send_) {
+        network_send_(response);
         return;
     }
     if (active_transport_ == definitions::Transport::kSerial && serial_send_) {
         serial_send_(response);
         return;
     }
+}
+
+bool Communications::sender_is_operator() const {
+    if (active_transport_ == definitions::Transport::kSerial) {
+        return true;  // serial is always privileged
+    }
+    return operator_id_ != 0 && active_client_ == operator_id_;
 }
 
 uint32_t Communications::parse_valve_pin(const std::string& msg) const {

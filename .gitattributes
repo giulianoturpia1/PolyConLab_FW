@@ -1,0 +1,24 @@
+# Normalize all text to LF in the repo; check out LF everywhere.
+* text=auto eol=lf
+
+# Source & headers
+*.cpp   text eol=lf
+*.hpp   text eol=lf
+*.h     text eol=lf
+
+# Build / config / tooling
+*.ini                   text eol=lf
+*.yaml                  text eol=lf
+*.yml                   text eol=lf
+.clang-format           text eol=lf
+.pre-commit-config.yaml text eol=lf
+
+# Docs
+*.md    text eol=lf
+LICENSE text eol=lf
+
+# Never touch binaries
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.bin   binary
