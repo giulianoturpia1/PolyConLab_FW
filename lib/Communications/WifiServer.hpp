@@ -18,7 +18,7 @@
 #include <functional>
 #include <string>
 
-#include "Definitions.hpp"
+#include "ITcpServer.hpp"
 
 namespace modules {
 
@@ -33,18 +33,15 @@ namespace modules {
 /// StateMachine task while @c poll() runs on the App task.
 ///
 /// @note Unlike a station, an access point has no uplink to lose: once started it stays up until
-/// the PLC resets. @c is_link_up() therefore reports whether the AP was brought up, not client
+/// the PLC resets. @c is_available() therefore reports whether the AP was brought up, not client
 /// presence — so the "communication lost" pause no longer triggers on a client disconnect.
 ///
-/// @note This is a single-client server: it serves one connected SCADA client at a time, matching
-/// the current firmware.
+/// @note Single-client on two layers: @c config::kApMaxClients == 1 caps the SoftAP at one 802.11
+/// station (so a second host cannot join despite the shared password), and @c poll() closes any
+/// surplus socket the lone host opens — so exactly one SCADA client is ever served at a time.
 ///
-class WifiServer {
+class WifiServer final : public ITcpServer {
    public:
-    using ClientId = definitions::ClientId;
-    using ClientResponseCallback = std::function<void(const std::string&)>;
-    using ClientMessageHandler = std::function<void(const std::string&, ClientId, const ClientResponseCallback&)>;
-
     ///
     /// @brief Get the singleton instance of WifiServer.
     ///
@@ -56,12 +53,12 @@ class WifiServer {
     ///
     /// @return true when the AP is up and the server is listening, false if the AP failed to start.
     ///
-    bool begin();
+    bool begin() override;
 
     ///
     /// @brief Poll for new client data and dispatch messages through the provided handler.
     ///
-    void poll(const ClientMessageHandler& handler);
+    void poll(const ClientMessageHandler& handler) override;
 
     ///
     /// @brief Check that the access point is running. An AP has no uplink to lose, so this simply
@@ -69,12 +66,21 @@ class WifiServer {
     ///
     /// @return true when the AP is up, false otherwise.
     ///
-    bool ensure_connection();
+    bool ensure_connection() override;
 
     ///
-    /// @brief Return the latest known AP availability status.
+    /// @brief Whether the access point is up — reflects whether begin() succeeded, since a SoftAP has
+    /// no uplink to lose.
     ///
-    bool is_link_up() const;
+    bool is_available() const override;
+
+    ///
+    /// @brief Identity of the currently connected client, or 0 when none is connected.
+    ///
+    /// Refreshed every poll() (including idle ticks) from the persistent client handle, so the
+    /// communications layer can detect that the operator's client has left and release the role.
+    ///
+    ClientId connected_client() const override;
 
    private:
     WifiServer();
@@ -88,6 +94,7 @@ class WifiServer {
     bool is_initialized_;
     bool wifi_link_up_;
     SemaphoreHandle_t client_mutex_;  ///< Serialises WiFiClient writes across the App and StateMachine tasks.
+    ClientId connected_client_;       ///< Cached identity of the connected client (0 = none); refreshed each poll().
 };
 
 }  // namespace modules

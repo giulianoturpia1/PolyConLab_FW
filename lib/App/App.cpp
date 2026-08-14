@@ -182,8 +182,7 @@ void App::create_task() {
 
 void App::tick() {
     // Delegate all communication polling to Communications module
-    communications_.poll_wifi();
-    communications_.poll_serial();
+    communications_.poll();
 }
 
 void App::task_entry(void* param) {

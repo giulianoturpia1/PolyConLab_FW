@@ -18,7 +18,7 @@
 
 #include "Authorizer.hpp"
 #include "Definitions.hpp"
-#include "WifiServer.hpp"
+#include "TcpServer.hpp"
 
 namespace modules {
 
@@ -26,23 +26,16 @@ namespace modules {
 /// @brief Communications manager that routes SCPI messages from WiFi and Serial transports.
 /// Implemented as a singleton.
 ///
-/// Incoming messages are tagged with their origin transport (WiFi or Serial) and dispatched
-/// by handle_message(). Responses are delivered through a transport-specific path:
+/// Each incoming message carries a write-back to its sender (the WiFi client's callback, or
+/// serial_send_ for Serial); the one for the message being dispatched is held in active_responder_,
+/// and respond_now() replies through it. Commands needing a StateMachine round-trip capture it into
+/// pending_responder_ before queuing, so handle_response() later replies to the original client even
+/// if another message was served meanwhile. Inline commands (SYST:LOG*, invalid params, unknown)
+/// answer immediately via respond_now() without pending_responder_.
 ///
-///   - WiFi: network_send_, set per-message to the connected TCP client's write function.
-///
-///   - Serial: serial_send_, supplied once at initialisation via initialize_server().
-///
-/// For commands that require a StateMachine round-trip, the active transport is stored in
-/// pending_transport_ before the command is queued. When the StateMachine calls handle_response(),
-/// the response is routed to whichever transport originated the command.
-///
-/// Inline commands (SYST:LOG*, invalid params, unknown) respond immediately via respond_now()
-/// without involving pending_transport_.
-///
-/// Authorization is delegated to authorizer_ (see Authorizer): the local Serial console is always
-/// privileged; over WiFi the first client to interact claims the operator role, actuation commands
-/// are gated to the operator and read-only queries stay open. The role is released on link drop.
+/// Authorization is delegated to authorizer_ (see Authorizer): Serial is always privileged, WiFi
+/// actuation is gated to the first client that claims the operator role, and poll_network() frees the
+/// role on disconnect via Authorizer::sync_operator_presence().
 ///
 /// @note Closing the Serial connection (COM port close or USB unplug) pulses the USB-serial
 /// bridge's DTR/RTS auto-reset (EN), rebooting the whole board and dropping WiFi too. See PCL-69.
@@ -63,15 +56,11 @@ class Communications {
     void initialize_server(std::function<void(const std::string&)> serial_send);
 
     ///
-    /// @brief Poll the WiFi server for messages and dispatch them.
-    /// Handles link status checking and queues connectivity events if the link changes.
+    /// @brief Poll every communication source once and dispatch any pending messages.
+    /// Drives the network (TCP) transport and the serial console; callers need not know which
+    /// transports exist. Intended to be called once per App tick.
     ///
-    void poll_wifi();
-
-    ///
-    /// @brief Poll the serial port for messages and dispatch them.
-    ///
-    void poll_serial();
+    void poll();
 
     ///
     /// @brief Format a command outcome and deliver the SCPI string to the originating client.
@@ -88,6 +77,18 @@ class Communications {
     Communications& operator=(const Communications&) = delete;
     Communications(Communications&&) = delete;
     Communications& operator=(Communications&&) = delete;
+
+    ///
+    /// @brief Poll the network (TCP) server for messages and dispatch them.
+    /// Handles availability checking and queues connectivity events on change. The concrete
+    /// transport (WiFi or Ethernet) is selected at compile time via the TcpServer alias.
+    ///
+    void poll_network();
+
+    ///
+    /// @brief Poll the serial port for messages and dispatch them.
+    ///
+    void poll_serial();
 
     ///
     /// @brief Trim and route an incoming message to handle_event() or handle_command().
@@ -112,7 +113,7 @@ class Communications {
     void handle_event(const std::string& msg);
 
     ///
-    /// @brief Send a response immediately to the currently active transport.
+    /// @brief Send a response immediately to the client currently being served (active_responder_).
     ///
     /// @param response SCPI-formatted response string.
     ///
@@ -126,17 +127,29 @@ class Communications {
     ///
     uint32_t parse_valve_pin(const std::string& msg) const;
 
-    std::function<void(const std::string&)> network_send_;  ///< TCP client write function for the message currently being processed.
-                                                            ///< Overwritten by poll_wifi() on every incoming message.
-    std::function<void(const std::string&)>
-        serial_send_;  ///< Serial write function. Supplied once via initialize_server() and reused for every response.
-    definitions::Transport active_transport_;   ///< Transport of the message currently being dispatching. Set before handle_message().
-    definitions::Transport pending_transport_;  ///< Transport of the in-flight device command awaiting a StateMachine response. Set in
-                                                ///< handle_command() before queuing; cleared in handle_response() after delivery.
-    definitions::ClientId active_client_;       ///< WiFi sender of the current message; 0 for serial.
-    Authorizer authorizer_;                     ///< Owns the operator-role state and the actuation gate.
-    WifiServer& wifi_server_;                   ///< Reference to the WifiServer singleton for WiFi communication.
-    bool last_link_up_;                         ///< Last known WiFi link status; used to detect changes and queue connectivity events.
+    ///
+    /// @brief Parse the setpoint argument of a TEMP:SET command and pack it into Command::extra bits.
+    ///
+    /// Rejects a missing argument, trailing garbage, non-finite values, and values outside
+    /// [config::kTempSetpointMinC, kTempSetpointMaxC]. On success writes the IEEE-754 bit pattern.
+    ///
+    /// @param msg      Full SCPI setpoint command string (e.g. "TEMP:SET:IN,25.0").
+    /// @param out_bits Receives the float bit pattern when parsing succeeds.
+    /// @return true if a valid, in-range setpoint was parsed; false otherwise.
+    ///
+    bool parse_setpoint_bits(const std::string& msg, uint32_t& out_bits) const;
+
+    /// @brief Write-back that delivers one SCPI response line to a specific client.
+    using Responder = std::function<void(const std::string&)>;
+
+    Responder serial_send_;        ///< Serial write-back. Supplied once via initialize_server() and reused for every response.
+    Responder active_responder_;   ///< Write-back for the message being dispatched (WiFi client callback, or serial_send_).
+    Responder pending_responder_;  ///< Responder captured for the in-flight queued command; invoked and cleared in handle_response().
+    definitions::Transport active_transport_;  ///< Transport of the current message. Used for authorization/identity, not for routing.
+    definitions::ClientId active_client_;      ///< WiFi sender of the current message; 0 for serial.
+    Authorizer authorizer_;                    ///< Owns the operator-role state and the actuation gate.
+    TcpServer& server_;                        ///< Active TCP transport singleton (WiFi or Ethernet, chosen at compile time).
+    bool last_available_;                      ///< Last known transport availability; detects changes to queue connectivity events.
 };
 
 }  // namespace modules
