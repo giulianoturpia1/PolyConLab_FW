@@ -15,9 +15,32 @@
 using ArduinoEthernetServer = ::EthernetServer;
 static ArduinoEthernetServer gEthernetServer(config::kEthernetPort);
 
+// Persistent handle to the single connected client, held across polls so its identity stays stable
+// and its disconnect is observable on an idle tick. While it is connected it owns the sole session;
+// reject_extra_clients() closes any other socket that connects.
+static EthernetClient gClient;
+
 namespace modules {
 
 static const TaggedLogger kLog("EthernetServer");
+
+///
+/// @brief Accept and close every surplus TCP socket beyond the primary session.
+///
+/// A wired LAN has no association cap, so several hosts can reach the listener at once. accept()
+/// hands back each newly established socket exactly once; the primary is skipped via operator==
+/// (it compares socket index) and every other socket is stopped. Called only while gClient is
+/// connected, under spi_mutex_ (the caller holds it).
+///
+static void reject_extra_clients() {
+    for (EthernetClient extra = gEthernetServer.accept(); extra; extra = gEthernetServer.accept()) {
+        if (extra == gClient) {
+            continue;  // accept() may return the primary socket once — never close it.
+        }
+        extra.stop();
+        kLog.warning("Conexion TCP adicional rechazada: la sesion Ethernet ya esta en uso por otro cliente.");
+    }
+}
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
@@ -54,10 +77,9 @@ bool EthernetServer::begin() {
 ///
 /// @brief Build a write-back callable bound to a specific connected TCP client.
 ///
-/// The returned lambda captures the client by shared_ptr so it stays alive for the duration of the
-/// deferred response round-trip (command → StateMachine → response). It acquires spi_mutex before
-/// touching the W5x00 so it is safe to call from any task, including the StateMachine task running
-/// concurrently with the App task.
+/// The lambda captures the client by shared_ptr so it outlives the deferred response round-trip
+/// (command → StateMachine → response), and takes spi_mutex before touching the W5x00 so it is safe
+/// to call from any task — including the StateMachine task running concurrently with the App task.
 ///
 /// @param client    Shared pointer to the EthernetClient that sent the command.
 /// @param spi_mutex FreeRTOS mutex that serialises all W5x00 SPI access.
@@ -92,21 +114,26 @@ void EthernetServer::poll(const ClientMessageHandler& handler) {
         return;
     }
 
-    EthernetClient client = gEthernetServer.available();
-    if (!client) {
-        xSemaphoreGive(spi_mutex_);
-        return;
+    // Adopt the next arrival only when we have no live client; once connected, service it directly so
+    // its identity stays stable, and close any surplus socket so the session is single-client at the
+    // transport layer (a wired LAN, unlike the WiFi SoftAP, has no association cap of its own).
+    if (!gClient.connected()) {
+        gClient = gEthernetServer.available();
+    } else {
+        reject_extra_clients();
     }
-    if (!client.connected()) {
-        xSemaphoreGive(spi_mutex_);
-        return;
-    }
-    if (!client.available()) {
+
+    // Refresh the cached identity every tick — including idle ones — so connected_client() reports
+    // an accurate presence and the comms layer can free the operator role when the client leaves.
+    connected_client_ = gClient.connected() ? static_cast<ClientId>(gClient.remoteIP()) : 0;
+
+    if (!gClient.connected() || !gClient.available()) {
         xSemaphoreGive(spi_mutex_);
         return;
     }
 
-    String arduino_msg = client.readStringUntil('\n');
+    String arduino_msg = gClient.readStringUntil('\n');
+    const ClientId client_id = connected_client_;
     xSemaphoreGive(spi_mutex_);  // Release before handler — no more SPI needed here.
 
     std::string msg(arduino_msg.c_str());
@@ -118,12 +145,14 @@ void EthernetServer::poll(const ClientMessageHandler& handler) {
 
     kLog.debug("Nuevo Mensaje del Cliente: " + msg);
 
-    auto client_ptr = std::make_shared<EthernetClient>(client);
+    auto client_ptr = std::make_shared<EthernetClient>(gClient);
     ClientResponseCallback respond = create_response_callback(client_ptr, spi_mutex_);
 
-    const ClientId client_id = static_cast<ClientId>(client.remoteIP());
-
     handler(msg, client_id, respond);
+}
+
+EthernetServer::ClientId EthernetServer::connected_client() const {
+    return connected_client_;
 }
 
 bool EthernetServer::ensure_connection() {
@@ -166,6 +195,7 @@ void EthernetServer::restart_server() {
     is_initialized_ = true;
 }
 
-EthernetServer::EthernetServer() : is_initialized_(false), ethernet_link_up_(false), spi_mutex_(xSemaphoreCreateMutex()) {}
+EthernetServer::EthernetServer()
+    : is_initialized_(false), ethernet_link_up_(false), spi_mutex_(xSemaphoreCreateMutex()), connected_client_(0) {}
 
 }  // namespace modules

@@ -11,6 +11,11 @@
 
 static WiFiServer gWifiServer(config::kWifiServerPort);
 
+// Persistent handle to the single associated client (kApMaxClients == 1), held across polls so its
+// identity stays stable and its disconnect is observable on an idle tick. While it is connected it
+// owns the sole session; reject_extra_clients() closes any other socket the host opens.
+static WiFiClient gClient;
+
 namespace modules {
 
 static const TaggedLogger kLog("WifiServer");
@@ -22,6 +27,21 @@ static const TaggedLogger kLog("WifiServer");
 ///
 static IPAddress to_ip(const std::array<uint8_t, 4>& octets) {
     return IPAddress(octets[0], octets[1], octets[2], octets[3]);
+}
+
+///
+/// @brief Accept and close every surplus TCP socket beyond the primary session.
+///
+/// kApMaxClients == 1 caps 802.11 associations at one host, but that host can still open several TCP
+/// sockets. Closing each extra keeps the guarantee single-client at the transport layer, not just the
+/// radio, and stops them lingering in the LwIP backlog. Called only while gClient is connected, under
+/// client_mutex_ (the caller holds it).
+///
+static void reject_extra_clients() {
+    for (WiFiClient extra = gWifiServer.available(); extra.connected(); extra = gWifiServer.available()) {
+        extra.stop();
+        kLog.warning("Conexion TCP adicional rechazada: la sesion WiFi ya esta en uso por otro cliente.");
+    }
 }
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
@@ -66,10 +86,9 @@ bool WifiServer::begin() {
 ///
 /// @brief Build a write-back callable bound to a specific connected TCP client.
 ///
-/// The returned lambda captures the client by shared_ptr so it stays alive for the
-/// duration of the deferred response round-trip (command → StateMachine → response).
-/// It acquires client_mutex before writing so it is safe to call from any task,
-/// including the StateMachine task running concurrently with the App task.
+/// The lambda captures the client by shared_ptr so it outlives the deferred response round-trip
+/// (command → StateMachine → response), and takes client_mutex before writing so it is safe to call
+/// from any task — including the StateMachine task running concurrently with the App task.
 ///
 /// @param client       Shared pointer to the WiFiClient that sent the command.
 /// @param client_mutex FreeRTOS mutex that serialises WiFiClient writes.
@@ -103,21 +122,26 @@ void WifiServer::poll(const ClientMessageHandler& handler) {
         return;
     }
 
-    WiFiClient client = gWifiServer.available();
-    if (!client) {
-        xSemaphoreGive(client_mutex_);
-        return;
+    // Adopt the next arrival only when we have no live client; once connected, service it directly so
+    // its identity stays stable (kApMaxClients == 1), and close any surplus socket so the session is
+    // single-client at the transport layer, not merely single-association at the 802.11 layer.
+    if (!gClient.connected()) {
+        gClient = gWifiServer.available();
+    } else {
+        reject_extra_clients();
     }
-    if (!client.connected()) {
-        xSemaphoreGive(client_mutex_);
-        return;
-    }
-    if (!client.available()) {
+
+    // Refresh the cached identity every tick — including idle ones — so connected_client() reports
+    // an accurate presence and the comms layer can free the operator role when the client leaves.
+    connected_client_ = gClient.connected() ? static_cast<ClientId>(gClient.remoteIP()) : 0;
+
+    if (!gClient.connected() || !gClient.available()) {
         xSemaphoreGive(client_mutex_);
         return;
     }
 
-    String arduino_msg = client.readStringUntil('\n');
+    String arduino_msg = gClient.readStringUntil('\n');
+    const ClientId client_id = connected_client_;
     xSemaphoreGive(client_mutex_);  // Release before handler — no more client I/O needed here.
 
     std::string msg(arduino_msg.c_str());
@@ -129,12 +153,14 @@ void WifiServer::poll(const ClientMessageHandler& handler) {
 
     kLog.debug("Nuevo Mensaje del Cliente: " + msg);
 
-    auto client_ptr = std::make_shared<WiFiClient>(client);
+    auto client_ptr = std::make_shared<WiFiClient>(gClient);
     ClientResponseCallback respond = create_response_callback(client_ptr, client_mutex_);
 
-    const ClientId client_id = static_cast<ClientId>(client.remoteIP());
-
     handler(msg, client_id, respond);
+}
+
+WifiServer::ClientId WifiServer::connected_client() const {
+    return connected_client_;
 }
 
 bool WifiServer::ensure_connection() {
@@ -149,6 +175,6 @@ bool WifiServer::is_available() const {
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-WifiServer::WifiServer() : is_initialized_(false), wifi_link_up_(false), client_mutex_(xSemaphoreCreateMutex()) {}
+WifiServer::WifiServer() : is_initialized_(false), wifi_link_up_(false), client_mutex_(xSemaphoreCreateMutex()), connected_client_(0) {}
 
 }  // namespace modules

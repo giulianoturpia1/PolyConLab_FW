@@ -36,8 +36,9 @@ namespace modules {
 /// the PLC resets. @c is_available() therefore reports whether the AP was brought up, not client
 /// presence — so the "communication lost" pause no longer triggers on a client disconnect.
 ///
-/// @note This is a single-client server: it serves one connected SCADA client at a time, matching
-/// the current firmware.
+/// @note Single-client on two layers: @c config::kApMaxClients == 1 caps the SoftAP at one 802.11
+/// station (so a second host cannot join despite the shared password), and @c poll() closes any
+/// surplus socket the lone host opens — so exactly one SCADA client is ever served at a time.
 ///
 class WifiServer final : public ITcpServer {
    public:
@@ -68,10 +69,18 @@ class WifiServer final : public ITcpServer {
     bool ensure_connection() override;
 
     ///
-    /// @brief Whether the access point is up. A SoftAP has no uplink to lose, so this reflects
-    /// whether begin() successfully brought the AP up.
+    /// @brief Whether the access point is up — reflects whether begin() succeeded, since a SoftAP has
+    /// no uplink to lose.
     ///
     bool is_available() const override;
+
+    ///
+    /// @brief Identity of the currently connected client, or 0 when none is connected.
+    ///
+    /// Refreshed every poll() (including idle ticks) from the persistent client handle, so the
+    /// communications layer can detect that the operator's client has left and release the role.
+    ///
+    ClientId connected_client() const override;
 
    private:
     WifiServer();
@@ -85,6 +94,7 @@ class WifiServer final : public ITcpServer {
     bool is_initialized_;
     bool wifi_link_up_;
     SemaphoreHandle_t client_mutex_;  ///< Serialises WiFiClient writes across the App and StateMachine tasks.
+    ClientId connected_client_;       ///< Cached identity of the connected client (0 = none); refreshed each poll().
 };
 
 }  // namespace modules

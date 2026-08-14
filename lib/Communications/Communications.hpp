@@ -26,22 +26,16 @@ namespace modules {
 /// @brief Communications manager that routes SCPI messages from WiFi and Serial transports.
 /// Implemented as a singleton.
 ///
-/// Each incoming message carries a write-back to its sender: for WiFi the connected client's
-/// callback, for Serial the serial_send_ function supplied once at initialisation. The write-back
-/// for the message currently being dispatched is held in active_responder_; respond_now() delivers
-/// immediate replies through it.
+/// Each incoming message carries a write-back to its sender (the WiFi client's callback, or
+/// serial_send_ for Serial); the one for the message being dispatched is held in active_responder_,
+/// and respond_now() replies through it. Commands needing a StateMachine round-trip capture it into
+/// pending_responder_ before queuing, so handle_response() later replies to the original client even
+/// if another message was served meanwhile. Inline commands (SYST:LOG*, invalid params, unknown)
+/// answer immediately via respond_now() without pending_responder_.
 ///
-/// For commands that require a StateMachine round-trip, active_responder_ is captured into
-/// pending_responder_ before the command is queued. When the StateMachine calls handle_response(),
-/// the reply is delivered through that captured responder, so it always reaches the client that
-/// issued the command even if another message is served in between.
-///
-/// Inline commands (SYST:LOG*, invalid params, unknown) respond immediately via respond_now()
-/// without involving pending_responder_.
-///
-/// Authorization is delegated to authorizer_ (see Authorizer): the local Serial console is always
-/// privileged; over WiFi the first client to interact claims the operator role, actuation commands
-/// are gated to the operator and read-only queries stay open. The role is released on link drop.
+/// Authorization is delegated to authorizer_ (see Authorizer): Serial is always privileged, WiFi
+/// actuation is gated to the first client that claims the operator role, and poll_network() frees the
+/// role on disconnect via Authorizer::sync_operator_presence().
 ///
 /// @note Closing the Serial connection (COM port close or USB unplug) pulses the USB-serial
 /// bridge's DTR/RTS auto-reset (EN), rebooting the whole board and dropping WiFi too. See PCL-69.

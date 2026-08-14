@@ -19,22 +19,19 @@ namespace modules {
 ///
 /// @brief Owns the operator/observer role state and decides whether a sender may actuate.
 ///
-/// Every client that talks to the PLC is one of two roles. The @b operator is the single
-/// privileged client: it may issue actuation commands — those that drive a physical output
-/// (heater/pump/chiller on-off, valve open-close) — as well as every read-only command. The local
-/// Serial console is always an operator, since it has physical access. An @b observer is any other
-/// client: read-only, so state/sensor queries, PING, STATE?, SYST:LOG* and SYST:FAULT? are allowed
-/// but actuation is rejected with kErrorNotOperator. Observers can watch the plant without acting.
+/// Clients fall into two roles. The @b operator is the single privileged client — it may drive
+/// physical outputs (heater/pump/chiller, valves) as well as read; the local Serial console is always
+/// an operator, since it has physical access. An @b observer is any other client: reads (queries,
+/// PING, STATE?, SYST:LOG*, SYST:FAULT?) are allowed, actuation is rejected with kErrorNotOperator.
 ///
-/// Over WiFi the role is unclaimed at boot (operator_id_ == 0). The first client to interact claims
-/// it (first-client-wins) via claim(); every later client stays an observer until the operator
-/// leaves. release() — called when the WiFi link drops — clears the role so the next client can
-/// claim it.
+/// Over WiFi the role is unclaimed at boot; the first client to interact claims it (first-client-wins)
+/// and later clients stay observers until it leaves. sync_operator_presence(), called each network
+/// tick, frees the role on disconnect — a SoftAP stays "available" with zero clients, so the link-drop
+/// release() never fires over WiFi. release() remains for Ethernet, whose link genuinely drops.
 ///
-/// @note With config::kApMaxClients == 1 only one WiFi station can associate at a time, so in
-/// practice the sole connected client is always the operator and the observer path is exercised
-/// only against Serial. The gate is written for the general multi-client case and takes effect for
-/// additional observers as soon as the client cap is raised.
+/// @note With config::kApMaxClients == 1 only one station associates at a time, so the sole client is
+/// always the operator and the observer path is exercised only against Serial; the gate still applies
+/// to extra observers if the cap is raised.
 ///
 class Authorizer {
    public:
@@ -57,6 +54,26 @@ class Authorizer {
     ///
     void release() {
         operator_id_ = 0;
+    }
+
+    ///
+    /// @brief Release the operator role if its holder is no longer the connected client.
+    ///
+    /// The role is claimed first-client-wins and must be freed when that client leaves, so the next
+    /// client can claim it. Over a SoftAP the link stays "available" even with zero clients (no
+    /// uplink to lose), so the link-drop release() never fires over WiFi — this presence check is
+    /// what frees the role after a disconnect. Single-client contract: at most one client is
+    /// connected, so any mismatch means the operator has disconnected (0 = nobody connected).
+    ///
+    /// @param connected_client Identity of the currently connected client (0 if none).
+    /// @return true if the role was released (caller may log it), false if nothing changed.
+    ///
+    bool sync_operator_presence(definitions::ClientId connected_client) {
+        if (operator_id_ != 0 && operator_id_ != connected_client) {
+            operator_id_ = 0;
+            return true;
+        }
+        return false;
     }
 
     ///

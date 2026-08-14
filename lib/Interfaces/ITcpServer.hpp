@@ -8,14 +8,11 @@
 /// @copyright Copyright (c) 2026
 ///
 /// @details
-/// Context: the PLC exposes its SCPI command interface over a TCP socket. The physical link
-/// (OSI layers 1-2) may be WiFi (SoftAP, 802.11) or Ethernet (802.3); above layer 2 both
-/// present an identical TCP byte stream, so the command layer must not care which is wired.
-///
-/// Theactive transport is chosen at COMPILE time through the TcpServer alias (-DTRANSPORT_ETHERNET),
-/// never at run time.. The interface forces both concretes to expose the same operations, so switching the alias
-/// target is safe; Communications binds to the concrete alias (not ITcpServer&), keeping calls
-/// devirtualizable.
+/// The PLC exposes its SCPI command interface over TCP. The link (OSI layers 1-2) may be WiFi
+/// (SoftAP, 802.11) or Ethernet (802.3), but both present an identical byte stream above layer 2, so
+/// the command layer stays link-agnostic. The transport is chosen at compile time via the TcpServer
+/// alias (-DTRANSPORT_ETHERNET), never at run time; Communications binds to that concrete alias (not
+/// ITcpServer&), so calls stay devirtualizable.
 ///
 
 #pragma once
@@ -62,6 +59,17 @@ class ITcpServer {
     /// for Ethernet it means the PHY link is up.
     ///
     virtual bool is_available() const = 0;
+
+    ///
+    /// @brief Identity of the currently connected client, or 0 when none is connected.
+    ///
+    /// Single-client contract: at most one client at a time, so this fully describes presence. It lets
+    /// the comms layer free the operator role when its holder disconnects — needed because a SoftAP
+    /// keeps is_available() true with no client, so the link-down release never fires over WiFi.
+    ///
+    /// @return ClientId of the connected client, or 0 if there is none.
+    ///
+    virtual ClientId connected_client() const = 0;
 };
 
 }  // namespace modules

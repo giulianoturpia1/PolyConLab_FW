@@ -44,6 +44,13 @@ void Communications::poll_network() {
             kLog.info("WiFi reconectado. Reanudando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
         }
+        // Free the operator role once its holding client has left. A SoftAP keeps is_available()
+        // true with zero clients (no uplink to lose), so the link-down release() above never fires
+        // over WiFi — presence tracking is what lets the next client claim the role after a
+        // disconnect. Uses the identity cached by the previous poll() tick.
+        if (authorizer_.sync_operator_presence(server_.connected_client())) {
+            kLog.info("Rol de operador liberado: el cliente operador se desconecto.");
+        }
         server_.poll(
             [this](const std::string& msg, definitions::ClientId client_id, const TcpServer::ClientResponseCallback& client_respond) {
                 active_responder_ = client_respond;

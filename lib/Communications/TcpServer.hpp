@@ -17,10 +17,10 @@
 
 #pragma once
 
-#include "WifiServer.hpp"
 #ifdef TRANSPORT_ETHERNET
 #include "EthernetServer.hpp"
 #else
+#include "WifiServer.hpp"
 #endif
 
 namespace modules {

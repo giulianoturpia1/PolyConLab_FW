@@ -62,6 +62,14 @@ class EthernetServer final : public ITcpServer {
     ///
     bool is_available() const override;
 
+    ///
+    /// @brief Identity of the currently connected client, or 0 when none is connected.
+    ///
+    /// Refreshed every poll() (including idle ticks) from the persistent client handle, so the
+    /// communications layer can detect that the operator's client has left and release the role.
+    ///
+    ClientId connected_client() const override;
+
    private:
     EthernetServer();
     ~EthernetServer() = default;
@@ -78,6 +86,7 @@ class EthernetServer final : public ITcpServer {
     bool is_initialized_;
     bool ethernet_link_up_;
     SemaphoreHandle_t spi_mutex_;  ///< Serialises W5x00 SPI access across the App and StateMachine tasks.
+    ClientId connected_client_;    ///< Cached identity of the connected client (0 = none); refreshed each poll().
 };
 
 }  // namespace modules
