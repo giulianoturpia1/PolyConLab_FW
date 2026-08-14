@@ -173,6 +173,32 @@ inline std::string format_float(float value, int precision) {
 }
 
 ///
+/// @brief Type-pun a float into its raw uint32_t bit pattern, for packing into Command::extra.
+///
+/// @param value Float to encode.
+/// @return uint32_t IEEE-754 bit pattern of @p value.
+///
+inline uint32_t float_to_bits(float value) {
+    static_assert(sizeof(float) == sizeof(uint32_t), "float/uint32_t size mismatch");
+    uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+///
+/// @brief Inverse of @c float_to_bits: recover a float from its raw uint32_t bit pattern.
+///
+/// @param bits IEEE-754 bit pattern (as carried in Command::extra).
+/// @return float Decoded value.
+///
+inline float bits_to_float(uint32_t bits) {
+    static_assert(sizeof(float) == sizeof(uint32_t), "float/uint32_t size mismatch");
+    float value = 0.0f;
+    std::memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+///
 /// @brief Unpack an IEEE-754 float stored in a uint32_t and format it to 2 decimal places.
 ///
 /// Sensor modules pack float readings into Command::extra via memcpy. This function
@@ -182,8 +208,7 @@ inline std::string format_float(float value, int precision) {
 /// @return std::string Formatted value (e.g. "25.50") or SCPI error string.
 ///
 inline std::string format_sensor_value(uint32_t bits) {
-    float val;
-    std::memcpy(&val, &bits, sizeof(float));
+    float val = bits_to_float(bits);
     if (std::isnan(val)) {
         return to_scpi(definitions::ResponseType::kErrorSensorFault);
     }

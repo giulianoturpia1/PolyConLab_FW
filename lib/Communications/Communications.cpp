@@ -1,5 +1,7 @@
 #include "Communications.hpp"
 
+#include <cmath>
+
 #include "Config.hpp"
 #include "Definitions.hpp"
 #include "FaultRegistry.hpp"
@@ -170,8 +172,9 @@ void Communications::handle_command(const std::string& msg) {
         return;
     }
 
-    // Commands answered locally return here; valve commands compute their pin and fall through to
-    // the queue; every other command falls through unchanged.
+    // Commands answered locally return here; valve and setpoint commands compute their Command::extra
+    // payload (pin / packed float) and fall through to the queue; every other command falls through
+    // unchanged with extra == 0.
     uint32_t extra = 0;
     switch (cmd->command) {
         case definitions::CommandType::kLogOn:
@@ -197,6 +200,12 @@ void Communications::handle_command(const std::string& msg) {
         case definitions::CommandType::kValveState:
             extra = parse_valve_pin(msg);
             if (extra == 0) {
+                respond_now(utils::to_scpi(definitions::ResponseType::kErrorInvalidParam));
+                return;
+            }
+            break;
+        case definitions::CommandType::kTempSetIn:
+            if (!parse_setpoint_bits(msg, extra)) {
                 respond_now(utils::to_scpi(definitions::ResponseType::kErrorInvalidParam));
                 return;
             }
@@ -254,5 +263,31 @@ uint32_t Communications::parse_valve_pin(const std::string& msg) const {
             return 0;  // Invalid valve number
         }
     }
+}
+
+bool Communications::parse_setpoint_bits(const std::string& msg, uint32_t& out_bits) const {
+    const size_t comma_pos = msg.find(',');
+    if (comma_pos == std::string::npos || comma_pos + 1 >= msg.length()) {
+        return false;  // no argument
+    }
+
+    const std::string arg = utils::trim(msg.substr(comma_pos + 1));
+    size_t consumed = 0;
+    float setpoint = 0.0f;
+    try {
+        setpoint = std::stof(arg, &consumed);
+    } catch (...) {
+        return false;  // not a number / out of float range
+    }
+
+    if (consumed != arg.length() || !std::isfinite(setpoint)) {
+        return false;  // trailing garbage, or NaN/inf
+    }
+    if (setpoint < config::kTempSetpointMinC || setpoint > config::kTempSetpointMaxC) {
+        return false;  // outside the configured process envelope
+    }
+
+    out_bits = utils::float_to_bits(setpoint);
+    return true;
 }
 }  // namespace modules

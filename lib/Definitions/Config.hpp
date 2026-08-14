@@ -276,4 +276,16 @@ constexpr uint8_t kMaxCommandsPerTick = 4;
 ///
 constexpr uint8_t kMaxResponsesPerTick = 4;
 
+// ── Control Setpoint Limits ───────────────────────────────────────────────────
+
+///
+/// @brief Inclusive bounds (°C) accepted for temperature-setpoint commands (e.g. TEMP:SET:IN).
+///
+/// Setpoints outside this range — and non-finite values — are rejected with kErrorInvalidParam
+/// before reaching the StateMachine. Tune to the physical envelope of the bath/chiller; the
+/// ManualState default setpoint (20 °C) sits inside it.
+///
+constexpr float kTempSetpointMinC = 0.0f;
+constexpr float kTempSetpointMaxC = 100.0f;
+
 }  // namespace config

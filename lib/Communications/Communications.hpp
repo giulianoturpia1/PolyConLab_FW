@@ -127,6 +127,18 @@ class Communications {
     ///
     uint32_t parse_valve_pin(const std::string& msg) const;
 
+    ///
+    /// @brief Parse the setpoint argument of a TEMP:SET command and pack it into Command::extra bits.
+    ///
+    /// Rejects a missing argument, trailing garbage, non-finite values, and values outside
+    /// [config::kTempSetpointMinC, kTempSetpointMaxC]. On success writes the IEEE-754 bit pattern.
+    ///
+    /// @param msg      Full SCPI setpoint command string (e.g. "TEMP:SET:IN,25.0").
+    /// @param out_bits Receives the float bit pattern when parsing succeeds.
+    /// @return true if a valid, in-range setpoint was parsed; false otherwise.
+    ///
+    bool parse_setpoint_bits(const std::string& msg, uint32_t& out_bits) const;
+
     /// @brief Write-back that delivers one SCPI response line to a specific client.
     using Responder = std::function<void(const std::string&)>;
 
