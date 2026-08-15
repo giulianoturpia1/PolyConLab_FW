@@ -1,5 +1,8 @@
 #include "DeviceDispatcher.hpp"
 
+#include <cmath>
+
+#include "Helpers.hpp"
 #include "IDevice.hpp"
 
 namespace modules {
@@ -32,6 +35,16 @@ bool DeviceDispatcher::enforce_to_device(const definitions::Command& cmd, uint32
         }
     }
     return false;
+}
+
+definitions::Command DeviceDispatcher::read_from_device(const definitions::Command& cmd) {
+    for (size_t i = 0; i < device_count_; ++i) {
+        if (devices_[i] != nullptr && devices_[i]->accepts(cmd.type)) {
+            return devices_[i]->read(cmd);
+        }
+    }
+    // No device handles this read: return a NaN sensor sentinel so float-sensor callers fail safe.
+    return {cmd.type, utils::float_to_bits(NAN)};
 }
 
 }  // namespace modules

@@ -66,6 +66,20 @@ class DeviceDispatcher {
     ///
     bool enforce_to_device(const definitions::Command& cmd, uint32_t timeout_ms);
 
+    ///
+    /// @brief Read synchronously from the first device whose accepts() returns true, returning its
+    /// response Command.
+    ///
+    /// Routes to IDevice::read(): the operation runs inline on the caller's task and the reading is
+    /// returned in the response's extra (device-defined encoding, e.g. IEEE-754 temperature bits).
+    /// If no device accepts the command, returns the command with a NaN sensor sentinel in extra so
+    /// float-sensor callers fail safe via std::isnan.
+    ///
+    /// @param cmd Read command to dispatch.
+    /// @return definitions::Command Response with the reading packed in extra.
+    ///
+    definitions::Command read_from_device(const definitions::Command& cmd);
+
    private:
     DeviceDispatcher();
     DeviceDispatcher(const DeviceDispatcher&) = delete;

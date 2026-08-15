@@ -71,6 +71,29 @@ class IDevice {
     ///
     virtual bool enforce_command(const definitions::Command& cmd, uint32_t timeout_ms) = 0;
 
+    ///
+    /// @brief Execute a read synchronously and return its response — the inline query entry point.
+    ///
+    /// Runs the operation on the CALLER's task and returns the device's response immediately,
+    /// without publishing a report. This is the path for internal consumers that need a value
+    /// now (e.g. the control loop reading temperature for a hysteresis decision), as opposed to
+    /// the client read path (kTempInRead via queue_command, answered later on the response queue).
+    ///
+    /// The meaning of the returned Command::extra is defined by the device and the command type
+    /// (e.g. IEEE-754 temperature bits for a thermocouple read); the caller decodes it accordingly.
+    /// A failed read is reported in-band through that same payload (e.g. NaN bits for a sensor
+    /// fault), so there is no separate status flag — the device gives extra its meaning.
+    ///
+    /// @warning Runs execute_command() inline, off the device's own task, so a device may be read this
+    ///          way only if its execute_command() is internally thread-safe against that task (the
+    ///          Thermocouple serializes bus access with a mutex). Devices that cannot guarantee
+    ///          this must not be read synchronously.
+    ///
+    /// @param cmd Read command to execute.
+    /// @return definitions::Command The device response, with the reading packed in extra.
+    ///
+    virtual definitions::Command read(const definitions::Command& cmd) = 0;
+
    protected:
     IDevice() = default;
     IDevice(const IDevice&) = delete;

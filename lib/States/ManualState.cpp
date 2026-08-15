@@ -10,7 +10,6 @@
 #include "Logger.hpp"
 #include "StateMachine.hpp"
 #include "TargetDefinitions.hpp"
-#include "Thermocouple.hpp"
 
 constexpr uint32_t kAcceptableTimeWindowMs = 100;
 constexpr unsigned long kManualControlIntervalUs = 1000000UL;
@@ -90,8 +89,11 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     }
     manual_control_tick_ready = false;
 
-    // Read mix temperature
-    float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempMix));
+    // Read mix temperature synchronously through the dispatcher — no concrete device dependency.
+    // The thermocouple resolves kTempMixRead to its address and packs the reading (IEEE-754 bits,
+    // NaN on fault) into extra.
+    const definitions::Command temp_resp = DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempMixRead, 0u});
+    const float temp = utils::bits_to_float(temp_resp.extra);
     if (std::isnan(temp)) {
         interfaces::IState::apply_safe_outputs();
         kLog.warning("ManualState: temperature sensor fault (NaN), safe outputs applied");

@@ -26,8 +26,8 @@ namespace modules {
 ///
 /// A SyncDevice owns no FreeRTOS task and no queue: the dispatching task (the
 /// StateMachine on Core 0) is the sole writer of the device, so there is no race
-/// to serialize. Subclasses implement execute_command(), reached through the IDevice
-/// command entry points (Template Method):
+/// to serialize. Subclasses implement execute_command(), reached through the three
+/// IDevice entry points (Template Method):
 ///
 /// + queue_command() runs the command inline and publishes the response to the
 ///   configured sink, so the confirmation/client-acknowledgement pipeline is identical
@@ -35,8 +35,10 @@ namespace modules {
 /// + enforce_command() runs the command inline WITHOUT publishing, for autonomous
 ///   control-loop and safe-output actuations that must not inject a spurious
 ///   confirmation into the StateMachine response queue.
+/// + read() runs the command inline and returns the response to the caller, for
+///   synchronous internal reads.
 ///
-/// Both are reached polymorphically through the DeviceDispatcher, so callers stay
+/// All three are reached polymorphically through the DeviceDispatcher, so callers stay
 /// unaware of the concrete device type.
 ///
 /// create_task() and set_response_queue() mirror the AsyncDevice lifecycle API so
@@ -83,6 +85,16 @@ class SyncDevice : public interfaces::IDevice {
     bool enforce_command(const definitions::Command& cmd, uint32_t /*timeout_ms*/) override {
         definitions::Command response;
         return execute_command(cmd, response);
+    }
+
+    ///
+    /// @copydoc interfaces::IDevice::read
+    /// @note Runs inline on the caller's task and returns the response without publishing it.
+    ///
+    definitions::Command read(const definitions::Command& cmd) override {
+        definitions::Command out = cmd;
+        execute_command(cmd, out);
+        return out;
     }
 
    protected:

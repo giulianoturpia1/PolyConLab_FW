@@ -90,6 +90,17 @@ class AsyncDevice : public interfaces::IDevice {
         return xQueueSend(queue_, &item, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
     }
 
+    ///
+    /// @copydoc interfaces::IDevice::read
+    /// @note Runs execute_command() inline on the caller's task (bypassing the queue) and returns the
+    ///       response; relies on execute_command() being internally thread-safe against the device task.
+    ///
+    definitions::Command read(const definitions::Command& cmd) override {
+        definitions::Command out = cmd;
+        execute_command(cmd, out);
+        return out;
+    }
+
    protected:
     ///
     /// @brief Configure the task identity used by create_task().
