@@ -48,7 +48,7 @@ const char* CheckupState::name() const {
     return "CHECKUP";
 }
 
-bool CheckupState::dispatch_command(StateMachine* context, const definitions::Command& request) {
+bool CheckupState::handle_command(StateMachine* context, const definitions::Command& request) {
     (void) context;
     // Only read-only sensor queries are accepted during CHECKUP so the SCADA
     // can probe each device.  Actuator commands are always rejected here.
@@ -59,7 +59,7 @@ bool CheckupState::dispatch_command(StateMachine* context, const definitions::Co
         case definitions::CommandType::kTempMixRead:
         case definitions::CommandType::kFlowRead:
         case definitions::CommandType::kLevelSwitchState:
-            return DeviceDispatcher::instance().forward_to_device(request, kCheckupTimeWindowMs);
+            return DeviceDispatcher::instance().issue_to_device(request, kCheckupTimeWindowMs);
         default:
             return false;
     }

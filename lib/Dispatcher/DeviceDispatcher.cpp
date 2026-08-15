@@ -19,10 +19,10 @@ void DeviceDispatcher::set_devices(interfaces::IDevice* const* devices, size_t c
     device_count_ = count;
 }
 
-bool DeviceDispatcher::forward_to_device(const definitions::Command& cmd, uint32_t timeout_ms) {
+bool DeviceDispatcher::issue_to_device(const definitions::Command& cmd, uint32_t timeout_ms) {
     for (size_t i = 0; i < device_count_; ++i) {
         if (devices_[i] != nullptr && devices_[i]->accepts(cmd.type)) {
-            return devices_[i]->queue_command(cmd, timeout_ms);
+            return devices_[i]->issue_command(cmd, timeout_ms);
         }
     }
     return false;

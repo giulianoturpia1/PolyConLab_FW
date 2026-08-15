@@ -51,12 +51,12 @@ class IDevice {
     /// @param timeout_ms Queue send timeout in milliseconds (ignored by synchronous devices).
     /// @return true if the command was accepted and queued/executed.
     ///
-    virtual bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) = 0;
+    virtual bool issue_command(const definitions::Command& cmd, uint32_t timeout_ms) = 0;
 
     ///
     /// @brief Dispatch a command WITHOUT publishing a response report — the enforced entry point.
     ///
-    /// Identical dispatch semantics to queue_command() (same polymorphism: inline for a
+    /// Identical dispatch semantics to issue_command() (same polymorphism: inline for a
     /// SyncDevice, queued for an AsyncDevice), except the device does not publish a
     /// response to its sink. It is the path for autonomous, fire-and-forget actuations
     /// that are not client-originated commands — control-loop and safe-output actions —
@@ -77,7 +77,7 @@ class IDevice {
     /// Runs the operation on the CALLER's task and returns the device's response immediately,
     /// without publishing a report. This is the path for internal consumers that need a value
     /// now (e.g. the control loop reading temperature for a hysteresis decision), as opposed to
-    /// the client read path (kTempInRead via queue_command, answered later on the response queue).
+    /// the client read path (kTempInRead via issue_command, answered later on the response queue).
     ///
     /// The meaning of the returned Command::extra is defined by the device and the command type
     /// (e.g. IEEE-754 temperature bits for a thermocouple read); the caller decodes it accordingly.

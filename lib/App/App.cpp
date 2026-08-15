@@ -145,7 +145,7 @@ void App::initialize_system() {
     // Initialize Devices
     initialize_devices();
 
-    // Build device list for IDevice routing in DeviceDispatcher::forward_to_device().
+    // Build device list for IDevice routing in DeviceDispatcher::issue_to_device().
     // Order determines priority; the first device that accepts() a command wins.
     static interfaces::IDevice* const kDevices[] = {
         &heater_, &pump_, &chiller_, &valves_, &thermocouples_, &flowmeter_, &level_switch_,

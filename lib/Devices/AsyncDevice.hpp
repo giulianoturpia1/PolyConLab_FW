@@ -72,8 +72,8 @@ class AsyncDevice : public interfaces::IDevice {
         response_queue_ = queue;
     }
 
-    /// @copydoc interfaces::IDevice::queue_command
-    bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) override {
+    /// @copydoc interfaces::IDevice::issue_command
+    bool issue_command(const definitions::Command& cmd, uint32_t timeout_ms) override {
         if (queue_ == nullptr) {
             return false;
         }

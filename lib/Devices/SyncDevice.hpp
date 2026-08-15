@@ -29,7 +29,7 @@ namespace modules {
 /// to serialize. Subclasses implement execute_command(), reached through the three
 /// IDevice entry points (Template Method):
 ///
-/// + queue_command() runs the command inline and publishes the response to the
+/// + issue_command() runs the command inline and publishes the response to the
 ///   configured sink, so the confirmation/client-acknowledgement pipeline is identical
 ///   to an AsyncDevice. This is the path for external, confirmable commands.
 /// + enforce_command() runs the command inline WITHOUT publishing, for autonomous
@@ -64,11 +64,11 @@ class SyncDevice : public interfaces::IDevice {
     }
 
     ///
-    /// @copydoc interfaces::IDevice::queue_command
+    /// @copydoc interfaces::IDevice::issue_command
     /// @note Executes synchronously on the caller's task (@p timeout_ms is ignored) and
     ///       publishes the response, preserving the downstream confirmation pipeline.
     ///
-    bool queue_command(const definitions::Command& cmd, uint32_t /*timeout_ms*/) override {
+    bool issue_command(const definitions::Command& cmd, uint32_t /*timeout_ms*/) override {
         definitions::Command response;
         if (!execute_command(cmd, response)) {
             return false;

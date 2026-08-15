@@ -41,7 +41,7 @@ definitions::SystemState ManualState::handle_event(StateMachine* context, defini
     }
 }
 
-bool ManualState::dispatch_command(StateMachine* context, const definitions::Command& request) {
+bool ManualState::handle_command(StateMachine* context, const definitions::Command& request) {
     (void) context;
     // Handle temperature setpoint command locally (toggle mode)
     if (request.type == definitions::CommandType::kTempSetIn) {
@@ -68,7 +68,7 @@ bool ManualState::dispatch_command(StateMachine* context, const definitions::Com
 
     // Client-originated command: route through the single device command API so its
     // confirmation flows back through the StateMachine.
-    return DeviceDispatcher::instance().forward_to_device(request, kAcceptableTimeWindowMs);
+    return DeviceDispatcher::instance().issue_to_device(request, kAcceptableTimeWindowMs);
 }
 
 definitions::SystemState ManualState::tick(StateMachine* context) {

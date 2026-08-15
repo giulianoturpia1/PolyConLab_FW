@@ -288,7 +288,7 @@ void StateMachine::process_command(const definitions::Command& request) {
         return;
     }
 
-    if (!stateHandler->dispatch_command(this, request)) {
+    if (!stateHandler->handle_command(this, request)) {
         kLog.warning("Comando recibido, pero no se pudo ejecutar en el estado actual: " + std::string(utils::state_name(currentState_)));
         lastCommandConfirmed_ = false;
         commandPending_ = false;

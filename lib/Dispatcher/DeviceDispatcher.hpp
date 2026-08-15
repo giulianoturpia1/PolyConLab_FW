@@ -50,13 +50,13 @@ class DeviceDispatcher {
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if a device accepted and queued the command.
     ///
-    bool forward_to_device(const definitions::Command& cmd, uint32_t timeout_ms);
+    bool issue_to_device(const definitions::Command& cmd, uint32_t timeout_ms);
 
     ///
     /// @brief Enforce a Command on the first device whose accepts() returns true, WITHOUT
     /// publishing a response report.
     ///
-    /// Same routing as forward_to_device(), but the device suppresses its response. This is
+    /// Same routing as issue_to_device(), but the device suppresses its response. This is
     /// the path for autonomous control-loop and safe-output actuations, which are not client
     /// commands and must not produce confirmations. Callers stay unaware of concrete device types.
     ///
