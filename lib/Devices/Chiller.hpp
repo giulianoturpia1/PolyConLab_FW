@@ -40,13 +40,29 @@ class Chiller : public SyncDevice {
     ///
     bool begin(uint32_t pin);
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+   protected:
+    /// @copydoc modules::SyncDevice::execute_command
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+
+   private:
+    Chiller();
+    // Rule of Five
+    ~Chiller() = default;
+    Chiller(const Chiller&) = delete;
+    Chiller& operator=(const Chiller&) = delete;
+    Chiller(Chiller&&) = delete;
+    Chiller& operator=(Chiller&&) = delete;
+
     ///
-    /// @brief Turn the chiller on.
+    /// @brief Turn the chiller on. Internal actuation reached via execute_command().
     ///
     void on();
 
     ///
-    /// @brief Turn the chiller off.
+    /// @brief Turn the chiller off. Internal actuation reached via execute_command()/begin().
     ///
     void off();
 
@@ -63,22 +79,6 @@ class Chiller : public SyncDevice {
     /// @return uint32_t
     ///
     uint32_t pin() const;
-
-    /// @copydoc interfaces::IDevice::accepts
-    bool accepts(definitions::CommandType type) const override;
-
-   protected:
-    /// @copydoc modules::SyncDevice::execute_command
-    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
-
-   private:
-    Chiller();
-    // Rule of Five
-    ~Chiller() = default;
-    Chiller(const Chiller&) = delete;
-    Chiller& operator=(const Chiller&) = delete;
-    Chiller(Chiller&&) = delete;
-    Chiller& operator=(Chiller&&) = delete;
 
     uint32_t pin_;  ///< Pin used for chiller control
     bool status_;   ///< Current chiller status

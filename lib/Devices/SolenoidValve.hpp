@@ -49,8 +49,28 @@ class SolenoidValve : public SyncDevice {
     ///
     void begin(const uint32_t* pins, size_t count);
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+   protected:
     ///
-    /// @brief Register a valve attached to a certain pin.
+    /// @copydoc modules::SyncDevice::execute_command
+    /// @note cmd.extra carries the target valve pin number.
+    ///
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+
+   private:
+    SolenoidValve();
+
+    // Rule of Five
+    ~SolenoidValve() = default;
+    SolenoidValve(const SolenoidValve&) = delete;
+    SolenoidValve& operator=(const SolenoidValve&) = delete;
+    SolenoidValve(SolenoidValve&&) = delete;
+    SolenoidValve& operator=(SolenoidValve&&) = delete;
+
+    ///
+    /// @brief Register a valve attached to a certain pin. Used internally by begin().
     /// Should count be higher than the maximum supported, only the first kMaxSolenoidValves will be registered.
     /// @note If a pin that already exists in the controller, it will not be registered again, but it will not cause any
     /// issue as the controller will ignore duplicates.
@@ -65,12 +85,11 @@ class SolenoidValve : public SyncDevice {
     ///
     /// @param pin Pin for valve control.
     /// @return true if the valve was found and removed, false if the pin was not registered.
-    /// @return false if the pin was not registered.
     ///
     bool remove(uint32_t pin);
 
     ///
-    /// @brief Open valve associated to the given pin.
+    /// @brief Open valve associated to the given pin. Internal actuation reached via execute_command().
     ///
     /// @param pin Pin for valve control.
     /// @return true if pin is registered and command was applied, false otherwise.
@@ -78,7 +97,7 @@ class SolenoidValve : public SyncDevice {
     bool open(uint32_t pin);
 
     ///
-    /// @brief Close valve associated to the given pin.
+    /// @brief Close valve associated to the given pin. Internal actuation reached via execute_command()/begin().
     ///
     /// @param pin Pin for valve control.
     /// @return true if pin is registered and command was applied, false otherwise.
@@ -99,26 +118,6 @@ class SolenoidValve : public SyncDevice {
     /// @return uint8_t
     ///
     uint8_t count() const;
-
-    /// @copydoc interfaces::IDevice::accepts
-    bool accepts(definitions::CommandType type) const override;
-
-   protected:
-    ///
-    /// @copydoc modules::SyncDevice::execute_command
-    /// @note cmd.extra carries the target valve pin number.
-    ///
-    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
-
-   private:
-    SolenoidValve();
-
-    // Rule of Five
-    ~SolenoidValve() = default;
-    SolenoidValve(const SolenoidValve&) = delete;
-    SolenoidValve& operator=(const SolenoidValve&) = delete;
-    SolenoidValve(SolenoidValve&&) = delete;
-    SolenoidValve& operator=(SolenoidValve&&) = delete;
 
     ///
     /// @brief Find the index of a valve by its pin.

@@ -40,13 +40,29 @@ class Heater : public SyncDevice {
     ///
     bool begin(uint32_t pin);
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+   protected:
+    /// @copydoc modules::SyncDevice::execute_command
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+
+   private:
+    Heater();
+    // Rule of Five
+    ~Heater() = default;
+    Heater(const Heater&) = delete;
+    Heater& operator=(const Heater&) = delete;
+    Heater(Heater&&) = delete;
+    Heater& operator=(Heater&&) = delete;
+
     ///
-    /// @brief Turn the heater on.
+    /// @brief Turn the heater on. Internal actuation reached via execute_command().
     ///
     void on();
 
     ///
-    /// @brief Turn the heater off.
+    /// @brief Turn the heater off. Internal actuation reached via execute_command()/begin().
     ///
     void off();
 
@@ -63,22 +79,6 @@ class Heater : public SyncDevice {
     /// @return uint32_t
     ///
     uint32_t pin() const;
-
-    /// @copydoc interfaces::IDevice::accepts
-    bool accepts(definitions::CommandType type) const override;
-
-   protected:
-    /// @copydoc modules::SyncDevice::execute_command
-    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
-
-   private:
-    Heater();
-    // Rule of Five
-    ~Heater() = default;
-    Heater(const Heater&) = delete;
-    Heater& operator=(const Heater&) = delete;
-    Heater(Heater&&) = delete;
-    Heater& operator=(Heater&&) = delete;
 
     uint32_t pin_;  ///< Pin used for heater control
     bool status_;   ///< Current heater status

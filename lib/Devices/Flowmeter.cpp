@@ -78,6 +78,27 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
     return true;
 }
 
+bool Flowmeter::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kFlowRead;
+}
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+Flowmeter::Flowmeter() : pin_(0), status_(false), pulsesPerLiter_(450.0f) {}
+
+bool Flowmeter::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
+    if (cmd.type != definitions::CommandType::kFlowRead) {
+        return false;
+    }
+
+    float current_flow = readFlow();
+    uint32_t flow_rate_bits;
+    std::memcpy(&flow_rate_bits, &current_flow, sizeof(float));
+    kLog.info("Publicando respuesta del flujo:" + std::string(" L/min ") + std::to_string(current_flow));
+    out_response = {definitions::CommandType::kFlowRead, flow_rate_bits};
+    return true;
+}
+
 void Flowmeter::stop() {
     detachInterrupt(digitalPinToInterrupt(pin_));
     if (flowTimer != nullptr) {
@@ -113,27 +134,6 @@ bool Flowmeter::status() const {
 
 uint32_t Flowmeter::pin() const {
     return pin_;
-}
-
-bool Flowmeter::accepts(definitions::CommandType type) const {
-    return type == definitions::CommandType::kFlowRead;
-}
-
-////////////////////////////////////// Private Methods //////////////////////////////////////
-
-Flowmeter::Flowmeter() : pin_(0), status_(false), pulsesPerLiter_(450.0f) {}
-
-bool Flowmeter::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
-    if (cmd.type != definitions::CommandType::kFlowRead) {
-        return false;
-    }
-
-    float current_flow = readFlow();
-    uint32_t flow_rate_bits;
-    std::memcpy(&flow_rate_bits, &current_flow, sizeof(float));
-    kLog.info("Publicando respuesta del flujo:" + std::string(" L/min ") + std::to_string(current_flow));
-    out_response = {definitions::CommandType::kFlowRead, flow_rate_bits};
-    return true;
 }
 
 }  // namespace modules

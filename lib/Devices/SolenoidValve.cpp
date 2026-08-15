@@ -30,6 +30,51 @@ void SolenoidValve::begin(const uint32_t* pins, size_t count) {
     }
 }
 
+bool SolenoidValve::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kValveOpen || type == definitions::CommandType::kValveClose ||
+           type == definitions::CommandType::kValveState;
+}
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0) {}
+
+uint8_t SolenoidValve::find_index(uint32_t pin) const {
+    for (uint8_t index = 0; index < valve_count_; ++index) {
+        if (valves_[index].pin == pin) {
+            return index;
+        }
+    }
+
+    return definitions::kMaxSolenoidValves;  // Return an out-of-range index to indicate not found
+}
+
+bool SolenoidValve::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
+    const uint32_t pin = cmd.extra;
+    switch (cmd.type) {
+        case definitions::CommandType::kValveOpen:
+            if (!open(pin)) {
+                return false;
+            }
+            out_response = {definitions::CommandType::kValveOpen, pin};
+            return true;
+
+        case definitions::CommandType::kValveClose:
+            if (!close(pin)) {
+                return false;
+            }
+            out_response = {definitions::CommandType::kValveClose, pin};
+            return true;
+
+        case definitions::CommandType::kValveState:
+            out_response = {definitions::CommandType::kValveState, pin};
+            return true;
+
+        default:
+            return false;
+    }
+}
+
 bool SolenoidValve::add(uint32_t pin) {
     uint8_t index = find_index(pin);
     if (valve_count_ >= definitions::kMaxSolenoidValves) {
@@ -105,51 +150,6 @@ bool SolenoidValve::status(uint32_t pin) const {
 
 uint8_t SolenoidValve::count() const {
     return valve_count_;
-}
-
-bool SolenoidValve::accepts(definitions::CommandType type) const {
-    return type == definitions::CommandType::kValveOpen || type == definitions::CommandType::kValveClose ||
-           type == definitions::CommandType::kValveState;
-}
-
-////////////////////////////////////// Private Methods //////////////////////////////////////
-
-SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0) {}
-
-uint8_t SolenoidValve::find_index(uint32_t pin) const {
-    for (uint8_t index = 0; index < valve_count_; ++index) {
-        if (valves_[index].pin == pin) {
-            return index;
-        }
-    }
-
-    return definitions::kMaxSolenoidValves;  // Return an out-of-range index to indicate not found
-}
-
-bool SolenoidValve::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
-    const uint32_t pin = cmd.extra;
-    switch (cmd.type) {
-        case definitions::CommandType::kValveOpen:
-            if (!open(pin)) {
-                return false;
-            }
-            out_response = {definitions::CommandType::kValveOpen, pin};
-            return true;
-
-        case definitions::CommandType::kValveClose:
-            if (!close(pin)) {
-                return false;
-            }
-            out_response = {definitions::CommandType::kValveClose, pin};
-            return true;
-
-        case definitions::CommandType::kValveState:
-            out_response = {definitions::CommandType::kValveState, pin};
-            return true;
-
-        default:
-            return false;
-    }
 }
 
 }  // namespace modules

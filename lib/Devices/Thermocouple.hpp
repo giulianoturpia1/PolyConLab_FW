@@ -55,43 +55,6 @@ class Thermocouple : public AsyncDevice {
     ///
     bool begin(const uint32_t* adds, size_t count);
 
-    ///
-    /// @brief Register a Thermocouple with a certain address.
-    /// Should count be higher than the maximum supported, only the first kMaxThermocouples will be registered.
-    /// @note If an address that already exists in the controller, it will not be registered again, but it will not cause any
-    /// issue as the controller will ignore duplicates.
-    ///
-    /// @param address Address of Thermocouple Amplifier.
-    /// @return true if the thermocouple was registered or already existed, false on capacity limit.
-    ///
-    bool add(uint32_t address);
-
-    ///
-    /// @brief Remove a Thermocouple Amplifier from the controller.
-    ///
-    /// @param address Address of Thermocouple Amplifier.
-    /// @return true if the thermocouple was found and removed, false if the address was not registered.
-    ///
-    bool remove(uint32_t address);
-
-    ///
-    /// @brief Read temperature in Celsius of the Thermocouple Amplifier with the address given.
-    ///
-    /// Acquires the shared I2C bus mutex for the duration of the transaction, so it is safe to
-    /// call from any task. Returns NaN if the bus cannot be acquired within config::kI2cBusTimeoutMs.
-    ///
-    /// @param address I2C address of the Thermocouple Amplifier.
-    /// @return temperature in °C or NaN if unavailable or address not registered.
-    ///
-    float readCelcius(uint32_t address);
-
-    ///
-    /// @brief Get number of registered Thermocouple Amplifiers.
-    ///
-    /// @return uint8_t
-    ///
-    uint8_t count() const;
-
     /// @copydoc interfaces::IDevice::accepts
     bool accepts(definitions::CommandType type) const override;
 
@@ -112,6 +75,44 @@ class Thermocouple : public AsyncDevice {
     Thermocouple& operator=(const Thermocouple&) = delete;
     Thermocouple(Thermocouple&&) = delete;
     Thermocouple& operator=(Thermocouple&&) = delete;
+
+    ///
+    /// @brief Register a Thermocouple with a certain address. Used internally by begin().
+    /// Should count be higher than the maximum supported, only the first kMaxThermocouples will be registered.
+    /// @note If an address that already exists in the controller, it will not be registered again, but it will not cause any
+    /// issue as the controller will ignore duplicates.
+    ///
+    /// @param address Address of Thermocouple Amplifier.
+    /// @return true if the thermocouple was registered or already existed, false on capacity limit.
+    ///
+    bool add(uint32_t address);
+
+    ///
+    /// @brief Remove a Thermocouple Amplifier from the controller.
+    ///
+    /// @param address Address of Thermocouple Amplifier.
+    /// @return true if the thermocouple was found and removed, false if the address was not registered.
+    ///
+    bool remove(uint32_t address);
+
+    ///
+    /// @brief Get number of registered Thermocouple Amplifiers.
+    ///
+    /// @return uint8_t
+    ///
+    uint8_t count() const;
+
+    ///
+    /// @brief Read temperature in Celsius of the Thermocouple Amplifier with the address given.
+    ///
+    /// Acquires the shared I2C bus mutex for the duration of the transaction, so it is safe to
+    /// call from any task. Returns NaN if the bus cannot be acquired within config::kI2cBusTimeoutMs.
+    /// Reached via execute_command() (command path and synchronous read() alike).
+    ///
+    /// @param address I2C address of the Thermocouple Amplifier.
+    /// @return temperature in °C or NaN if unavailable or address not registered.
+    ///
+    float readCelcius(uint32_t address);
 
     ///
     /// @brief Find the index of a Thermocouple Amplifier by its address.

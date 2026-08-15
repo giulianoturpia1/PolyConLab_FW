@@ -26,24 +26,6 @@ bool Pump::begin(uint32_t pin) {
     return true;
 }
 
-void Pump::on() {
-    hal_general().digital_write(pin_, PIN_HIGH);
-    status_ = true;
-}
-
-void Pump::off() {
-    hal_general().digital_write(pin_, PIN_LOW);
-    status_ = false;
-}
-
-bool Pump::status() const {
-    return status_;
-}
-
-uint32_t Pump::pin() const {
-    return pin_;
-}
-
 bool Pump::accepts(definitions::CommandType type) const {
     return type == definitions::CommandType::kPumpOn || type == definitions::CommandType::kPumpOff ||
            type == definitions::CommandType::kPumpState;
@@ -72,6 +54,24 @@ bool Pump::execute_command(const definitions::Command& cmd, definitions::Command
 
     out_response = {cmd.type, 0u};
     return true;
+}
+
+void Pump::on() {
+    hal_general().digital_write(pin_, PIN_HIGH);
+    status_ = true;
+}
+
+void Pump::off() {
+    hal_general().digital_write(pin_, PIN_LOW);
+    status_ = false;
+}
+
+bool Pump::status() const {
+    return status_;
+}
+
+uint32_t Pump::pin() const {
+    return pin_;
 }
 
 }  // namespace modules

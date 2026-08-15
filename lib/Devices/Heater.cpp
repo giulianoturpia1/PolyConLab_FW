@@ -26,24 +26,6 @@ bool Heater::begin(uint32_t pin) {
     return true;
 }
 
-void Heater::on() {
-    hal_general().digital_write(pin_, PIN_HIGH);
-    status_ = true;
-}
-
-void Heater::off() {
-    hal_general().digital_write(pin_, PIN_LOW);
-    status_ = false;
-}
-
-bool Heater::status() const {
-    return status_;
-}
-
-uint32_t Heater::pin() const {
-    return pin_;
-}
-
 bool Heater::accepts(definitions::CommandType type) const {
     return type == definitions::CommandType::kHeaterOn || type == definitions::CommandType::kHeaterOff ||
            type == definitions::CommandType::kHeaterState;
@@ -72,6 +54,24 @@ bool Heater::execute_command(const definitions::Command& cmd, definitions::Comma
 
     out_response = {cmd.type, 0u};
     return true;
+}
+
+void Heater::on() {
+    hal_general().digital_write(pin_, PIN_HIGH);
+    status_ = true;
+}
+
+void Heater::off() {
+    hal_general().digital_write(pin_, PIN_LOW);
+    status_ = false;
+}
+
+bool Heater::status() const {
+    return status_;
+}
+
+uint32_t Heater::pin() const {
+    return pin_;
 }
 
 }  // namespace modules

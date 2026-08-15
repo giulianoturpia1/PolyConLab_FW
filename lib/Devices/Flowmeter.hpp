@@ -46,32 +46,6 @@ class Flowmeter : public SyncDevice {
     ///
     bool begin(uint32_t pinFlow_, float pulsesPerLiter = definitions::kFlowmeterPulsesPerLiter);
 
-    ///
-    /// @brief Stop the flowmeter. Detach interrupts and end timer.
-    ///
-    void stop();
-
-    ///
-    /// @brief Read flow rate in liters per minute. Returns the latest calculated flow rate based on pulse counts in the last second.
-    ///
-    /// @return Float Flow rate in liters per minute, or NaN if unavailable.
-    ///
-    float readFlow();
-
-    ///
-    /// @brief Get the flowmeter hardware status.
-    ///
-    /// @return true if the interrupt and timer are active, false otherwise.
-    ///
-    bool status() const;
-
-    ///
-    /// @brief Get the flow sensor input pin.
-    ///
-    /// @return uint32_t
-    ///
-    uint32_t pin() const;
-
     /// @copydoc interfaces::IDevice::accepts
     bool accepts(definitions::CommandType type) const override;
 
@@ -91,6 +65,33 @@ class Flowmeter : public SyncDevice {
     Flowmeter& operator=(const Flowmeter&) = delete;
     Flowmeter(Flowmeter&&) = delete;
     Flowmeter& operator=(Flowmeter&&) = delete;
+
+    ///
+    /// @brief Stop the flowmeter. Detach interrupts and end timer.
+    ///
+    void stop();
+
+    ///
+    /// @brief Read flow rate in liters per minute. Returns the latest calculated flow rate based on pulse counts in the last second.
+    /// Internal read reached via execute_command().
+    ///
+    /// @return Float Flow rate in liters per minute, or NaN if unavailable.
+    ///
+    float readFlow();
+
+    ///
+    /// @brief Get the flowmeter hardware status.
+    ///
+    /// @return true if the interrupt and timer are active, false otherwise.
+    ///
+    bool status() const;
+
+    ///
+    /// @brief Get the flow sensor input pin.
+    ///
+    /// @return uint32_t
+    ///
+    uint32_t pin() const;
 
     uint32_t pin_;          ///< Input pin for the flow sensor pulse signal
     bool status_;           ///< True when the hardware interrupt and timer are active

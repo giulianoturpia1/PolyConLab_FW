@@ -40,13 +40,29 @@ class Pump : public SyncDevice {
     ///
     bool begin(uint32_t pin);
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+   protected:
+    /// @copydoc modules::SyncDevice::execute_command
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+
+   private:
+    Pump();
+    // Rule of Five
+    ~Pump() = default;
+    Pump(const Pump&) = delete;
+    Pump& operator=(const Pump&) = delete;
+    Pump(Pump&&) = delete;
+    Pump& operator=(Pump&&) = delete;
+
     ///
-    /// @brief Turn the pump on.
+    /// @brief Turn the pump on. Internal actuation reached via execute_command().
     ///
     void on();
 
     ///
-    /// @brief Turn the pump off.
+    /// @brief Turn the pump off. Internal actuation reached via execute_command()/begin().
     ///
     void off();
 
@@ -63,22 +79,6 @@ class Pump : public SyncDevice {
     /// @return uint32_t
     ///
     uint32_t pin() const;
-
-    /// @copydoc interfaces::IDevice::accepts
-    bool accepts(definitions::CommandType type) const override;
-
-   protected:
-    /// @copydoc modules::SyncDevice::execute_command
-    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
-
-   private:
-    Pump();
-    // Rule of Five
-    ~Pump() = default;
-    Pump(const Pump&) = delete;
-    Pump& operator=(const Pump&) = delete;
-    Pump(Pump&&) = delete;
-    Pump& operator=(Pump&&) = delete;
 
     uint32_t pin_;  ///< Pin used for pump control
     bool status_;   ///< Current pump status (true = ON, false = OFF)

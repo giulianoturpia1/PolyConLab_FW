@@ -26,24 +26,6 @@ bool Chiller::begin(uint32_t pin) {
     return true;
 }
 
-void Chiller::on() {
-    hal_general().digital_write(pin_, PIN_HIGH);
-    status_ = true;
-}
-
-void Chiller::off() {
-    hal_general().digital_write(pin_, PIN_LOW);
-    status_ = false;
-}
-
-bool Chiller::status() const {
-    return status_;
-}
-
-uint32_t Chiller::pin() const {
-    return pin_;
-}
-
 bool Chiller::accepts(definitions::CommandType type) const {
     return type == definitions::CommandType::kChillerOn || type == definitions::CommandType::kChillerOff ||
            type == definitions::CommandType::kChillerState;
@@ -72,6 +54,24 @@ bool Chiller::execute_command(const definitions::Command& cmd, definitions::Comm
 
     out_response = {cmd.type, 0u};
     return true;
+}
+
+void Chiller::on() {
+    hal_general().digital_write(pin_, PIN_HIGH);
+    status_ = true;
+}
+
+void Chiller::off() {
+    hal_general().digital_write(pin_, PIN_LOW);
+    status_ = false;
+}
+
+bool Chiller::status() const {
+    return status_;
+}
+
+uint32_t Chiller::pin() const {
+    return pin_;
 }
 
 }  // namespace modules

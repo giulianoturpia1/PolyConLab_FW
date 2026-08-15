@@ -40,20 +40,6 @@ class LevelSwitch : public SyncDevice {
     ///
     bool begin(uint32_t pin);
 
-    ///
-    /// @brief Get the level switch status.
-    ///
-    /// @return true if switch is ON (high level), false otherwise.
-    ///
-    bool status() const;
-
-    ///
-    /// @brief Get the level switch relay pin.
-    ///
-    /// @return uint32_t
-    ///
-    uint32_t pin() const;
-
     /// @copydoc interfaces::IDevice::accepts
     bool accepts(definitions::CommandType type) const override;
 
@@ -69,6 +55,20 @@ class LevelSwitch : public SyncDevice {
     LevelSwitch& operator=(const LevelSwitch&) = delete;
     LevelSwitch(LevelSwitch&&) = delete;
     LevelSwitch& operator=(LevelSwitch&&) = delete;
+
+    ///
+    /// @brief Get the level switch status. Internal read reached via execute_command().
+    ///
+    /// @return true if switch is ON (high level), false otherwise.
+    ///
+    bool status() const;
+
+    ///
+    /// @brief Get the level switch relay pin.
+    ///
+    /// @return uint32_t
+    ///
+    uint32_t pin() const;
 
     uint32_t pin_;  ///< Pin used for level switch control
     bool status_;   ///< Current level switch status

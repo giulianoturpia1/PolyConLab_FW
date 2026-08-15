@@ -48,6 +48,55 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
     return true;
 }
 
+bool Thermocouple::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kTempInRead || type == definitions::CommandType::kTempOutRead ||
+           type == definitions::CommandType::kTempBathRead || type == definitions::CommandType::kTempMixRead;
+}
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+Thermocouple::Thermocouple()
+    : AsyncDevice(kThermocoupleTaskName, config::kThermocoupleTaskStackSize, config::kThermocoupleTaskPriority, config::kI2cCoreId),
+      thermocouples_({}),
+      thermoc_count_(0),
+      bus_mutex_(nullptr) {}
+
+uint8_t Thermocouple::find_index(uint32_t address) const {
+    for (uint8_t index = 0; index < thermoc_count_; ++index) {
+        if (thermocouples_[index].address == address) {
+            return index;
+        }
+    }
+
+    return definitions::kMaxThermocouples;  // Return an out-of-range index to indicate not found
+}
+
+bool Thermocouple::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
+    uint32_t address;
+    switch (cmd.type) {
+        case definitions::CommandType::kTempInRead:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempIn);
+            break;
+        case definitions::CommandType::kTempOutRead:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempOut);
+            break;
+        case definitions::CommandType::kTempBathRead:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempBath);
+            break;
+        case definitions::CommandType::kTempMixRead:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempMix);
+            break;
+        default:
+            return false;
+    }
+
+    const float temperature = readCelcius(address);
+    uint32_t temp_bits;
+    std::memcpy(&temp_bits, &temperature, sizeof(float));
+    out_response = {cmd.type, temp_bits};
+    return true;
+}
+
 bool Thermocouple::add(uint32_t address) {
     const std::string hex_addr = utils::format_hex(address);
 
@@ -120,55 +169,6 @@ float Thermocouple::readCelcius(uint32_t address) {
 
 uint8_t Thermocouple::count() const {
     return thermoc_count_;
-}
-
-bool Thermocouple::accepts(definitions::CommandType type) const {
-    return type == definitions::CommandType::kTempInRead || type == definitions::CommandType::kTempOutRead ||
-           type == definitions::CommandType::kTempBathRead || type == definitions::CommandType::kTempMixRead;
-}
-
-////////////////////////////////////// Private Methods //////////////////////////////////////
-
-Thermocouple::Thermocouple()
-    : AsyncDevice(kThermocoupleTaskName, config::kThermocoupleTaskStackSize, config::kThermocoupleTaskPriority, config::kI2cCoreId),
-      thermocouples_({}),
-      thermoc_count_(0),
-      bus_mutex_(nullptr) {}
-
-uint8_t Thermocouple::find_index(uint32_t address) const {
-    for (uint8_t index = 0; index < thermoc_count_; ++index) {
-        if (thermocouples_[index].address == address) {
-            return index;
-        }
-    }
-
-    return definitions::kMaxThermocouples;  // Return an out-of-range index to indicate not found
-}
-
-bool Thermocouple::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
-    uint32_t address;
-    switch (cmd.type) {
-        case definitions::CommandType::kTempInRead:
-            address = static_cast<uint32_t>(definitions::Addresses::kTempIn);
-            break;
-        case definitions::CommandType::kTempOutRead:
-            address = static_cast<uint32_t>(definitions::Addresses::kTempOut);
-            break;
-        case definitions::CommandType::kTempBathRead:
-            address = static_cast<uint32_t>(definitions::Addresses::kTempBath);
-            break;
-        case definitions::CommandType::kTempMixRead:
-            address = static_cast<uint32_t>(definitions::Addresses::kTempMix);
-            break;
-        default:
-            return false;
-    }
-
-    const float temperature = readCelcius(address);
-    uint32_t temp_bits;
-    std::memcpy(&temp_bits, &temperature, sizeof(float));
-    out_response = {cmd.type, temp_bits};
-    return true;
 }
 
 }  // namespace modules
