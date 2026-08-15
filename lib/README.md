@@ -146,7 +146,7 @@ Constants are grouped under the `config::` namespace. The file is the **only pla
 | Group | Examples |
 |-------|---------|
 | **Task Periods** | `kAppTaskPeriodMs`, `kStateMachineTaskPeriodMs` |
-| **Task Priorities** | `kAppTaskPriority`, `kThermocoupleTaskPriority`, `kDeviceTaskPriority` |
+| **Task Priorities** | `kAppTaskPriority`, `kStateMachineTaskPriority`, `kThermocoupleTaskPriority` |
 | **Core Affinity** | `kSpiCoreId` (Core 0), `kI2cCoreId` (Core 1) |
 | **Stack Sizes** | `kAppTaskStackSize`, `kThermocoupleTaskStackSize`, … |
 | **Queue Depths** | `kStateMachineQueueLength`, `kDeviceQueueLength` |

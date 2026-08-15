@@ -11,20 +11,20 @@
 
 #pragma once
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
 #include <stdint.h>
 
 #include "Definitions.hpp"
-#include "ICommandResponseQueue.hpp"
-#include "IDevice.hpp"
+#include "SyncDevice.hpp"
 
 namespace modules {
 
 ///
 /// @brief Singleton pump controller. Handles basic on/off and status logic.
 ///
-class Pump : public interfaces::IDevice {
+/// A SyncDevice: commands are a single GPIO write executed inline on the caller's
+/// task (no dedicated task or queue).
+///
+class Pump : public SyncDevice {
    public:
     ///
     /// @brief Get the singleton instance of the Pump controller.
@@ -32,18 +32,6 @@ class Pump : public interfaces::IDevice {
     /// @return Pump&
     ///
     static Pump& instance();
-
-    ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool create_task();
-
-    ///
-    /// @brief Set the sink used to publish command execution responses.
-    ///
-    /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
-    ///
-    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
     ///
     /// @brief Initialize the pump controller with the pin.
@@ -79,8 +67,9 @@ class Pump : public interfaces::IDevice {
     /// @copydoc interfaces::IDevice::accepts
     bool accepts(definitions::CommandType type) const override;
 
-    /// @copydoc interfaces::IDevice::queue_command(const definitions::Command&, uint32_t)
-    bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) override;
+   protected:
+    /// @copydoc modules::SyncDevice::on_command
+    bool on_command(const definitions::Command& cmd, definitions::Command& out_response) override;
 
    private:
     Pump();
@@ -91,34 +80,8 @@ class Pump : public interfaces::IDevice {
     Pump(Pump&&) = delete;
     Pump& operator=(Pump&&) = delete;
 
-    ///
-    /// @brief Process a pump command directly, without queueing. Used as a fallback when the queue is unavailable.
-    ///
-    /// @param command Command to be processed.
-    /// @return true
-    /// @return false
-    ///
-    bool process_command(definitions::CommandType command);
-
-    ///
-    /// @brief Publish a response through the configured sink.
-    ///
-    /// @param response Response payload.
-    /// @return true if the sink accepted the response.
-    ///
-    bool publish_response(const definitions::Command& response);
-
-    ///
-    /// @brief FreeRTOS task entrypoint for the pump module. Waits for commands on the queue and processes them.
-    ///
-    /// @param param
-    ///
-    static void task_entry(void* param);
-
-    uint32_t pin_;                                       ///< Pin used for pump control
-    bool status_;                                        ///< Current pump status (true = ON, false = OFF)
-    QueueHandle_t queue_;                                ///< FreeRTOS queue handle for pump commands
-    interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
+    uint32_t pin_;  ///< Pin used for pump control
+    bool status_;   ///< Current pump status (true = ON, false = OFF)
 };
 
 }  // namespace modules

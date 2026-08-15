@@ -134,11 +134,6 @@ constexpr uint32_t kStateMachineTaskPeriodMs = 50;
 constexpr UBaseType_t kAppTaskPriority = 2;
 
 ///
-/// @brief FreeRTOS priority shared by all non-thermocouple device tasks.
-///
-constexpr UBaseType_t kDeviceTaskPriority = 2;
-
-///
 /// @brief FreeRTOS priority for the StateMachine task.
 ///
 constexpr UBaseType_t kStateMachineTaskPriority = 3;
@@ -164,10 +159,12 @@ constexpr UBaseType_t kThermocoupleTaskPriority = 3;
 constexpr BaseType_t kSpiCoreId = 0;
 
 ///
-/// @brief ESP32 core ID for I2C and GPIO device tasks.
+/// @brief ESP32 core ID for the remaining device task (Thermocouple I2C).
 ///
-/// All device tasks run on Core 1 (APP_CPU) so their I2C and GPIO operations
-/// are never preempted by SPI traffic from Core 0.
+/// The Thermocouple task runs on Core 1 (APP_CPU) so its blocking I2C
+/// transactions are never preempted by SPI/network traffic from Core 0. GPIO
+/// devices are now actuated synchronously on the caller's task (SyncDevice), so
+/// they no longer need a Core 1 task.
 ///
 constexpr BaseType_t kI2cCoreId = 1;
 
@@ -181,26 +178,8 @@ constexpr uint32_t kAppTaskStackSize = 4096;
 /// @brief Stack size in words for the StateMachine task.
 constexpr uint32_t kStateMachineTaskStackSize = 4096;
 
-/// @brief Stack size in words for the Thermocouple task.
+/// @brief Stack size in words for the Thermocouple task (the only remaining device task).
 constexpr uint32_t kThermocoupleTaskStackSize = 3072;
-
-/// @brief Stack size in words for the Flowmeter task.
-constexpr uint32_t kFlowmeterTaskStackSize = 3072;
-
-/// @brief Stack size in words for the SolenoidValve task.
-constexpr uint32_t kSolenoidValveTaskStackSize = 3072;
-
-/// @brief Stack size in words for the Heater task.
-constexpr uint32_t kHeaterTaskStackSize = 2048;
-
-/// @brief Stack size in words for the Pump task.
-constexpr uint32_t kPumpTaskStackSize = 2048;
-
-/// @brief Stack size in words for the Chiller task.
-constexpr uint32_t kChillerTaskStackSize = 2048;
-
-/// @brief Stack size in words for the LevelSwitch task.
-constexpr uint32_t kLevelSwitchTaskStackSize = 2048;
 
 // ── Queue Lengths (items) ─────────────────────────────────────────────────────
 
