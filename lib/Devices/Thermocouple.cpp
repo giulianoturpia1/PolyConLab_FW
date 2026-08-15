@@ -1,23 +1,16 @@
 #include "Thermocouple.hpp"
 
-#include <freertos/task.h>
-
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 
 #include "Config.hpp"
-#include "HALGeneral.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
+#include "ScopedLock.hpp"
 #include "TargetDefinitions.hpp"
 
 constexpr char kThermocoupleTaskName[] = "thermocouple_task";
-
-struct ThermocoupleCommand {
-    definitions::CommandType command;
-    uint32_t address;
-};
 
 namespace modules {
 
@@ -30,34 +23,15 @@ Thermocouple& Thermocouple::instance() {
     return instance;
 }
 
-bool Thermocouple::create_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(ThermocoupleCommand));
-    if (queue_ == nullptr) {
-        kLog.error("No se pudo crear la cola de termocuplas.");
-        return false;
-    }
-
-    if (xTaskCreatePinnedToCore(task_entry, kThermocoupleTaskName, config::kThermocoupleTaskStackSize, this,
-                                config::kThermocoupleTaskPriority, nullptr, config::kI2cCoreId) != pdPASS) {
-        kLog.error("No se pudo crear la tarea de termocuplas.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
-}
-
-void Thermocouple::set_response_queue(interfaces::ICommandResponseQueue* queue) {
-    response_queue_ = queue;
-}
-
 bool Thermocouple::begin(const uint32_t* adds, size_t count) {
     thermoc_count_ = 0;
+
+    if (bus_mutex_ == nullptr) {
+        bus_mutex_ = xSemaphoreCreateMutex();
+        if (bus_mutex_ == nullptr) {
+            kLog.error("No se pudo crear el mutex del bus I2C de termocuplas; las lecturas devolveran NaN.");
+        }
+    }
 
     if (adds == nullptr || count == 0) {
         kLog.warning("No se añadieron direcciones de termocuplas para la inicializacion.");
@@ -133,6 +107,13 @@ float Thermocouple::readCelcius(uint32_t address) {
         return NAN;  // Return NaN if address not found
     }
 
+    // Serialize the transaction against any other bus user (task or synchronous caller).
+    ScopedLock lock(bus_mutex_, pdMS_TO_TICKS(config::kI2cBusTimeoutMs));
+    if (!lock.held()) {
+        kLog.warning("No se pudo adquirir el bus I2C de termocuplas.");
+        return NAN;
+    }
+
     // Return the thermocouple temperature reading in Celsius
     return thermocouples_[index].device.readThermocouple();
 }
@@ -146,7 +127,25 @@ bool Thermocouple::accepts(definitions::CommandType type) const {
            type == definitions::CommandType::kTempBathRead || type == definitions::CommandType::kTempMixRead;
 }
 
-bool Thermocouple::queue_command(const definitions::Command& cmd, uint32_t timeout_ms) {
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+Thermocouple::Thermocouple()
+    : AsyncDevice(kThermocoupleTaskName, config::kThermocoupleTaskStackSize, config::kThermocoupleTaskPriority, config::kI2cCoreId),
+      thermocouples_({}),
+      thermoc_count_(0),
+      bus_mutex_(nullptr) {}
+
+uint8_t Thermocouple::find_index(uint32_t address) const {
+    for (uint8_t index = 0; index < thermoc_count_; ++index) {
+        if (thermocouples_[index].address == address) {
+            return index;
+        }
+    }
+
+    return definitions::kMaxThermocouples;  // Return an out-of-range index to indicate not found
+}
+
+bool Thermocouple::on_command(const definitions::Command& cmd, definitions::Command& out_response) {
     uint32_t address;
     switch (cmd.type) {
         case definitions::CommandType::kTempInRead:
@@ -164,66 +163,12 @@ bool Thermocouple::queue_command(const definitions::Command& cmd, uint32_t timeo
         default:
             return false;
     }
-    const ThermocoupleCommand tc = {cmd.type, address};
-    if (queue_ == nullptr || xQueueSend(queue_, &tc, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
-        return false;
-    }
-    return true;
-}
 
-////////////////////////////////////// Private Methods //////////////////////////////////////
-
-Thermocouple::Thermocouple() : thermocouples_({}), thermoc_count_(0), queue_(nullptr), response_queue_(nullptr) {}
-
-uint8_t Thermocouple::find_index(uint32_t address) const {
-    for (uint8_t index = 0; index < thermoc_count_; ++index) {
-        if (thermocouples_[index].address == address) {
-            return index;
-        }
-    }
-
-    return definitions::kMaxThermocouples;  // Return an out-of-range index to indicate not found
-}
-
-bool Thermocouple::process_command(definitions::CommandType command, uint32_t address) {
-    uint32_t sensor_address = address;
-    if (sensor_address == 0) {
-        kLog.error("No se pudo procesar el comando. Direccion I2C invalida.");
-        return false;  // Invalid address
-    }
-
-    const float temperature = readCelcius(sensor_address);
-    if (command != definitions::CommandType::kTempInRead && command != definitions::CommandType::kTempOutRead &&
-        command != definitions::CommandType::kTempBathRead && command != definitions::CommandType::kTempMixRead) {
-        return false;
-    }
-
+    const float temperature = readCelcius(address);
     uint32_t temp_bits;
     std::memcpy(&temp_bits, &temperature, sizeof(float));
-    publish_response({command, temp_bits});
+    out_response = {cmd.type, temp_bits};
     return true;
-}
-
-bool Thermocouple::publish_response(const definitions::Command& response) {
-    if (response_queue_ == nullptr) {
-        return false;
-    }
-
-    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
-}
-
-void Thermocouple::task_entry(void* param) {
-    Thermocouple* self = static_cast<Thermocouple*>(param);
-    ThermocoupleCommand command;
-
-    while (true) {
-        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
-            self->process_command(command.command, command.address);
-        }
-        if (self->queue_ == nullptr) {
-            break;
-        }
-    }
 }
 
 }  // namespace modules

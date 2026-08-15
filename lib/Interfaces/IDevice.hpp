@@ -41,6 +41,24 @@ class IDevice {
     ///
     virtual bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) = 0;
 
+    ///
+    /// @brief Execute a command and report the outcome and response synchronously.
+    ///
+    /// SyncDevice runs the command inline on the caller's task and returns a real
+    /// result. The default routes to queue_command() so async-only devices keep
+    /// their fire-and-forget behaviour without overriding anything; @p out_response
+    /// then merely echoes @p cmd, since the true response arrives later on the
+    /// device's response queue.
+    ///
+    /// @param cmd Command to execute.
+    /// @param out_response Response payload filled by synchronous devices.
+    /// @return true if the command was accepted.
+    ///
+    virtual bool execute(const definitions::Command& cmd, definitions::Command& out_response) {
+        out_response = cmd;
+        return queue_command(cmd, 0);
+    }
+
    protected:
     IDevice() = default;
     IDevice(const IDevice&) = delete;

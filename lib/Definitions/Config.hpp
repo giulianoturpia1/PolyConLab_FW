@@ -256,6 +256,27 @@ constexpr uint32_t kStateMachineCommandTimeoutMs = 150;
 ///
 constexpr uint32_t kDeviceResponseTimeoutMs = 150;
 
+///
+/// @brief Maximum time in milliseconds a caller waits to acquire the shared I2C
+///        bus mutex (Thermocouple) before abandoning the transaction.
+///
+/// Serializes access to the bus between the Thermocouple task (Core 1)
+/// and synchronous reads issued from control states (Core 0). Kept short so a
+/// wedged transaction cannot stall the caller indefinitely.
+///
+constexpr uint32_t kI2cBusTimeoutMs = 50;
+
+///
+/// @brief Queue-send timeout in milliseconds for a SyncDevice publishing its response.
+///
+/// A SyncDevice runs inline on the StateMachine task, which is also the sole
+/// drainer of the response queue. Blocking here would stall the very task that
+/// empties the queue, so the send is non-blocking (0): if the queue is
+/// momentarily full the response is dropped and kCommandFeedbackTimeoutMs handles
+/// it, exactly as when a device task's bounded send failed.
+///
+constexpr uint32_t kSyncResponsePublishTimeoutMs = 0;
+
 // ── SM Queue-Drain Limits per Tick ────────────────────────────────────────────
 
 ///
