@@ -26,7 +26,7 @@ namespace modules {
 ///
 /// A SyncDevice owns no FreeRTOS task and no queue: the dispatching task (the
 /// StateMachine on Core 0) is the sole writer of the device, so there is no race
-/// to serialize. Subclasses implement on_command(); both entry points funnel
+/// to serialize. Subclasses implement execute_command(); both entry points funnel
 /// through it (Template Method):
 ///
 /// + queue_command() keeps the existing dispatch contract — it runs the command
@@ -64,7 +64,7 @@ class SyncDevice : public interfaces::IDevice {
     /// @note Runs inline and returns the response without publishing it.
     ///
     bool execute(const definitions::Command& cmd, definitions::Command& out_response) override {
-        return on_command(cmd, out_response);
+        return execute_command(cmd, out_response);
     }
 
     ///
@@ -74,7 +74,7 @@ class SyncDevice : public interfaces::IDevice {
     ///
     bool queue_command(const definitions::Command& cmd, uint32_t /*timeout_ms*/) override {
         definitions::Command response;
-        if (!on_command(cmd, response)) {
+        if (!execute_command(cmd, response)) {
             return false;
         }
         publish_response(response);
@@ -91,7 +91,7 @@ class SyncDevice : public interfaces::IDevice {
     /// @param out_response Response payload (command type + result bits).
     /// @return true if the command was handled; false if unsupported.
     ///
-    virtual bool on_command(const definitions::Command& cmd, definitions::Command& out_response) = 0;
+    virtual bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) = 0;
 
     ///
     /// @brief Publish a response through the configured sink.

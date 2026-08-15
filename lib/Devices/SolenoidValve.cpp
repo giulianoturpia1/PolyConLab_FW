@@ -126,7 +126,7 @@ uint8_t SolenoidValve::find_index(uint32_t pin) const {
     return definitions::kMaxSolenoidValves;  // Return an out-of-range index to indicate not found
 }
 
-bool SolenoidValve::on_command(const definitions::Command& cmd, definitions::Command& out_response) {
+bool SolenoidValve::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
     const uint32_t pin = cmd.extra;
     switch (cmd.type) {
         case definitions::CommandType::kValveOpen:

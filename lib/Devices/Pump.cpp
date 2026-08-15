@@ -53,7 +53,7 @@ bool Pump::accepts(definitions::CommandType type) const {
 
 Pump::Pump() : pin_(0), status_(false) {}
 
-bool Pump::on_command(const definitions::Command& cmd, definitions::Command& out_response) {
+bool Pump::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
     switch (cmd.type) {
         case definitions::CommandType::kPumpOn:
             on();

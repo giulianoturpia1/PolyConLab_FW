@@ -97,11 +97,11 @@ class Thermocouple : public AsyncDevice {
 
    protected:
     ///
-    /// @copydoc modules::AsyncDevice::on_command
+    /// @copydoc modules::AsyncDevice::execute_command
     /// @note Resolves cmd.type to the corresponding I2C address (kTempInRead → kTempIn, etc.),
     ///       reads the sensor and packs the temperature as IEEE-754 bits in the response's extra.
     ///
-    bool on_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
 
    private:
     Thermocouple();

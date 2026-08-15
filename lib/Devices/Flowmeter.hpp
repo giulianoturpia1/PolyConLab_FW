@@ -77,10 +77,10 @@ class Flowmeter : public SyncDevice {
 
    protected:
     ///
-    /// @copydoc modules::SyncDevice::on_command
+    /// @copydoc modules::SyncDevice::execute_command
     /// @note Only kFlowRead is handled; the flow rate is packed as IEEE-754 bits in the response's extra.
     ///
-    bool on_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
 
    private:
     Flowmeter();

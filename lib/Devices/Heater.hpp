@@ -68,8 +68,8 @@ class Heater : public SyncDevice {
     bool accepts(definitions::CommandType type) const override;
 
    protected:
-    /// @copydoc modules::SyncDevice::on_command
-    bool on_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+    /// @copydoc modules::SyncDevice::execute_command
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
 
    private:
     Heater();

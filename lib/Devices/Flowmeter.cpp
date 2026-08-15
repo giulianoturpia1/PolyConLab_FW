@@ -123,7 +123,7 @@ bool Flowmeter::accepts(definitions::CommandType type) const {
 
 Flowmeter::Flowmeter() : pin_(0), status_(false), pulsesPerLiter_(450.0f) {}
 
-bool Flowmeter::on_command(const definitions::Command& cmd, definitions::Command& out_response) {
+bool Flowmeter::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
     if (cmd.type != definitions::CommandType::kFlowRead) {
         return false;
     }

@@ -105,10 +105,10 @@ class SolenoidValve : public SyncDevice {
 
    protected:
     ///
-    /// @copydoc modules::SyncDevice::on_command
+    /// @copydoc modules::SyncDevice::execute_command
     /// @note cmd.extra carries the target valve pin number.
     ///
-    bool on_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
 
    private:
     SolenoidValve();

@@ -43,7 +43,7 @@ bool LevelSwitch::accepts(definitions::CommandType type) const {
 
 LevelSwitch::LevelSwitch() : pin_(0), status_(false) {}
 
-bool LevelSwitch::on_command(const definitions::Command& cmd, definitions::Command& out_response) {
+bool LevelSwitch::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
     if (cmd.type != definitions::CommandType::kLevelSwitchState) {
         return false;
     }

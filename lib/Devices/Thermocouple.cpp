@@ -145,7 +145,7 @@ uint8_t Thermocouple::find_index(uint32_t address) const {
     return definitions::kMaxThermocouples;  // Return an out-of-range index to indicate not found
 }
 
-bool Thermocouple::on_command(const definitions::Command& cmd, definitions::Command& out_response) {
+bool Thermocouple::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
     uint32_t address;
     switch (cmd.type) {
         case definitions::CommandType::kTempInRead:

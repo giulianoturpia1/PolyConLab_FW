@@ -53,7 +53,7 @@ bool Heater::accepts(definitions::CommandType type) const {
 
 Heater::Heater() : pin_(0), status_(false) {}
 
-bool Heater::on_command(const definitions::Command& cmd, definitions::Command& out_response) {
+bool Heater::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
     switch (cmd.type) {
         case definitions::CommandType::kHeaterOn:
             on();

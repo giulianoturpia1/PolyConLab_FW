@@ -29,9 +29,9 @@ namespace modules {
 /// dedicated context (e.g. blocking I2C reads on a shared bus).
 ///
 /// Implements the Active Object pattern once, so subclasses only supply their
-/// command logic in on_command() (Template Method). The base owns the queue and
+/// command logic in execute_command() (Template Method). The base owns the queue and
 /// the task: create_task() spins up a task pinned to the configured core that
-/// drains full definitions::Command items and, for each, calls on_command() then
+/// drains full definitions::Command items and, for each, calls execute_command() then
 /// publishes the response to the configured sink.
 ///
 /// The queue stores whole Command values (sizeof(definitions::Command)), so
@@ -106,7 +106,7 @@ class AsyncDevice : public interfaces::IDevice {
     /// @param out_response Response payload to publish on success.
     /// @return true if a response should be published.
     ///
-    virtual bool on_command(const definitions::Command& cmd, definitions::Command& out_response) = 0;
+    virtual bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) = 0;
 
     ///
     /// @brief Publish a response through the configured sink.
@@ -123,7 +123,7 @@ class AsyncDevice : public interfaces::IDevice {
 
    private:
     ///
-    /// @brief Task loop: drain the queue, run on_command(), publish the response.
+    /// @brief Task loop: drain the queue, run execute_command(), publish the response.
     ///
     static void task_entry(void* param) {
         AsyncDevice* self = static_cast<AsyncDevice*>(param);
@@ -132,7 +132,7 @@ class AsyncDevice : public interfaces::IDevice {
 
         while (self->queue_ != nullptr) {
             if (xQueueReceive(self->queue_, &cmd, config::kDeviceWaitTicks) == pdPASS) {
-                if (self->on_command(cmd, response)) {
+                if (self->execute_command(cmd, response)) {
                     self->publish_response(response);
                 }
             }

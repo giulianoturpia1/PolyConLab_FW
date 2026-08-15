@@ -53,7 +53,7 @@ bool Chiller::accepts(definitions::CommandType type) const {
 
 Chiller::Chiller() : pin_(0), status_(false) {}
 
-bool Chiller::on_command(const definitions::Command& cmd, definitions::Command& out_response) {
+bool Chiller::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
     switch (cmd.type) {
         case definitions::CommandType::kChillerOn:
             on();
