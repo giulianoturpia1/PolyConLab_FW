@@ -29,35 +29,47 @@ class IDevice {
     virtual bool accepts(definitions::CommandType type) const = 0;
 
     ///
-    /// @brief Enqueue a full Command to the device's internal queue.
+    /// @brief Dispatch a full Command to the device — the single command entry point.
+    ///
+    /// This is the one and only way an external, confirmable command reaches a device.
+    /// Concrete devices decide the execution model behind the polymorphism: a SyncDevice
+    /// runs @p cmd inline on the caller's task, while an AsyncDevice enqueues it for its
+    /// dedicated task. In both cases the device publishes a response report to its
+    /// configured sink, so the StateMachine confirmation pipeline is identical regardless
+    /// of device type. Callers never need to know which kind of device they are talking to.
     ///
     /// The device is responsible for extracting any parameter it needs from cmd.extra
     /// (e.g. valve pin for kValveOpen) or from its own internal command-to-address mapping
     /// (e.g. kTempInRead -> I2C address in Thermocouple).
     ///
+    /// @note Autonomous control-loop and safe-output actuations must NOT go through this
+    ///       method: they are not client-originated commands and would inject spurious
+    ///       confirmations into the StateMachine response queue. Such internal logic uses
+    ///       enforce_command() instead.
+    ///
     /// @param cmd Command to dispatch.
-    /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if the command was accepted and queued.
+    /// @param timeout_ms Queue send timeout in milliseconds (ignored by synchronous devices).
+    /// @return true if the command was accepted and queued/executed.
     ///
     virtual bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) = 0;
 
     ///
-    /// @brief Execute a command and report the outcome and response synchronously.
+    /// @brief Dispatch a command WITHOUT publishing a response report — the enforced entry point.
     ///
-    /// SyncDevice runs the command inline on the caller's task and returns a real
-    /// result. The default routes to queue_command() so async-only devices keep
-    /// their fire-and-forget behaviour without overriding anything; @p out_response
-    /// then merely echoes @p cmd, since the true response arrives later on the
-    /// device's response queue.
+    /// Identical dispatch semantics to queue_command() (same polymorphism: inline for a
+    /// SyncDevice, queued for an AsyncDevice), except the device does not publish a
+    /// response to its sink. It is the path for autonomous, fire-and-forget actuations
+    /// that are not client-originated commands — control-loop and safe-output actions —
+    /// so they never inject a spurious confirmation into the StateMachine response queue.
     ///
-    /// @param cmd Command to execute.
-    /// @param out_response Response payload filled by synchronous devices.
-    /// @return true if the command was accepted.
+    /// Callers reach this through DeviceDispatcher::enforce_to_device(), so they remain
+    /// unaware of the concrete device type, exactly as with the confirmable command path.
     ///
-    virtual bool execute(const definitions::Command& cmd, definitions::Command& out_response) {
-        out_response = cmd;
-        return queue_command(cmd, 0);
-    }
+    /// @param cmd Command to enforce.
+    /// @param timeout_ms Queue send timeout in milliseconds (ignored by synchronous devices).
+    /// @return true if the command was accepted and queued/executed.
+    ///
+    virtual bool enforce_command(const definitions::Command& cmd, uint32_t timeout_ms) = 0;
 
    protected:
     IDevice() = default;

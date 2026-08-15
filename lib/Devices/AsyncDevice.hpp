@@ -49,7 +49,7 @@ class AsyncDevice : public interfaces::IDevice {
             return true;
         }
 
-        queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(definitions::Command));
+        queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(QueuedCommand));
         if (queue_ == nullptr) {
             TaggedLogger(task_name_).error("No se pudo crear la cola del dispositivo.");
             return false;
@@ -77,7 +77,17 @@ class AsyncDevice : public interfaces::IDevice {
         if (queue_ == nullptr) {
             return false;
         }
-        return xQueueSend(queue_, &cmd, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
+        const QueuedCommand item = {cmd, true};
+        return xQueueSend(queue_, &item, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
+    }
+
+    /// @copydoc interfaces::IDevice::enforce_command
+    bool enforce_command(const definitions::Command& cmd, uint32_t timeout_ms) override {
+        if (queue_ == nullptr) {
+            return false;
+        }
+        const QueuedCommand item = {cmd, false};
+        return xQueueSend(queue_, &item, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
     }
 
    protected:
@@ -123,16 +133,27 @@ class AsyncDevice : public interfaces::IDevice {
 
    private:
     ///
-    /// @brief Task loop: drain the queue, run execute_command(), publish the response.
+    /// @brief Queue element: a command plus whether its response should be published.
+    ///
+    /// enforce_command() enqueues with publish == false so the task suppresses the report,
+    /// keeping autonomous actuations off the StateMachine confirmation pipeline.
+    ///
+    struct QueuedCommand {
+        definitions::Command cmd;  ///< Command to execute on the device task.
+        bool publish;              ///< Publish the response report (true) or suppress it (false).
+    };
+
+    ///
+    /// @brief Task loop: drain the queue, run execute_command(), publish the response when requested.
     ///
     static void task_entry(void* param) {
         AsyncDevice* self = static_cast<AsyncDevice*>(param);
-        definitions::Command cmd;
+        QueuedCommand item;
         definitions::Command response;
 
         while (self->queue_ != nullptr) {
-            if (xQueueReceive(self->queue_, &cmd, config::kDeviceWaitTicks) == pdPASS) {
-                if (self->execute_command(cmd, response)) {
+            if (xQueueReceive(self->queue_, &item, config::kDeviceWaitTicks) == pdPASS) {
+                if (self->execute_command(item.cmd, response) && item.publish) {
                     self->publish_response(response);
                 }
             }

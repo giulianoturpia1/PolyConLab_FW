@@ -26,16 +26,18 @@ namespace modules {
 ///
 /// A SyncDevice owns no FreeRTOS task and no queue: the dispatching task (the
 /// StateMachine on Core 0) is the sole writer of the device, so there is no race
-/// to serialize. Subclasses implement execute_command(); both entry points funnel
-/// through it (Template Method):
+/// to serialize. Subclasses implement execute_command(), reached through the IDevice
+/// command entry points (Template Method):
 ///
-/// + queue_command() keeps the existing dispatch contract — it runs the command
-///   inline and publishes the response to the configured sink, so the downstream
-///   confirmation and client-acknowledgement pipeline is unchanged from the old
-///   task-based devices.
-/// + execute() runs the command and returns its outcome and response to the
-///   caller without publishing, for callers that want an immediate, self-checked
-///   action (e.g. safety shutoffs).
+/// + queue_command() runs the command inline and publishes the response to the
+///   configured sink, so the confirmation/client-acknowledgement pipeline is identical
+///   to an AsyncDevice. This is the path for external, confirmable commands.
+/// + enforce_command() runs the command inline WITHOUT publishing, for autonomous
+///   control-loop and safe-output actuations that must not inject a spurious
+///   confirmation into the StateMachine response queue.
+///
+/// Both are reached polymorphically through the DeviceDispatcher, so callers stay
+/// unaware of the concrete device type.
 ///
 /// create_task() and set_response_queue() mirror the AsyncDevice lifecycle API so
 /// App wiring stays uniform; create_task() is a no-op because a SyncDevice has no task.
@@ -60,14 +62,6 @@ class SyncDevice : public interfaces::IDevice {
     }
 
     ///
-    /// @copydoc interfaces::IDevice::execute
-    /// @note Runs inline and returns the response without publishing it.
-    ///
-    bool execute(const definitions::Command& cmd, definitions::Command& out_response) override {
-        return execute_command(cmd, out_response);
-    }
-
-    ///
     /// @copydoc interfaces::IDevice::queue_command
     /// @note Executes synchronously on the caller's task (@p timeout_ms is ignored) and
     ///       publishes the response, preserving the downstream confirmation pipeline.
@@ -79,6 +73,16 @@ class SyncDevice : public interfaces::IDevice {
         }
         publish_response(response);
         return true;
+    }
+
+    ///
+    /// @copydoc interfaces::IDevice::enforce_command
+    /// @note Executes synchronously on the caller's task (@p timeout_ms is ignored) and does
+    ///       NOT publish a response, so autonomous actuations stay off the confirmation pipeline.
+    ///
+    bool enforce_command(const definitions::Command& cmd, uint32_t /*timeout_ms*/) override {
+        definitions::Command response;
+        return execute_command(cmd, response);
     }
 
    protected:

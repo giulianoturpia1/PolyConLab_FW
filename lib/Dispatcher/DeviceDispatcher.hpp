@@ -43,11 +43,28 @@ class DeviceDispatcher {
     ///
     /// @brief Forward a Command to the first device whose accepts() returns true.
     ///
+    /// The device publishes a response report, so this is the path for client-originated,
+    /// confirmable commands routed through the StateMachine.
+    ///
     /// @param cmd        Command to dispatch.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if a device accepted and queued the command.
     ///
     bool forward_to_device(const definitions::Command& cmd, uint32_t timeout_ms);
+
+    ///
+    /// @brief Enforce a Command on the first device whose accepts() returns true, WITHOUT
+    /// publishing a response report.
+    ///
+    /// Same routing as forward_to_device(), but the device suppresses its response. This is
+    /// the path for autonomous control-loop and safe-output actuations, which are not client
+    /// commands and must not produce confirmations. Callers stay unaware of concrete device types.
+    ///
+    /// @param cmd        Command to enforce.
+    /// @param timeout_ms Queue send timeout in milliseconds.
+    /// @return true if a device accepted and queued/executed the command.
+    ///
+    bool enforce_to_device(const definitions::Command& cmd, uint32_t timeout_ms);
 
    private:
     DeviceDispatcher();
