@@ -151,7 +151,7 @@ class AsyncDevice : public interfaces::IDevice {
     ///
     struct QueuedCommand {
         definitions::Command cmd;  ///< Command to execute on the device task.
-        bool publish;              ///< Publish the response report (true) or suppress it (false).
+        bool publish;              ///< Publish the response (true) or suppress it (false).
     };
 
     ///

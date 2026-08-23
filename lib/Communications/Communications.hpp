@@ -53,14 +53,14 @@ class Communications {
     ///
     /// @param serial_send Callable that writes a SCPI response string to the Serial port.
     ///
-    void initialize_server(std::function<void(const std::string&)> serial_send);
+    void begin(std::function<void(const std::string&)> serial_send);
 
     ///
-    /// @brief Poll every communication source once and dispatch any pending messages.
+    /// @brief Run one communication cycle: poll every source once and dispatch any pending messages.
     /// Drives the network (TCP) transport and the serial console; callers need not know which
     /// transports exist. Intended to be called once per App tick.
     ///
-    void poll();
+    void tick();
 
     ///
     /// @brief Format a command outcome and deliver the SCPI string to the originating client.
@@ -142,7 +142,7 @@ class Communications {
     /// @brief Write-back that delivers one SCPI response line to a specific client.
     using Responder = std::function<void(const std::string&)>;
 
-    Responder serial_send_;        ///< Serial write-back. Supplied once via initialize_server() and reused for every response.
+    Responder serial_send_;        ///< Serial write-back. Supplied once via begin() and reused for every response.
     Responder active_responder_;   ///< Write-back for the message being dispatched (WiFi client callback, or serial_send_).
     Responder pending_responder_;  ///< Responder captured for the in-flight queued command; invoked and cleared in handle_response().
     definitions::Transport active_transport_;  ///< Transport of the current message. Used for authorization/identity, not for routing.
