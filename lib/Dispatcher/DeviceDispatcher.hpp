@@ -43,7 +43,7 @@ class DeviceDispatcher {
     ///
     /// @brief Forward a Command to the first device whose accepts() returns true.
     ///
-    /// The device publishes a response report, so this is the path for client-originated,
+    /// The device publishes a response, so this is the path for client-originated,
     /// confirmable commands routed through the StateMachine.
     ///
     /// @param cmd        Command to dispatch.
@@ -54,7 +54,7 @@ class DeviceDispatcher {
 
     ///
     /// @brief Enforce a Command on the first device whose accepts() returns true, WITHOUT
-    /// publishing a response report.
+    /// publishing a response.
     ///
     /// Same routing as issue_to_device(), but the device suppresses its response. This is
     /// the path for autonomous control-loop and safe-output actuations, which are not client

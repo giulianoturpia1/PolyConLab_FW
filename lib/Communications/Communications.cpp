@@ -22,12 +22,12 @@ Communications& Communications::instance() {
     return instance;
 }
 
-void Communications::initialize_server(std::function<void(const std::string&)> serial_send) {
+void Communications::begin(std::function<void(const std::string&)> serial_send) {
     serial_send_ = std::move(serial_send);
     server_.begin();
 }
 
-void Communications::poll() {
+void Communications::tick() {
     poll_network();
     poll_serial();
 }

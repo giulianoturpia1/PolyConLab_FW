@@ -34,7 +34,7 @@ class IDevice {
     /// This is the one and only way an external, confirmable command reaches a device.
     /// Concrete devices decide the execution model behind the polymorphism: a SyncDevice
     /// runs @p cmd inline on the caller's task, while an AsyncDevice enqueues it for its
-    /// dedicated task. In both cases the device publishes a response report to its
+    /// dedicated task. In both cases the device publishes a response to its
     /// configured sink, so the StateMachine confirmation pipeline is identical regardless
     /// of device type. Callers never need to know which kind of device they are talking to.
     ///
@@ -54,7 +54,7 @@ class IDevice {
     virtual bool issue_command(const definitions::Command& cmd, uint32_t timeout_ms) = 0;
 
     ///
-    /// @brief Dispatch a command WITHOUT publishing a response report — the enforced entry point.
+    /// @brief Dispatch a command WITHOUT publishing a response — the enforced entry point.
     ///
     /// Identical dispatch semantics to issue_command() (same polymorphism: inline for a
     /// SyncDevice, queued for an AsyncDevice), except the device does not publish a
