@@ -140,6 +140,14 @@ enum class CommandType {
     // Level switch command
     kLevelSwitchState,
 
+    // Sensor re-initialisation (re-run one sensor's hardware begin())
+    kTempInReinit,
+    kTempOutReinit,
+    kTempBathReinit,
+    kTempMixReinit,
+    kFlowReinit,
+    kLevelSwitchReinit,
+
     // Diagnostics/Status
     kPing,
     kStateQuery,
@@ -170,11 +178,13 @@ enum class ResponseType {
     kStatusClosed,
     kStatusHigh,
     kStatusLow,
+    kReinitOk,              ///< A sensor re-initialisation succeeded ("OK")
     kErrorCommandRejected,  ///< Command not accepted in the current FSM state
     kErrorCommandTimeout,   ///< Device did not confirm command execution within timeout
     kErrorInvalidParam,     ///< Command parameter is out of range (e.g. valve number = 0)
     kErrorNotOperator,      ///< Actuation command from a client that does not hold the operator role
     kErrorSensorFault,      ///< Sensor returned NaN (disconnected or CRC failure)
+    kErrorReinitFailed,     ///< A sensor re-initialisation (re-run begin()) did not succeed
     kMeasTemp,              ///< Runtime-formatted temperature reading in Celsius — no static wire string
     kMeasFlow,              ///< Runtime-formatted flow rate in L/min — no static wire string
     kStateValue,            ///< Runtime-formatted FSM state name — no static wire string
@@ -272,7 +282,7 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
     {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<CommandEntry, 25> kCommandMap = {{
+constexpr std::array<CommandEntry, 31> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn, true},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff, true},
     {("OUTP:HEAT?"), CommandType::kHeaterState, false},
@@ -292,6 +302,12 @@ constexpr std::array<CommandEntry, 25> kCommandMap = {{
     {("TEMP:SET:IN"), CommandType::kTempSetIn, true},
     {("MEAS:FLOW?"), CommandType::kFlowRead, false},
     {("MEAS:LEVEL?"), CommandType::kLevelSwitchState, false},
+    {("SYST:REINIT:TEMP:IN"), CommandType::kTempInReinit, false},
+    {("SYST:REINIT:TEMP:OUT"), CommandType::kTempOutReinit, false},
+    {("SYST:REINIT:TEMP:CAM"), CommandType::kTempBathReinit, false},
+    {("SYST:REINIT:TEMP:MEZ"), CommandType::kTempMixReinit, false},
+    {("SYST:REINIT:FLOW"), CommandType::kFlowReinit, false},
+    {("SYST:REINIT:LEVEL"), CommandType::kLevelSwitchReinit, false},
     {("PING"), CommandType::kPing, false},
     {("STATE?"), CommandType::kStateQuery, false},
     {("SYST:LOG ON"), CommandType::kLogOn, false},
@@ -300,7 +316,7 @@ constexpr std::array<CommandEntry, 25> kCommandMap = {{
     {("SYST:FAULT?"), CommandType::kFaultQuery, false},
 }};
 
-constexpr std::array<ResponseEntry, 15> kResponseMap = {{
+constexpr std::array<ResponseEntry, 17> kResponseMap = {{
     {"-100,’UNKNOWN COMMAND’", ResponseType::kErrorUnknownCommand},
     {"-200,’EMPTY EVENT’", ResponseType::kErrorEmptyEvent},
     {"-300,’UNKNOWN EVENT’", ResponseType::kErrorUnknownEvent},
@@ -316,9 +332,11 @@ constexpr std::array<ResponseEntry, 15> kResponseMap = {{
     {"CLOSED", ResponseType::kStatusClosed},
     {"HIGH", ResponseType::kStatusHigh},
     {"LOW", ResponseType::kStatusLow},
+    {"OK", ResponseType::kReinitOk},
+    {"-105,’REINIT FAILED’", ResponseType::kErrorReinitFailed},
 }};
 
-constexpr std::array<CommandResponseEntry, 24> kCommandResponseMap = {{
+constexpr std::array<CommandResponseEntry, 30> kCommandResponseMap = {{
     {CommandType::kHeaterOn, ResponseType::kStatusOn},
     {CommandType::kHeaterOff, ResponseType::kStatusOff},
     {CommandType::kHeaterState, ResponseType::kStatusOn},
@@ -343,6 +361,12 @@ constexpr std::array<CommandResponseEntry, 24> kCommandResponseMap = {{
     {CommandType::kLogOff, ResponseType::kStatusOff},
     {CommandType::kLogQuery, ResponseType::kStatusOn},
     {CommandType::kTempSetIn, ResponseType::kStatusOn},
+    {CommandType::kTempInReinit, ResponseType::kReinitOk},
+    {CommandType::kTempOutReinit, ResponseType::kReinitOk},
+    {CommandType::kTempBathReinit, ResponseType::kReinitOk},
+    {CommandType::kTempMixReinit, ResponseType::kReinitOk},
+    {CommandType::kFlowReinit, ResponseType::kReinitOk},
+    {CommandType::kLevelSwitchReinit, ResponseType::kReinitOk},
 }};
 
 constexpr std::array<StateNameEntry, 7> kStateNameMap = {{
