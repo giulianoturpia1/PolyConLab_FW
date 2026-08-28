@@ -96,6 +96,18 @@ class Thermocouple : public AsyncDevice {
     bool remove(uint32_t address);
 
     ///
+    /// @brief Re-initialise the Thermocouple Amplifier at a single I2C address (re-run its begin()).
+    ///
+    /// Acquires the shared I2C bus mutex, drops any stale registration for @p address, then
+    /// re-registers and re-configures the amplifier. Used by the SYST:REINIT:* command path to
+    /// recover a thermocouple that failed hardware init without a full PLC reset.
+    ///
+    /// @param address I2C address of the Thermocouple Amplifier to re-initialise.
+    /// @return true if the amplifier initialised successfully, false otherwise.
+    ///
+    bool reinit(uint32_t address);
+
+    ///
     /// @brief Get number of registered Thermocouple Amplifiers.
     ///
     /// @return uint8_t

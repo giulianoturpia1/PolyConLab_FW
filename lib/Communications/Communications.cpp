@@ -119,6 +119,15 @@ void Communications::handle_response(const definitions::Command& cmd) {
         case definitions::CommandType::kCommandError:
             response = utils::to_scpi(static_cast<definitions::ResponseType>(cmd.extra));
             break;
+        // Sensor re-initialisation: extra holds the ResponseType (kReinitOk / kErrorReinitFailed)
+        case definitions::CommandType::kTempInReinit:
+        case definitions::CommandType::kTempOutReinit:
+        case definitions::CommandType::kTempBathReinit:
+        case definitions::CommandType::kTempMixReinit:
+        case definitions::CommandType::kFlowReinit:
+        case definitions::CommandType::kLevelSwitchReinit:
+            response = utils::to_scpi(static_cast<definitions::ResponseType>(cmd.extra));
+            break;
         // All other commands: static lookup through kCommandResponseMap
         default:
             response = utils::to_scpi(cmd.type);

@@ -50,7 +50,9 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
 
 bool Thermocouple::accepts(definitions::CommandType type) const {
     return type == definitions::CommandType::kTempInRead || type == definitions::CommandType::kTempOutRead ||
-           type == definitions::CommandType::kTempBathRead || type == definitions::CommandType::kTempMixRead;
+           type == definitions::CommandType::kTempBathRead || type == definitions::CommandType::kTempMixRead ||
+           type == definitions::CommandType::kTempInReinit || type == definitions::CommandType::kTempOutReinit ||
+           type == definitions::CommandType::kTempBathReinit || type == definitions::CommandType::kTempMixReinit;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
@@ -73,6 +75,7 @@ uint8_t Thermocouple::find_index(uint32_t address) const {
 
 bool Thermocouple::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
     uint32_t address;
+    bool reinit_request = false;
     switch (cmd.type) {
         case definitions::CommandType::kTempInRead:
             address = static_cast<uint32_t>(definitions::Addresses::kTempIn);
@@ -86,8 +89,31 @@ bool Thermocouple::execute_command(const definitions::Command& cmd, definitions:
         case definitions::CommandType::kTempMixRead:
             address = static_cast<uint32_t>(definitions::Addresses::kTempMix);
             break;
+        case definitions::CommandType::kTempInReinit:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempIn);
+            reinit_request = true;
+            break;
+        case definitions::CommandType::kTempOutReinit:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempOut);
+            reinit_request = true;
+            break;
+        case definitions::CommandType::kTempBathReinit:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempBath);
+            reinit_request = true;
+            break;
+        case definitions::CommandType::kTempMixReinit:
+            address = static_cast<uint32_t>(definitions::Addresses::kTempMix);
+            reinit_request = true;
+            break;
         default:
             return false;
+    }
+
+    if (reinit_request) {
+        const bool ok = reinit(address);
+        out_response = {cmd.type,
+                        static_cast<uint32_t>(ok ? definitions::ResponseType::kReinitOk : definitions::ResponseType::kErrorReinitFailed)};
+        return true;
     }
 
     const float temperature = readCelcius(address);
@@ -147,6 +173,21 @@ bool Thermocouple::remove(uint32_t address) {
     }
     --thermoc_count_;
     return true;
+}
+
+bool Thermocouple::reinit(uint32_t address) {
+    // Serialize against any other bus user (the read task or a synchronous Core-0 reader) while
+    // we re-touch the array and re-run the amplifier's begin() over I2C.
+    ScopedLock lock(bus_mutex_, pdMS_TO_TICKS(config::kI2cBusTimeoutMs));
+    if (!lock.held()) {
+        kLog.warning("No se pudo adquirir el bus I2C de termocuplas para reinicializar.");
+        return false;
+    }
+
+    // remove() is a no-op (returns false) when the address was never registered — e.g. a sensor
+    // that failed init at boot — so a plain add() re-registers it either way.
+    remove(address);
+    return add(address);
 }
 
 float Thermocouple::readCelcius(uint32_t address) {
