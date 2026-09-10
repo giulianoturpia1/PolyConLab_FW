@@ -103,6 +103,10 @@ void Communications::handle_response(const definitions::Command& cmd) {
             response =
                 cmd.extra ? utils::to_scpi(definitions::ResponseType::kStatusHigh) : utils::to_scpi(definitions::ResponseType::kStatusLow);
             break;
+        case definitions::CommandType::kValveState:
+            response = (cmd.extra & definitions::kValveStatusOpenMask) ? utils::to_scpi(definitions::ResponseType::kStatusOpen)
+                                                                       : utils::to_scpi(definitions::ResponseType::kStatusClosed);
+            break;
         // Numeric reads: extra holds IEEE-754 float bits packed via memcpy
         case definitions::CommandType::kTempInRead:
         case definitions::CommandType::kTempOutRead:

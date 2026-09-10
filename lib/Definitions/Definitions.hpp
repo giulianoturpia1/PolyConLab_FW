@@ -214,8 +214,23 @@ struct Command {
                        ///<   actuator/sensor pin or I2C address for device commands;
                        ///<   IEEE-754 float bits for temperature/flow reads;
                        ///<   SystemState cast to uint32_t for kStateQuery;
-                       ///<   ResponseType cast to uint32_t for kCommandError.
+                       ///<   ResponseType cast to uint32_t for kCommandError;
+                       ///<   valve pin in the low bits plus kValveStatusOpenMask for a kValveState response.
 };
+
+///
+/// @brief Bit set in Command::extra of a kValveState response when the valve is open.
+///
+/// A kValveState response must carry both the valve identity (so StateMachine can match
+/// the response to the pending command) and the reading (so Communications can format
+/// OPEN/CLOSED). The pin occupies the low bits; this flag occupies the top bit.
+///
+constexpr uint32_t kValveStatusOpenMask = 1u << 31;
+
+///
+/// @brief Mask that recovers the valve pin from a kValveState payload.
+///
+constexpr uint32_t kValvePinMask = ~kValveStatusOpenMask;
 
 ///
 /// @brief Single entry in the SCPI command lookup table: maps a command string to its CommandType.
@@ -336,7 +351,7 @@ constexpr std::array<ResponseEntry, 17> kResponseMap = {{
     {"-105,’REINIT FAILED’", ResponseType::kErrorReinitFailed},
 }};
 
-constexpr std::array<CommandResponseEntry, 30> kCommandResponseMap = {{
+constexpr std::array<CommandResponseEntry, 29> kCommandResponseMap = {{
     {CommandType::kHeaterOn, ResponseType::kStatusOn},
     {CommandType::kHeaterOff, ResponseType::kStatusOff},
     {CommandType::kHeaterState, ResponseType::kStatusOn},
@@ -348,7 +363,6 @@ constexpr std::array<CommandResponseEntry, 30> kCommandResponseMap = {{
     {CommandType::kChillerState, ResponseType::kStatusOn},
     {CommandType::kValveOpen, ResponseType::kStatusOpen},
     {CommandType::kValveClose, ResponseType::kStatusClosed},
-    {CommandType::kValveState, ResponseType::kStatusOpen},
     {CommandType::kTempInRead, ResponseType::kMeasTemp},
     {CommandType::kTempOutRead, ResponseType::kMeasTemp},
     {CommandType::kTempBathRead, ResponseType::kMeasTemp},

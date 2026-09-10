@@ -226,6 +226,9 @@ bool StateMachine::response_matches_command(const definitions::Command& request,
         case definitions::CommandType::kValveOpen:
         case definitions::CommandType::kValveClose:
             return request.extra == response.extra;
+        case definitions::CommandType::kValveState:
+            // The response payload carries the status flag in the top bit; compare pins only.
+            return (request.extra & definitions::kValvePinMask) == (response.extra & definitions::kValvePinMask);
         default:
             return true;
     }

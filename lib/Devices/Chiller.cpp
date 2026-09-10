@@ -52,7 +52,7 @@ bool Chiller::execute_command(const definitions::Command& cmd, definitions::Comm
             return false;
     }
 
-    out_response = {cmd.type, 0u};
+    out_response = {cmd.type, status() ? 1u : 0u};
     return true;
 }
 

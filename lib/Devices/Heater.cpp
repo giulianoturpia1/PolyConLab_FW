@@ -52,7 +52,7 @@ bool Heater::execute_command(const definitions::Command& cmd, definitions::Comma
             return false;
     }
 
-    out_response = {cmd.type, 0u};
+    out_response = {cmd.type, status() ? 1u : 0u};
     return true;
 }
 

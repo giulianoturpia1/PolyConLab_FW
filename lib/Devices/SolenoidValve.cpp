@@ -66,9 +66,14 @@ bool SolenoidValve::execute_command(const definitions::Command& cmd, definitions
             out_response = {definitions::CommandType::kValveClose, pin};
             return true;
 
-        case definitions::CommandType::kValveState:
-            out_response = {definitions::CommandType::kValveState, pin};
+        case definitions::CommandType::kValveState: {
+            if (find_index(pin) >= definitions::kMaxSolenoidValves) {
+                return false;  // unregistered pin — let the SM answer with kErrorCommandRejected
+            }
+            const uint32_t payload = pin | (status(pin) ? definitions::kValveStatusOpenMask : 0u);
+            out_response = {definitions::CommandType::kValveState, payload};
             return true;
+        }
 
         default:
             return false;
