@@ -292,6 +292,16 @@ constexpr uint8_t kMaxResponsesPerTick = 4;
 ///
 constexpr uint8_t kMaxInFlightCommands = 4;
 
+///
+/// @brief Lines read from the connected client in a single communications poll tick.
+///
+/// At kAppTaskPeriodMs this sets the ingest rate: one line per tick was below what a burst of
+/// sensor queries needs, so a round of them took several ticks just to be read. Bounds the work one
+/// busy client can impose on the App task, and is kept at kMaxInFlightCommands so a full tick of
+/// commands never has to be refused for want of a slot.
+///
+constexpr uint8_t kMaxLinesPerPollTick = 4;
+
 // ── Control Setpoint Limits ───────────────────────────────────────────────────
 
 ///
