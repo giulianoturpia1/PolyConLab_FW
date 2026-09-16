@@ -29,6 +29,15 @@ namespace modules {
 
 static const TaggedLogger kLog("StateMachine");
 
+namespace {
+
+/// Build the error reply for @p request, carrying its token so it reaches the right client.
+definitions::Command make_error(const definitions::Command& request, definitions::ResponseType error) {
+    return {definitions::CommandType::kCommandError, static_cast<uint32_t>(error), request.token};
+}
+
+}  // namespace
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
 StateMachine& StateMachine::instance() {
@@ -41,9 +50,10 @@ void StateMachine::begin() {
     previousState_ = definitions::SystemState::kStartup;
     stateEntryTime_ = hal_general().millis();
     stateChanged_ = true;
-    commandPending_ = false;
     lastCommandConfirmed_ = false;
-    pendingCommandTimeMs_ = 0;
+    pending_.fill(PendingCommand());
+    pendingHead_ = 0;
+    pendingCount_ = 0;
 }
 
 bool StateMachine::create_task() {
@@ -162,7 +172,7 @@ definitions::SystemState StateMachine::get_previous_state() const {
 }
 
 bool StateMachine::is_command_pending() const {
-    return commandPending_;
+    return pendingCount_ > 0;
 }
 
 bool StateMachine::was_last_command_confirmed() const {
@@ -185,9 +195,9 @@ StateMachine::StateMachine()
       stateEntryTime_(0),
       stateChanged_(false),
       lastResponse_({definitions::CommandType::kHeaterOff, 0}),
-      pendingCommand_({definitions::CommandType::kHeaterOff, 0}),
-      pendingCommandTimeMs_(0),
-      commandPending_(false),
+      pending_(),
+      pendingHead_(0),
+      pendingCount_(0),
       lastCommandConfirmed_(false),
       response_callback_(nullptr) {
     stateHandlers_.emplace(definitions::SystemState::kStartup, std::unique_ptr<IState>(new StartupState()));
@@ -262,61 +272,121 @@ void StateMachine::process_event(definitions::SystemEvent event) {
 }
 
 void StateMachine::process_command(const definitions::Command& request) {
-    // Handle instant SM-level queries without a device task round-trip.
-    if (request.type == definitions::CommandType::kPing) {
+    // One rule for every command that gets here: it takes a slot and leaves through retire_pending().
+    // Nothing answers out of turn, so the client always sees one reply per command in the order it
+    // sent them — the ordering a SCPI client correlates by.
+
+    // Capacity is checked first: a command executed without a slot to track it would leave its reply
+    // unattributable. Communications refuses at the same depth, so this is a guard, not a live path.
+    if (pendingCount_ >= pending_.size()) {
+        kLog.warning("Comando rechazado: no hay lugar para otro comando en vuelo.");
+        lastCommandConfirmed_ = false;
         if (response_callback_) {
-            response_callback_({definitions::CommandType::kPing, 0u});
+            // Delivery is by token, so this still reaches the client that asked, out of order.
+            response_callback_(make_error(request, definitions::ResponseType::kErrorBusy));
         }
         return;
     }
+
+    // SM-level queries need no device, but still retire in turn.
+    if (request.type == definitions::CommandType::kPing) {
+        complete_now(request, {definitions::CommandType::kPing, 0u, request.token});
+        return;
+    }
     if (request.type == definitions::CommandType::kStateQuery) {
-        if (response_callback_) {
-            response_callback_({definitions::CommandType::kStateQuery, static_cast<uint32_t>(currentState_)});
-        }
+        complete_now(request, {definitions::CommandType::kStateQuery, static_cast<uint32_t>(currentState_), request.token});
         return;
     }
 
     IState* stateHandler = get_state_handler(currentState_);
     if (stateHandler == nullptr) {
         transition_to(definitions::SystemState::kHardError);
-        lastCommandConfirmed_ = false;
-        commandPending_ = false;
+        complete_now(request, make_error(request, definitions::ResponseType::kErrorCommandRejected));
+        return;
+    }
+
+    definitions::Command completed = definitions::Command();
+    switch (stateHandler->handle_command(this, request, completed)) {
+        case definitions::CommandOutcome::kPending:
+            push_pending(request);
+            return;
+        case definitions::CommandOutcome::kCompleted:
+            complete_now(request, completed);
+            return;
+        case definitions::CommandOutcome::kRejected:
+        default:
+            kLog.warning("Comando recibido, pero no se pudo ejecutar en el estado actual: " +
+                         std::string(utils::state_name(currentState_)));
+            complete_now(request, make_error(request, definitions::ResponseType::kErrorCommandRejected));
+            return;
+    }
+}
+
+void StateMachine::complete_now(const definitions::Command& request, const definitions::Command& response) {
+    if (!push_pending(request)) {
         if (response_callback_) {
-            response_callback_(
-                {definitions::CommandType::kCommandError, static_cast<uint32_t>(definitions::ResponseType::kErrorCommandRejected)});
+            response_callback_(response);  // table full: keyed delivery keeps this correct, just unordered
         }
         return;
     }
 
-    if (!stateHandler->handle_command(this, request)) {
-        kLog.warning("Comando recibido, pero no se pudo ejecutar en el estado actual: " + std::string(utils::state_name(currentState_)));
-        lastCommandConfirmed_ = false;
-        commandPending_ = false;
-        if (response_callback_) {
-            response_callback_(
-                {definitions::CommandType::kCommandError, static_cast<uint32_t>(definitions::ResponseType::kErrorCommandRejected)});
-        }
-        return;
+    PendingCommand& entry = pending_[(pendingHead_ + pendingCount_ - 1) % pending_.size()];
+    entry.response = response;
+    entry.confirmed = true;
+    retire_pending();
+}
+
+bool StateMachine::push_pending(const definitions::Command& request) {
+    if (pendingCount_ >= pending_.size()) {
+        return false;
     }
 
-    pendingCommand_ = request;
-    pendingCommandTimeMs_ = hal_general().millis();
-    commandPending_ = true;
+    PendingCommand& entry = pending_[(pendingHead_ + pendingCount_) % pending_.size()];
+    entry.request = request;
+    entry.response = definitions::Command();
+    entry.sentTimeMs = hal_general().millis();
+    entry.occupied = true;
+    entry.confirmed = false;
+    ++pendingCount_;
     lastCommandConfirmed_ = false;
+    return true;
+}
+
+void StateMachine::retire_pending() {
+    while (pendingCount_ > 0 && pending_[pendingHead_].confirmed) {
+        PendingCommand& entry = pending_[pendingHead_];
+        lastCommandConfirmed_ = entry.response.type != definitions::CommandType::kCommandError;
+        if (response_callback_) {
+            response_callback_(entry.response);
+        }
+        entry.occupied = false;
+        entry.confirmed = false;
+        pendingHead_ = static_cast<uint8_t>((pendingHead_ + 1) % pending_.size());
+        --pendingCount_;
+    }
 }
 
 void StateMachine::process_response(const definitions::Command& response) {
     lastResponse_ = response;
 
-    if (commandPending_ && response_matches_command(pendingCommand_, response)) {
-        commandPending_ = false;
-        lastCommandConfirmed_ = true;
-        kLog.debug("Comando confirmado como ejecutado por modulo.");
-        // Notify any registered callback about the confirmed execution.
-        if (response_callback_) {
-            response_callback_(response);
+    // Match on the correlation id first, so a reply from a command that already timed out cannot be
+    // credited to a later command of the same type; response_matches_command stays as a second gate.
+    for (uint8_t i = 0; i < pendingCount_; ++i) {
+        PendingCommand& entry = pending_[(pendingHead_ + i) % pending_.size()];
+        if (!entry.occupied || entry.confirmed || entry.request.token != response.token) {
+            continue;
         }
+        if (!response_matches_command(entry.request, response)) {
+            continue;
+        }
+        entry.response = response;
+        entry.confirmed = true;
+        kLog.debug("Comando confirmado como ejecutado por modulo.");
+        break;
     }
+
+    // Deliver everything that is confirmed and no longer waiting on an older command.
+    retire_pending();
 
     std::string logMessage = "Respuesta del modulo: ";
     logMessage = utils::command_name(response.type);
@@ -383,25 +453,32 @@ void StateMachine::on_state_enter() {
 }
 
 void StateMachine::handle_command_feedback_timeout() {
-    if (!commandPending_) {
+    if (pendingCount_ == 0) {
         return;
     }
-    const unsigned long now_ms = hal_general().millis();
-    if ((now_ms - pendingCommandTimeMs_) >= config::kCommandFeedbackTimeoutMs) {
-        std::string logMessage = "Timeout esperando confirmacion de ejecucion para comando pendiente: ";
-        logMessage += utils::command_name(pendingCommand_.type);
-        // Special case for valve commands to include the valve number in the log.
-        if (pendingCommand_.type == definitions::CommandType::kValveOpen || pendingCommand_.type == definitions::CommandType::kValveClose) {
-            logMessage += "," + std::to_string(pendingCommand_.extra);
-        }
-        kLog.warning(logMessage);
-        commandPending_ = false;
-        lastCommandConfirmed_ = false;
-        if (response_callback_) {
-            response_callback_(
-                {definitions::CommandType::kCommandError, static_cast<uint32_t>(definitions::ResponseType::kErrorCommandTimeout)});
-        }
+
+    PendingCommand& head = pending_[pendingHead_];
+    if (head.confirmed) {
+        return;  // already answered; retire_pending() delivers it
     }
+
+    const unsigned long now_ms = hal_general().millis();
+    if ((now_ms - head.sentTimeMs) < config::kCommandFeedbackTimeoutMs) {
+        return;
+    }
+
+    std::string logMessage = "Timeout esperando confirmacion de ejecucion para comando pendiente: ";
+    logMessage += utils::command_name(head.request.type);
+    // Special case for valve commands to include the valve number in the log.
+    if (head.request.type == definitions::CommandType::kValveOpen || head.request.type == definitions::CommandType::kValveClose) {
+        logMessage += "," + std::to_string(head.request.extra);
+    }
+    kLog.warning(logMessage);
+
+    head.response = {definitions::CommandType::kCommandError, static_cast<uint32_t>(definitions::ResponseType::kErrorCommandTimeout),
+                     head.request.token};
+    head.confirmed = true;
+    retire_pending();
 }
 
 void StateMachine::task_entry(void* param) {

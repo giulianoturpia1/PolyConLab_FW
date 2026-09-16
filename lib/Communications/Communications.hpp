@@ -17,6 +17,7 @@
 #include <string>
 
 #include "Authorizer.hpp"
+#include "Config.hpp"
 #include "Definitions.hpp"
 #include "TcpServer.hpp"
 
@@ -28,10 +29,15 @@ namespace modules {
 ///
 /// Each incoming message carries a write-back to its sender (the WiFi client's callback, or
 /// serial_send_ for Serial); the one for the message being dispatched is held in active_responder_,
-/// and respond_now() replies through it. Commands needing a StateMachine round-trip capture it into
-/// pending_responder_ before queuing, so handle_response() later replies to the original client even
-/// if another message was served meanwhile. Inline commands (SYST:LOG*, invalid params, unknown)
-/// answer immediately via respond_now() without pending_responder_.
+/// and respond_now() replies through it. Commands needing a StateMachine round-trip push it onto
+/// pending_responders_ before queuing, so handle_response() later replies to the original client
+/// even if other messages were served meanwhile. Inline commands (SYST:LOG*, invalid params,
+/// unknown) answer immediately via respond_now() without touching the table.
+///
+/// Responders are held against the token this layer assigns to each queued command, and the
+/// StateMachine echoes that token back on the reply, so handle_response() looks the right client up
+/// by identity. Nothing here depends on the order replies come back in — the StateMachine keeps the
+/// wire ordered for the client's sake, not for this table's.
 ///
 /// Authorization is delegated to authorizer_ (see Authorizer): Serial is always privileged, WiFi
 /// actuation is gated to the first client that claims the operator role, and poll_network() frees the
@@ -120,6 +126,12 @@ class Communications {
     void respond_now(const std::string& response);
 
     ///
+    /// @brief Take the next correlation id: never 0 (which marks untagged traffic) and never one
+    /// already held by an outstanding command.
+    ///
+    uint16_t next_token();
+
+    ///
     /// @brief Extract the valve index from a SCPI valve command and map it to the hardware pin.
     ///
     /// @param msg Full SCPI valve command string.
@@ -142,9 +154,19 @@ class Communications {
     /// @brief Write-back that delivers one SCPI response line to a specific client.
     using Responder = std::function<void(const std::string&)>;
 
-    Responder serial_send_;        ///< Serial write-back. Supplied once via begin() and reused for every response.
-    Responder active_responder_;   ///< Write-back for the message being dispatched (WiFi client callback, or serial_send_).
-    Responder pending_responder_;  ///< Responder captured for the in-flight queued command; invoked and cleared in handle_response().
+    ///
+    /// @brief A client waiting for the reply to one queued command.
+    ///
+    struct PendingResponder {
+        uint16_t token;       ///< Correlation id of the queued command; 0 marks a free slot
+        Responder responder;  ///< Write-back that delivers the reply to that client
+    };
+
+    Responder serial_send_;       ///< Serial write-back. Supplied once via begin() and reused for every response.
+    Responder active_responder_;  ///< Write-back for the message being dispatched (WiFi client callback, or serial_send_).
+    std::array<PendingResponder, config::kMaxInFlightCommands>
+        pending_responders_;                   ///< Clients awaiting a reply, looked up by token in handle_response()
+    uint16_t next_token_;                      ///< Correlation id generator
     definitions::Transport active_transport_;  ///< Transport of the current message. Used for authorization/identity, not for routing.
     definitions::ClientId active_client_;      ///< WiFi sender of the current message; 0 for serial.
     Authorizer authorizer_;                    ///< Owns the operator-role state and the actuation gate.

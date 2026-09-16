@@ -41,7 +41,8 @@ definitions::SystemState ManualState::handle_event(StateMachine* context, defini
     }
 }
 
-bool ManualState::handle_command(StateMachine* context, const definitions::Command& request) {
+definitions::CommandOutcome ManualState::handle_command(StateMachine* context, const definitions::Command& request,
+                                                        definitions::Command& out_response) {
     (void) context;
     // Handle temperature setpoint command locally (toggle mode)
     if (request.type == definitions::CommandType::kTempSetIn) {
@@ -63,12 +64,16 @@ bool ManualState::handle_command(StateMachine* context, const definitions::Comma
             DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kChillerOff, 0u}, 0);
             kLog.info("ManualState: temperature control DISABLED, heater/chiller OFF");
         }
-        return true;
+        // No device confirms a setpoint, so the command is closed here and reports the resulting
+        // control state. Leaving it pending would hold up every reply behind it until it timed out.
+        out_response = {definitions::CommandType::kTempSetIn, enabled_ ? 1u : 0u, request.token};
+        return definitions::CommandOutcome::kCompleted;
     }
 
     // Client-originated command: route through the single device command API so its
     // confirmation flows back through the StateMachine.
-    return DeviceDispatcher::instance().issue_to_device(request, kAcceptableTimeWindowMs);
+    return DeviceDispatcher::instance().issue_to_device(request, kAcceptableTimeWindowMs) ? definitions::CommandOutcome::kPending
+                                                                                          : definitions::CommandOutcome::kRejected;
 }
 
 definitions::SystemState ManualState::tick(StateMachine* context) {

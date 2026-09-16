@@ -85,7 +85,26 @@ void Communications::poll_serial() {
 }
 
 void Communications::handle_response(const definitions::Command& cmd) {
-    if (!pending_responder_) {
+    // Find the client that issued this command by the token it was queued with. Identity, not
+    // position: a reply that arrives early still reaches the right client.
+    PendingResponder* pending = nullptr;
+    for (PendingResponder& candidate : pending_responders_) {
+        if (candidate.token != 0 && candidate.token == cmd.token) {
+            pending = &candidate;
+            break;
+        }
+    }
+
+    if (pending == nullptr) {
+        kLog.warning("Respuesta sin cliente asociado, descartada.");
+        return;
+    }
+
+    const Responder responder = pending->responder;
+    pending->token = 0;
+    pending->responder = nullptr;
+
+    if (!responder) {
         return;
     }
 
@@ -96,6 +115,7 @@ void Communications::handle_response(const definitions::Command& cmd) {
         case definitions::CommandType::kHeaterState:
         case definitions::CommandType::kPumpState:
         case definitions::CommandType::kChillerState:
+        case definitions::CommandType::kTempSetIn:  // ManualState answers with the resulting control state
             response =
                 cmd.extra ? utils::to_scpi(definitions::ResponseType::kStatusOn) : utils::to_scpi(definitions::ResponseType::kStatusOff);
             break;
@@ -140,8 +160,7 @@ void Communications::handle_response(const definitions::Command& cmd) {
 
     // Deliver through the responder captured when the command was queued, so the reply reaches the
     // client that issued it — not merely whatever transport happens to be active now.
-    pending_responder_(response);
-    pending_responder_ = nullptr;
+    responder(response);
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
@@ -149,7 +168,8 @@ void Communications::handle_response(const definitions::Command& cmd) {
 Communications::Communications()
     : serial_send_(nullptr),
       active_responder_(nullptr),
-      pending_responder_(nullptr),
+      pending_responders_(),
+      next_token_(0),
       active_transport_(definitions::Transport::kNone),
       active_client_(0),
       server_(TcpServer::instance()),
@@ -227,12 +247,49 @@ void Communications::handle_command(const std::string& msg) {
             break;
     }
 
-    // Queue the commands not handled above to the StateMachine.
-    pending_responder_ = active_responder_;
-    if (!StateMachine::instance().queue_command({cmd->command, extra}, config::kCommsQueueTimeoutMs)) {
-        pending_responder_ = nullptr;
+    // Queue the commands not handled above to the StateMachine, holding this client against the
+    // token the reply will carry. Refuse up front when no slot is free: the StateMachine tracks the
+    // same number of commands, so there would be nowhere to track this one either.
+    PendingResponder* slot = nullptr;
+    for (PendingResponder& candidate : pending_responders_) {
+        if (candidate.token == 0) {
+            slot = &candidate;
+            break;
+        }
+    }
+
+    if (slot == nullptr) {
+        kLog.warning("Comando rechazado: hay demasiados comandos esperando respuesta.");
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorBusy));
+        return;
+    }
+
+    slot->token = next_token();
+    slot->responder = active_responder_;
+    if (!StateMachine::instance().queue_command({cmd->command, extra, slot->token}, config::kCommsQueueTimeoutMs)) {
+        slot->token = 0;
+        slot->responder = nullptr;
         respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
     }
+}
+
+uint16_t Communications::next_token() {
+    // Skip 0 (untagged) and anything an outstanding command still holds.
+    bool in_use = true;
+    while (in_use) {
+        ++next_token_;
+        if (next_token_ == 0) {
+            next_token_ = 1;
+        }
+        in_use = false;
+        for (const PendingResponder& candidate : pending_responders_) {
+            if (candidate.token == next_token_) {
+                in_use = true;
+                break;
+            }
+        }
+    }
+    return next_token_;
 }
 
 void Communications::handle_event(const std::string& msg) {

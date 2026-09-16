@@ -38,11 +38,17 @@ class IState {
     ///
     /// @brief Validate and dispatch a command request while this state is active.
     ///
+    /// A state that answers a command itself (no device round-trip) returns kCompleted and fills
+    /// @p out_response, so the StateMachine can close the command instead of leaving it waiting for
+    /// a confirmation that will never arrive.
+    ///
     /// @param context FSM runtime context.
     /// @param request Command request to evaluate/dispatch.
-    /// @return true if command was accepted and dispatched; false otherwise.
+    /// @param out_response Response to send back; filled only when returning kCompleted.
+    /// @return definitions::CommandOutcome How the command was disposed of.
     ///
-    virtual bool handle_command(modules::StateMachine* context, const definitions::Command& request);
+    virtual definitions::CommandOutcome handle_command(modules::StateMachine* context, const definitions::Command& request,
+                                                       definitions::Command& out_response);
 
     ///
     /// @brief Optional callback executed when entering the state. Can be used for actions like applying safe outputs, logging, etc.

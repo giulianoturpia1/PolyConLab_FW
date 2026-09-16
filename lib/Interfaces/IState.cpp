@@ -7,10 +7,12 @@
 
 namespace interfaces {
 
-bool IState::handle_command(modules::StateMachine* context, const definitions::Command& request) {
+definitions::CommandOutcome IState::handle_command(modules::StateMachine* context, const definitions::Command& request,
+                                                   definitions::Command& out_response) {
     (void) context;
     (void) request;
-    return false;
+    (void) out_response;
+    return definitions::CommandOutcome::kRejected;
 }
 
 void IState::on_enter(modules::StateMachine* context) {

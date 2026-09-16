@@ -56,8 +56,10 @@ const char* SoftErrorState::name() const {
     return "SOFT_ERROR";
 }
 
-bool SoftErrorState::handle_command(StateMachine* context, const definitions::Command& request) {
+definitions::CommandOutcome SoftErrorState::handle_command(StateMachine* context, const definitions::Command& request,
+                                                           definitions::Command& out_response) {
     (void) context;
+    (void) out_response;
     // Only sensor re-initialisation is accepted while in SOFT ERROR — it lets the operator recover
     // a device that failed hardware init without leaving the recovery flow.  Everything else is rejected.
     switch (request.type) {
@@ -67,9 +69,11 @@ bool SoftErrorState::handle_command(StateMachine* context, const definitions::Co
         case definitions::CommandType::kTempMixReinit:
         case definitions::CommandType::kFlowReinit:
         case definitions::CommandType::kLevelSwitchReinit:
-            return DeviceDispatcher::instance().issue_to_device(request, config::kReinitCommandTimeoutMs);
+            return DeviceDispatcher::instance().issue_to_device(request, config::kReinitCommandTimeoutMs)
+                       ? definitions::CommandOutcome::kPending
+                       : definitions::CommandOutcome::kRejected;
         default:
-            return false;
+            return definitions::CommandOutcome::kRejected;
     }
 }
 

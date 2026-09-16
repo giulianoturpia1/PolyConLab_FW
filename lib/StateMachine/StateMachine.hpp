@@ -11,11 +11,13 @@
 
 #pragma once
 
+#include <array>
 #include <functional>
 #include <map>
 #include <memory>
 #include <string>
 
+#include "Config.hpp"
 #include "Definitions.hpp"
 
 namespace interfaces {
@@ -248,10 +250,42 @@ class StateMachine {
     ///
     /// @brief Monitor pending command confirmation timeout.
     ///
-    /// Used by all states to check if a pending command has not been confirmed as executed within a reasonable time window, which could
-    /// indicate a fault or communication issue with the modules.
+    /// Only the oldest in-flight command is aged: entries behind it were dispatched later, and because
+    /// entries retire in order, timing the head out is also what unblocks anything confirmed behind it.
     ///
     void handle_command_feedback_timeout();
+
+    ///
+    /// @brief Close a command that needs no device round-trip, in order.
+    ///
+    /// Takes a slot and retires it immediately, so an answer that is ready at once (PING, STATE?, a
+    /// rejection, a locally handled setpoint) still leaves behind any command dispatched before it.
+    /// Falls back to answering out of order only if the table is full, which delivery by token makes
+    /// harmless.
+    ///
+    /// @param request Command being answered.
+    /// @param response Response to deliver.
+    ///
+    void complete_now(const definitions::Command& request, const definitions::Command& response);
+
+    ///
+    /// @brief Claim the next free in-flight slot for @p request.
+    ///
+    /// Used both for a command dispatched to a device and, through complete_now(), for one already
+    /// answered, so that every command occupies the queue until its turn to reply comes.
+    ///
+    /// @param request Command as received, carrying its token.
+    /// @return false when every slot is occupied.
+    ///
+    bool push_pending(const definitions::Command& request);
+
+    ///
+    /// @brief Retire confirmed entries from the head, firing response_callback_ for each.
+    ///
+    /// Stops at the first unconfirmed entry, so replies leave the firmware in the order the client
+    /// issued the commands even when a device confirms out of order.
+    ///
+    void retire_pending();
 
     ///
     /// @brief Execute one state-machine cycle (to be called repeatedly in a loop).
@@ -274,12 +308,30 @@ class StateMachine {
     definitions::SystemState currentState_;                                      ///< Current state of the system
     definitions::SystemState previousState_;                                     ///< Previous state of the system
     unsigned long stateEntryTime_;                                               ///< Timestamp of when the current state was entered
-    bool stateChanged_;                    ///< Flag indicating if the state has changed since the last tick
-    definitions::Command lastResponse_;    ///< Last executed response
-    definitions::Command pendingCommand_;  ///< Last command request pending execution confirmation
-    unsigned long pendingCommandTimeMs_;   ///< Timestamp of when the pending command was sent
-    bool commandPending_;                  ///< Flag indicating if there is a command pending execution confirmation
-    bool lastCommandConfirmed_;            ///< Flag indicating if the last command was confirmed as executed by a module
+    bool stateChanged_;                  ///< Flag indicating if the state has changed since the last tick
+    definitions::Command lastResponse_;  ///< Last executed response
+
+    ///
+    /// @brief One command awaiting confirmation from the device that executes it.
+    ///
+    /// Every command that reaches process_command() takes a slot, including the ones answered without
+    /// touching a device, and all of them leave through retire_pending(). A response that arrives
+    /// before an older one is held in @c response until every entry ahead of it has retired, so the
+    /// client sees exactly one reply per command, in the order it sent them — which is the ordering
+    /// a SCPI client correlates by.
+    ///
+    struct PendingCommand {
+        definitions::Command request;   ///< The command as dispatched, carrying its token
+        definitions::Command response;  ///< The device's reply; meaningful once confirmed is true
+        unsigned long sentTimeMs;       ///< Dispatch timestamp, aged by handle_command_feedback_timeout()
+        bool occupied;                  ///< Slot holds a command that has not retired yet
+        bool confirmed;                 ///< Reply received (or timed out); waiting to reach the head
+    };
+
+    std::array<PendingCommand, config::kMaxInFlightCommands> pending_;  ///< In-flight ring, oldest at pendingHead_
+    uint8_t pendingHead_;                                               ///< Index of the oldest occupied slot
+    uint8_t pendingCount_;                                              ///< Number of occupied slots
+    bool lastCommandConfirmed_;  ///< True when the most recently retired command was confirmed, not timed out
     std::function<void(const definitions::Command&)>
         response_callback_;  ///< Fired on every command outcome; kCommandError type encodes failures
 };
