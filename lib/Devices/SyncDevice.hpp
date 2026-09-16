@@ -73,6 +73,9 @@ class SyncDevice : public interfaces::IDevice {
         if (!execute_command(cmd, response)) {
             return false;
         }
+        // execute_command() builds the response from scratch: restamp the correlation id so the
+        // StateMachine matches this reply to its request.
+        response.token = cmd.token;
         publish_response(response);
         return true;
     }

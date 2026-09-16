@@ -185,9 +185,19 @@ enum class ResponseType {
     kErrorNotOperator,      ///< Actuation command from a client that does not hold the operator role
     kErrorSensorFault,      ///< Sensor returned NaN (disconnected or CRC failure)
     kErrorReinitFailed,     ///< A sensor re-initialisation (re-run begin()) did not succeed
+    kErrorBusy,             ///< No free in-flight slot: the command was not dispatched and may be retried
     kMeasTemp,              ///< Runtime-formatted temperature reading in Celsius — no static wire string
     kMeasFlow,              ///< Runtime-formatted flow rate in L/min — no static wire string
     kStateValue,            ///< Runtime-formatted FSM state name — no static wire string
+};
+
+///
+/// @brief Result of offering a command to the active state's handler.
+///
+enum class CommandOutcome {
+    kRejected,   ///< Not valid in this state; the client is answered kErrorCommandRejected
+    kPending,    ///< Dispatched to a device; that device's reply will confirm it
+    kCompleted,  ///< Handled by the state itself, which filled the response to send back
 };
 
 ///
@@ -216,6 +226,13 @@ struct Command {
                        ///<   SystemState cast to uint32_t for kStateQuery;
                        ///<   ResponseType cast to uint32_t for kCommandError;
                        ///<   valve pin in the low bits plus kValveStatusOpenMask for a kValveState response.
+    uint16_t token;    ///< Correlation id: assigned by Communications when the command is queued, held
+                       ///< against the client that issued it, carried through the StateMachine and
+                       ///< echoed by the device on its response. It is what pairs a reply with the
+                       ///< request that caused it — and with the client waiting for it — rather than
+                       ///< with any command of the same type. Declared last so existing
+                       ///< {type, extra} initializers keep their meaning and leave it zero.
+                       ///< 0 marks untagged traffic (autonomous actuations, inline reads).
 };
 
 ///
@@ -331,7 +348,7 @@ constexpr std::array<CommandEntry, 31> kCommandMap = {{
     {("SYST:FAULT?"), CommandType::kFaultQuery, false},
 }};
 
-constexpr std::array<ResponseEntry, 17> kResponseMap = {{
+constexpr std::array<ResponseEntry, 18> kResponseMap = {{
     {"-100,’UNKNOWN COMMAND’", ResponseType::kErrorUnknownCommand},
     {"-200,’EMPTY EVENT’", ResponseType::kErrorEmptyEvent},
     {"-300,’UNKNOWN EVENT’", ResponseType::kErrorUnknownEvent},
@@ -349,6 +366,7 @@ constexpr std::array<ResponseEntry, 17> kResponseMap = {{
     {"LOW", ResponseType::kStatusLow},
     {"OK", ResponseType::kReinitOk},
     {"-105,’REINIT FAILED’", ResponseType::kErrorReinitFailed},
+    {"-106,’BUSY’", ResponseType::kErrorBusy},
 }};
 
 constexpr std::array<CommandResponseEntry, 29> kCommandResponseMap = {{

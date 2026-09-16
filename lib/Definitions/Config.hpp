@@ -282,6 +282,16 @@ constexpr uint8_t kMaxCommandsPerTick = 4;
 ///
 constexpr uint8_t kMaxResponsesPerTick = 4;
 
+///
+/// @brief Commands that may await device confirmation at the same time.
+///
+/// Bounds both the StateMachine in-flight table and the Communications responder table, which are
+/// kept the same depth so a command that Communications accepts always finds a slot downstream.
+/// A command arriving with every slot occupied is answered kErrorBusy instead of displacing an
+/// older one. Kept at kMaxCommandsPerTick so a full intake tick never has to reject.
+///
+constexpr uint8_t kMaxInFlightCommands = 4;
+
 // ── Control Setpoint Limits ───────────────────────────────────────────────────
 
 ///
