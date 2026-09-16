@@ -1,5 +1,6 @@
 #include "App.hpp"
 
+#include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -30,6 +31,38 @@ namespace modules {
 
 static const TaggedLogger kLog("App");
 
+namespace {
+
+/// Name of the cause the ESP-IDF reports for the last restart, for the boot log.
+const char* reset_reason_name(esp_reset_reason_t reason) {
+    switch (reason) {
+        case ESP_RST_POWERON:
+            return "POWERON (arranque normal)";
+        case ESP_RST_EXT:
+            return "EXT (reset por pin externo)";
+        case ESP_RST_SW:
+            return "SW (reinicio pedido por software)";
+        case ESP_RST_PANIC:
+            return "PANIC (excepcion o assert)";
+        case ESP_RST_INT_WDT:
+            return "INT_WDT (watchdog de interrupciones)";
+        case ESP_RST_TASK_WDT:
+            return "TASK_WDT (watchdog de tarea)";
+        case ESP_RST_WDT:
+            return "WDT (otro watchdog)";
+        case ESP_RST_DEEPSLEEP:
+            return "DEEPSLEEP";
+        case ESP_RST_BROWNOUT:
+            return "BROWNOUT (caida de tension)";
+        case ESP_RST_SDIO:
+            return "SDIO";
+        default:
+            return "DESCONOCIDO";
+    }
+}
+
+}  // namespace
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
 App& App::instance() {
@@ -39,6 +72,9 @@ App& App::instance() {
 
 void App::begin() {
     hal_.serial_begin(115200);
+    // Logged first so an unexpected restart is attributable: a PANIC or a watchdog reset looks the
+    // same as a power cycle from the SCADA's side, and only this line tells them apart.
+    kLog.info(std::string("Motivo del ultimo reinicio: ") + reset_reason_name(esp_reset_reason()));
     kLog.info("Iniciando Configuracion...");
     hal_.delay(config::kAppStartupDelayMs);
 
