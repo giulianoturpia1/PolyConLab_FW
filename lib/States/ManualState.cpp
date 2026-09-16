@@ -126,25 +126,32 @@ void ManualState::on_enter(StateMachine* context) {
     enabled_ = false;  // Reset control state on entry
     manual_control_tick_ready = true;
 
+    // The timer is created once for the life of the board and only re-armed on entry. It used to be
+    // torn down on exit and rebuilt here, so every MANUAL round trip destroyed and recreated hardware
+    // timer 1 with its ISR attached — a plausible cause of the restarts seen when leaving and
+    // re-entering MANUAL, and needless work regardless.
     if (manualControlTimer == nullptr) {
         manualControlTimer = timerBegin(kManualControlTimerIndex, 80, true);  // 1 tick = 1 µs
-        if (manualControlTimer != nullptr) {
-            timerAttachInterrupt(manualControlTimer, &isrManualControlTimer, true);
-            timerAlarmWrite(manualControlTimer, kManualControlIntervalUs, true);
-            timerAlarmEnable(manualControlTimer);
-        } else {
+        if (manualControlTimer == nullptr) {
             kLog.error("ManualState: failed to initialize hardware timer for control gating.");
+            kLog.info("Iniciando Estado: MANUAL - Esperando comandos del usuario");
+            return;
         }
+        timerAttachInterrupt(manualControlTimer, &isrManualControlTimer, true);
+        timerAlarmWrite(manualControlTimer, kManualControlIntervalUs, true);
     }
+
+    timerAlarmEnable(manualControlTimer);
 
     kLog.info("Iniciando Estado: MANUAL - Esperando comandos del usuario");
 }
 
 void ManualState::on_exit(StateMachine* context) {
     (void) context;
+    // Silence the timer instead of destroying it: the ISR stops firing, the hardware stays set up,
+    // and nothing outside MANUAL sees a stale tick.
     if (manualControlTimer != nullptr) {
-        timerEnd(manualControlTimer);
-        manualControlTimer = nullptr;
+        timerAlarmDisable(manualControlTimer);
     }
     manual_control_tick_ready = false;
 }
