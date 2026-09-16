@@ -302,6 +302,16 @@ constexpr uint8_t kMaxInFlightCommands = 4;
 ///
 constexpr uint8_t kMaxLinesPerPollTick = 4;
 
+///
+/// @brief Replies Communications can hold before they are written to the client.
+///
+/// Every accepted message that owes a reply takes a slot, in arrival order: one answered on the
+/// spot (SYST:LOG*, a rejected parameter) and one still waiting on a device both occupy one. Sized
+/// above kMaxInFlightCommands so inline answers queued behind a slow command do not exhaust the
+/// ring and start refusing traffic the StateMachine could still have accepted.
+///
+constexpr uint8_t kOutboundRingLength = 8;
+
 // ── Control Setpoint Limits ───────────────────────────────────────────────────
 
 ///

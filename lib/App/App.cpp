@@ -8,6 +8,7 @@
 
 #include "Chiller.hpp"
 #include "Communications.hpp"
+#include "CommunicationsResponseQueue.hpp"
 #include "Config.hpp"
 #include "DeviceDispatcher.hpp"
 #include "FaultRegistry.hpp"
@@ -191,9 +192,9 @@ void App::initialize_system() {
     // Create and Initialize State Machine
     state_machine_.begin();
     state_machine_.create_task();
-    // Wire deferred responses: for every command outcome the SM fires handle_response(),
-    // which sends the formatted SCPI string to whichever transport originated the command.
-    state_machine_.set_response_callback([](const definitions::Command& cmd) { Communications::instance().handle_response(cmd); });
+    // Wire deferred responses: the SM publishes every command outcome into Communications, which
+    // formats it and delivers it to the client that issued the command when it next ticks.
+    state_machine_.set_response_queue(&CommunicationsResponseQueue::instance());
 
     // Create Tasks for all modules except State Machine
     create_tasks();  // Initialized in main.cpp

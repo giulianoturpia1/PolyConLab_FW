@@ -12,13 +12,13 @@
 #pragma once
 
 #include <array>
-#include <functional>
 #include <map>
 #include <memory>
 #include <string>
 
 #include "Config.hpp"
 #include "Definitions.hpp"
+#include "ICommandResponseQueue.hpp"
 
 namespace interfaces {
 class IState;
@@ -151,7 +151,7 @@ class StateMachine {
     ///
     /// @param callback Callable invoked with the outcome Command.
     ///
-    void set_response_callback(std::function<void(const definitions::Command&)> callback);
+    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
    private:
     StateMachine();
@@ -250,42 +250,28 @@ class StateMachine {
     ///
     /// @brief Monitor pending command confirmation timeout.
     ///
-    /// Only the oldest in-flight command is aged: entries behind it were dispatched later, and because
-    /// entries retire in order, timing the head out is also what unblocks anything confirmed behind it.
+    /// Each entry is aged against its own dispatch time: with delivery ordered downstream, a slow
+    /// command no longer holds up the ones behind it, so none of them inherits its deadline either.
     ///
     void handle_command_feedback_timeout();
 
     ///
-    /// @brief Close a command that needs no device round-trip, in order.
+    /// @brief Hand a command outcome to the response sink, if one is set.
     ///
-    /// Takes a slot and retires it immediately, so an answer that is ready at once (PING, STATE?, a
-    /// rejection, a locally handled setpoint) still leaves behind any command dispatched before it.
-    /// Falls back to answering out of order only if the table is full, which delivery by token makes
-    /// harmless.
+    /// Published as soon as it is known: Communications holds each client's replies in the order
+    /// their commands arrived, so nothing has to be held back here.
     ///
-    /// @param request Command being answered.
-    /// @param response Response to deliver.
+    /// @param response Outcome carrying the token of the command it answers.
     ///
-    void complete_now(const definitions::Command& request, const definitions::Command& response);
+    void publish_response(const definitions::Command& response);
 
     ///
-    /// @brief Claim the next free in-flight slot for @p request.
-    ///
-    /// Used both for a command dispatched to a device and, through complete_now(), for one already
-    /// answered, so that every command occupies the queue until its turn to reply comes.
+    /// @brief Claim a free in-flight slot for a command dispatched to a device.
     ///
     /// @param request Command as received, carrying its token.
     /// @return false when every slot is occupied.
     ///
     bool push_pending(const definitions::Command& request);
-
-    ///
-    /// @brief Retire confirmed entries from the head, firing response_callback_ for each.
-    ///
-    /// Stops at the first unconfirmed entry, so replies leave the firmware in the order the client
-    /// issued the commands even when a device confirms out of order.
-    ///
-    void retire_pending();
 
     ///
     /// @brief Execute one state-machine cycle (to be called repeatedly in a loop).
@@ -312,28 +298,22 @@ class StateMachine {
     definitions::Command lastResponse_;  ///< Last executed response
 
     ///
-    /// @brief One command awaiting confirmation from the device that executes it.
+    /// @brief One command dispatched to a device and awaiting its confirmation.
     ///
-    /// Every command that reaches process_command() takes a slot, including the ones answered without
-    /// touching a device, and all of them leave through retire_pending(). A response that arrives
-    /// before an older one is held in @c response until every entry ahead of it has retired, so the
-    /// client sees exactly one reply per command, in the order it sent them — which is the ordering
-    /// a SCPI client correlates by.
+    /// Only device-bound commands take a slot: anything the FSM can answer on the spot is published
+    /// straight away. The token is what pairs the device's reply with the request, so entries are
+    /// independent of each other and of the order replies arrive in.
     ///
     struct PendingCommand {
-        definitions::Command request;   ///< The command as dispatched, carrying its token
-        definitions::Command response;  ///< The device's reply; meaningful once confirmed is true
-        unsigned long sentTimeMs;       ///< Dispatch timestamp, aged by handle_command_feedback_timeout()
-        bool occupied;                  ///< Slot holds a command that has not retired yet
-        bool confirmed;                 ///< Reply received (or timed out); waiting to reach the head
+        definitions::Command request;  ///< The command as dispatched, carrying its token
+        unsigned long sentTimeMs;      ///< Dispatch timestamp, aged by handle_command_feedback_timeout()
+        bool occupied;                 ///< Slot is waiting on a device
     };
 
-    std::array<PendingCommand, config::kMaxInFlightCommands> pending_;  ///< In-flight ring, oldest at pendingHead_
-    uint8_t pendingHead_;                                               ///< Index of the oldest occupied slot
+    std::array<PendingCommand, config::kMaxInFlightCommands> pending_;  ///< Commands awaiting their devices
     uint8_t pendingCount_;                                              ///< Number of occupied slots
-    bool lastCommandConfirmed_;  ///< True when the most recently retired command was confirmed, not timed out
-    std::function<void(const definitions::Command&)>
-        response_callback_;  ///< Fired on every command outcome; kCommandError type encodes failures
+    bool lastCommandConfirmed_;                         ///< True when the most recent outcome was a confirmation, not a timeout
+    interfaces::ICommandResponseQueue* response_sink_;  ///< Where command outcomes are published; may be nullptr
 };
 
 }  // namespace modules

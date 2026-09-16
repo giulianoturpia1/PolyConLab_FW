@@ -24,12 +24,22 @@ Communications& Communications::instance() {
 
 void Communications::begin(std::function<void(const std::string&)> serial_send) {
     serial_send_ = std::move(serial_send);
+    if (response_queue_ == nullptr) {
+        response_queue_ = xQueueCreate(config::kOutboundRingLength, sizeof(definitions::Command));
+        if (response_queue_ == nullptr) {
+            kLog.error("No se pudo crear la cola de respuestas hacia el cliente.");
+        }
+    }
     server_.begin();
 }
 
 void Communications::tick() {
+    // Outcomes the StateMachine published since the last tick are matched to their slots first, then
+    // new traffic is read (which may fill slots of its own), then everything ready goes out in order.
+    drain_responses();
     poll_network();
     poll_serial();
+    flush_outbound();
 }
 
 void Communications::poll_network() {
@@ -84,83 +94,12 @@ void Communications::poll_serial() {
     handle_message(msg);
 }
 
-void Communications::handle_response(const definitions::Command& cmd) {
-    // Find the client that issued this command by the token it was queued with. Identity, not
-    // position: a reply that arrives early still reaches the right client.
-    PendingResponder* pending = nullptr;
-    for (PendingResponder& candidate : pending_responders_) {
-        if (candidate.token != 0 && candidate.token == cmd.token) {
-            pending = &candidate;
-            break;
-        }
+bool Communications::queue_response(const definitions::Command& response, uint32_t timeout) {
+    if (response_queue_ == nullptr) {
+        return false;
     }
-
-    if (pending == nullptr) {
-        kLog.warning("Respuesta sin cliente asociado, descartada.");
-        return;
-    }
-
-    const Responder responder = pending->responder;
-    pending->token = 0;
-    pending->responder = nullptr;
-
-    if (!responder) {
-        return;
-    }
-
-    std::string response;
-
-    switch (cmd.type) {
-        // Boolean state queries: extra = 1 → ON/HIGH, 0 → OFF/LOW
-        case definitions::CommandType::kHeaterState:
-        case definitions::CommandType::kPumpState:
-        case definitions::CommandType::kChillerState:
-        case definitions::CommandType::kTempSetIn:  // ManualState answers with the resulting control state
-            response =
-                cmd.extra ? utils::to_scpi(definitions::ResponseType::kStatusOn) : utils::to_scpi(definitions::ResponseType::kStatusOff);
-            break;
-        case definitions::CommandType::kLevelSwitchState:
-            response =
-                cmd.extra ? utils::to_scpi(definitions::ResponseType::kStatusHigh) : utils::to_scpi(definitions::ResponseType::kStatusLow);
-            break;
-        case definitions::CommandType::kValveState:
-            response = (cmd.extra & definitions::kValveStatusOpenMask) ? utils::to_scpi(definitions::ResponseType::kStatusOpen)
-                                                                       : utils::to_scpi(definitions::ResponseType::kStatusClosed);
-            break;
-        // Numeric reads: extra holds IEEE-754 float bits packed via memcpy
-        case definitions::CommandType::kTempInRead:
-        case definitions::CommandType::kTempOutRead:
-        case definitions::CommandType::kTempBathRead:
-        case definitions::CommandType::kTempMixRead:
-        case definitions::CommandType::kFlowRead:
-            response = utils::format_sensor_value(cmd.extra);
-            break;
-        // State query: extra holds the SystemState enum value cast to uint32_t
-        case definitions::CommandType::kStateQuery:
-            response = utils::state_name(static_cast<definitions::SystemState>(cmd.extra));
-            break;
-        // Error sentinel: extra holds the ResponseType cast to uint32_t
-        case definitions::CommandType::kCommandError:
-            response = utils::to_scpi(static_cast<definitions::ResponseType>(cmd.extra));
-            break;
-        // Sensor re-initialisation: extra holds the ResponseType (kReinitOk / kErrorReinitFailed)
-        case definitions::CommandType::kTempInReinit:
-        case definitions::CommandType::kTempOutReinit:
-        case definitions::CommandType::kTempBathReinit:
-        case definitions::CommandType::kTempMixReinit:
-        case definitions::CommandType::kFlowReinit:
-        case definitions::CommandType::kLevelSwitchReinit:
-            response = utils::to_scpi(static_cast<definitions::ResponseType>(cmd.extra));
-            break;
-        // All other commands: static lookup through kCommandResponseMap
-        default:
-            response = utils::to_scpi(cmd.type);
-            break;
-    }
-
-    // Deliver through the responder captured when the command was queued, so the reply reaches the
-    // client that issued it — not merely whatever transport happens to be active now.
-    responder(response);
+    // Runs on the StateMachine's task: hand the value over and touch nothing else.
+    return xQueueSend(response_queue_, &response, pdMS_TO_TICKS(timeout)) == pdPASS;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
@@ -168,8 +107,11 @@ void Communications::handle_response(const definitions::Command& cmd) {
 Communications::Communications()
     : serial_send_(nullptr),
       active_responder_(nullptr),
-      pending_responders_(),
+      outbound_(),
+      outbound_head_(0),
+      outbound_count_(0),
       next_token_(0),
+      response_queue_(nullptr),
       active_transport_(definitions::Transport::kNone),
       active_client_(0),
       server_(TcpServer::instance()),
@@ -250,26 +192,25 @@ void Communications::handle_command(const std::string& msg) {
     // Queue the commands not handled above to the StateMachine, holding this client against the
     // token the reply will carry. Refuse up front when no slot is free: the StateMachine tracks the
     // same number of commands, so there would be nowhere to track this one either.
-    PendingResponder* slot = nullptr;
-    for (PendingResponder& candidate : pending_responders_) {
-        if (candidate.token == 0) {
-            slot = &candidate;
-            break;
-        }
-    }
-
-    if (slot == nullptr) {
+    if (commands_in_flight() >= config::kMaxInFlightCommands) {
         kLog.warning("Comando rechazado: hay demasiados comandos esperando respuesta.");
         respond_now(utils::to_scpi(definitions::ResponseType::kErrorBusy));
         return;
     }
 
-    slot->token = next_token();
-    slot->responder = active_responder_;
-    if (!StateMachine::instance().queue_command({cmd->command, extra, slot->token}, config::kCommsQueueTimeoutMs)) {
+    const uint16_t token = next_token();
+    Outbound* slot = claim_outbound(token);
+    if (slot == nullptr) {
+        kLog.warning("Comando rechazado: no hay lugar en la cola de salida.");
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorBusy));
+        return;
+    }
+
+    if (!StateMachine::instance().queue_command({cmd->command, extra, token}, config::kCommsQueueTimeoutMs)) {
+        // The command never reached the StateMachine, so nothing will fill this slot: answer it here.
         slot->token = 0;
-        slot->responder = nullptr;
-        respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
+        slot->response = utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand);
+        slot->answered = true;
     }
 }
 
@@ -282,8 +223,8 @@ uint16_t Communications::next_token() {
             next_token_ = 1;
         }
         in_use = false;
-        for (const PendingResponder& candidate : pending_responders_) {
-            if (candidate.token == next_token_) {
+        for (const Outbound& candidate : outbound_) {
+            if (candidate.occupied && candidate.token == next_token_) {
                 in_use = true;
                 break;
             }
@@ -310,9 +251,15 @@ void Communications::handle_event(const std::string& msg) {
 }
 
 void Communications::respond_now(const std::string& response) {
-    if (active_responder_) {
-        active_responder_(response);
+    Outbound* slot = claim_outbound(0);
+    if (slot == nullptr) {
+        // No room to keep this in order. Answering out of turn would desynchronise a client that
+        // correlates by position, so the message goes unanswered and its own timeout covers it.
+        kLog.warning("Sin lugar en la cola de salida: respuesta descartada.");
+        return;
     }
+    slot->response = response;
+    slot->answered = true;
 }
 
 uint32_t Communications::parse_valve_pin(const std::string& msg) const {
@@ -360,4 +307,128 @@ bool Communications::parse_setpoint_bits(const std::string& msg, uint32_t& out_b
     out_bits = utils::float_to_bits(setpoint);
     return true;
 }
+
+std::string Communications::format_response(const definitions::Command& cmd) const {
+    std::string response;
+
+    switch (cmd.type) {
+        // Boolean state queries: extra = 1 → ON/HIGH, 0 → OFF/LOW
+        case definitions::CommandType::kHeaterState:
+        case definitions::CommandType::kPumpState:
+        case definitions::CommandType::kChillerState:
+        case definitions::CommandType::kTempSetIn:  // ManualState answers with the resulting control state
+            response =
+                cmd.extra ? utils::to_scpi(definitions::ResponseType::kStatusOn) : utils::to_scpi(definitions::ResponseType::kStatusOff);
+            break;
+        case definitions::CommandType::kLevelSwitchState:
+            response =
+                cmd.extra ? utils::to_scpi(definitions::ResponseType::kStatusHigh) : utils::to_scpi(definitions::ResponseType::kStatusLow);
+            break;
+        case definitions::CommandType::kValveState:
+            response = (cmd.extra & definitions::kValveStatusOpenMask) ? utils::to_scpi(definitions::ResponseType::kStatusOpen)
+                                                                       : utils::to_scpi(definitions::ResponseType::kStatusClosed);
+            break;
+        // Numeric reads: extra holds IEEE-754 float bits packed via memcpy
+        case definitions::CommandType::kTempInRead:
+        case definitions::CommandType::kTempOutRead:
+        case definitions::CommandType::kTempBathRead:
+        case definitions::CommandType::kTempMixRead:
+        case definitions::CommandType::kFlowRead:
+            response = utils::format_sensor_value(cmd.extra);
+            break;
+        // State query: extra holds the SystemState enum value cast to uint32_t
+        case definitions::CommandType::kStateQuery:
+            response = utils::state_name(static_cast<definitions::SystemState>(cmd.extra));
+            break;
+        // Error sentinel: extra holds the ResponseType cast to uint32_t
+        case definitions::CommandType::kCommandError:
+            response = utils::to_scpi(static_cast<definitions::ResponseType>(cmd.extra));
+            break;
+        // Sensor re-initialisation: extra holds the ResponseType (kReinitOk / kErrorReinitFailed)
+        case definitions::CommandType::kTempInReinit:
+        case definitions::CommandType::kTempOutReinit:
+        case definitions::CommandType::kTempBathReinit:
+        case definitions::CommandType::kTempMixReinit:
+        case definitions::CommandType::kFlowReinit:
+        case definitions::CommandType::kLevelSwitchReinit:
+            response = utils::to_scpi(static_cast<definitions::ResponseType>(cmd.extra));
+            break;
+        // All other commands: static lookup through kCommandResponseMap
+        default:
+            response = utils::to_scpi(cmd.type);
+            break;
+    }
+
+    return response;
+}
+
+Communications::Outbound* Communications::claim_outbound(uint16_t token) {
+    if (outbound_count_ >= outbound_.size()) {
+        return nullptr;
+    }
+
+    Outbound& slot = outbound_[(outbound_head_ + outbound_count_) % outbound_.size()];
+    slot.token = token;
+    slot.responder = active_responder_;
+    slot.occupied = true;
+    slot.answered = false;
+    slot.response.clear();
+    ++outbound_count_;
+    return &slot;
+}
+
+void Communications::drain_responses() {
+    if (response_queue_ == nullptr) {
+        return;
+    }
+
+    definitions::Command response{};
+    while (xQueueReceive(response_queue_, &response, 0) == pdPASS) {
+        Outbound* slot = nullptr;
+        for (uint8_t i = 0; i < outbound_count_; ++i) {
+            Outbound& candidate = outbound_[(outbound_head_ + i) % outbound_.size()];
+            if (candidate.occupied && !candidate.answered && candidate.token == response.token) {
+                slot = &candidate;
+                break;
+            }
+        }
+
+        if (slot == nullptr) {
+            kLog.warning("Respuesta sin cliente asociado, descartada.");
+            continue;
+        }
+
+        slot->response = format_response(response);
+        slot->answered = true;
+    }
+}
+
+void Communications::flush_outbound() {
+    while (outbound_count_ > 0) {
+        Outbound& head = outbound_[outbound_head_];
+        if (!head.answered) {
+            return;  // an earlier message is still owed a reply; everything behind it waits
+        }
+
+        if (head.responder) {
+            head.responder(head.response);
+        }
+
+        head = Outbound();
+        outbound_head_ = static_cast<uint8_t>((outbound_head_ + 1) % outbound_.size());
+        --outbound_count_;
+    }
+}
+
+uint8_t Communications::commands_in_flight() const {
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < outbound_count_; ++i) {
+        const Outbound& slot = outbound_[(outbound_head_ + i) % outbound_.size()];
+        if (slot.occupied && !slot.answered) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 }  // namespace modules

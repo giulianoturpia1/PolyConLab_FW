@@ -11,6 +11,9 @@
 
 #pragma once
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -28,16 +31,20 @@ namespace modules {
 /// Implemented as a singleton.
 ///
 /// Each incoming message carries a write-back to its sender (the WiFi client's callback, or
-/// serial_send_ for Serial); the one for the message being dispatched is held in active_responder_,
-/// and respond_now() replies through it. Commands needing a StateMachine round-trip push it onto
-/// pending_responders_ before queuing, so handle_response() later replies to the original client
-/// even if other messages were served meanwhile. Inline commands (SYST:LOG*, invalid params,
-/// unknown) answer immediately via respond_now() without touching the table.
+/// serial_send_ for Serial); the one for the message being dispatched is held in active_responder_
+/// and copied into that message's outbound slot, so a reply reaches the client that asked for it
+/// even after other messages have been served.
 ///
-/// Responders are held against the token this layer assigns to each queued command, and the
-/// StateMachine echoes that token back on the reply, so handle_response() looks the right client up
-/// by identity. Nothing here depends on the order replies come back in — the StateMachine keeps the
-/// wire ordered for the client's sake, not for this table's.
+/// Ordering and delivery both live here, because both belong to the conversation this layer owns.
+/// Every accepted message that owes a reply takes the next slot of outbound_ as it arrives; a reply
+/// this layer can give at once fills its slot immediately, and one that needs the StateMachine fills
+/// it later, found by the token this layer assigned. flush_outbound() writes slots out from the head
+/// while they are answered, so the client is answered once per command, in the order it asked,
+/// whether or not the StateMachine finished them in that order.
+///
+/// The StateMachine publishes outcomes from its own task, so they arrive through response_queue_ as
+/// plain Command values and are formatted and delivered on the App task in tick(). Nothing in
+/// outbound_ is touched by two tasks, and only the flush writes to a client.
 ///
 /// Authorization is delegated to authorizer_ (see Authorizer): Serial is always privileged, WiFi
 /// actuation is gated to the first client that claims the operator role, and poll_network() frees the
@@ -69,12 +76,16 @@ class Communications {
     void tick();
 
     ///
-    /// @brief Format a command outcome and deliver the SCPI string to the originating client.
-    /// Invoked by the StateMachine for every command outcome, success or failure.
+    /// @brief Accept a command outcome from the StateMachine for delivery on the next tick().
     ///
-    /// @param cmd Outcome Command delivered by the StateMachine.
+    /// Called from the StateMachine's task through CommunicationsResponseQueue: it only hands the
+    /// value over, so no client state is touched from that task.
     ///
-    void handle_response(const definitions::Command& cmd);
+    /// @param response Outcome Command, carrying the token of the command it answers.
+    /// @param timeout Maximum time to wait for room in the queue, in milliseconds.
+    /// @return true if the queue accepted it; false if it was full or not yet created.
+    ///
+    bool queue_response(const definitions::Command& response, uint32_t timeout);
 
    private:
     Communications();
@@ -119,7 +130,11 @@ class Communications {
     void handle_event(const std::string& msg);
 
     ///
-    /// @brief Send a response immediately to the client currently being served (active_responder_).
+    /// @brief Answer the message being served without a StateMachine round-trip.
+    ///
+    /// Takes the next outbound slot and fills it, so an answer that is ready at once still leaves
+    /// after any reply owed to an earlier message. Despite the name nothing is written here; the
+    /// write happens in flush_outbound().
     ///
     /// @param response SCPI-formatted response string.
     ///
@@ -155,18 +170,51 @@ class Communications {
     using Responder = std::function<void(const std::string&)>;
 
     ///
-    /// @brief A client waiting for the reply to one queued command.
+    /// @brief One reply owed to a client, held until every reply owed before it has gone out.
     ///
-    struct PendingResponder {
-        uint16_t token;       ///< Correlation id of the queued command; 0 marks a free slot
-        Responder responder;  ///< Write-back that delivers the reply to that client
+    struct Outbound {
+        uint16_t token;        ///< Id the StateMachine's reply will carry; 0 when answered here
+        Responder responder;   ///< Write-back for the client that asked
+        bool occupied;         ///< Slot is in use
+        bool answered;         ///< response is filled and the slot is ready to go out
+        std::string response;  ///< SCPI line to write once this slot reaches the head
     };
+
+    ///
+    /// @brief Claim the next outbound slot for the message being served.
+    ///
+    /// @param token Correlation id the reply will carry, or 0 when the caller fills the slot itself.
+    /// @return The claimed slot, or nullptr when the ring is full.
+    ///
+    Outbound* claim_outbound(uint16_t token);
+
+    ///
+    /// @brief Move every outcome the StateMachine published into its outbound slot.
+    ///
+    void drain_responses();
+
+    ///
+    /// @brief Write out answered slots from the head, stopping at the first one still waiting.
+    ///
+    void flush_outbound();
+
+    ///
+    /// @brief Render a command outcome as its SCPI wire string.
+    ///
+    std::string format_response(const definitions::Command& cmd) const;
+
+    ///
+    /// @brief Count the slots still waiting on the StateMachine, which is what it is tracking too.
+    ///
+    uint8_t commands_in_flight() const;
 
     Responder serial_send_;       ///< Serial write-back. Supplied once via begin() and reused for every response.
     Responder active_responder_;  ///< Write-back for the message being dispatched (WiFi client callback, or serial_send_).
-    std::array<PendingResponder, config::kMaxInFlightCommands>
-        pending_responders_;                   ///< Clients awaiting a reply, looked up by token in handle_response()
-    uint16_t next_token_;                      ///< Correlation id generator
+    std::array<Outbound, config::kOutboundRingLength> outbound_;  ///< Replies owed, oldest at outbound_head_
+    uint8_t outbound_head_;                                       ///< Index of the oldest slot still owed
+    uint8_t outbound_count_;                                      ///< Slots in use
+    uint16_t next_token_;                                         ///< Correlation id generator
+    QueueHandle_t response_queue_;                                ///< Outcomes published by the StateMachine's task, drained in tick()
     definitions::Transport active_transport_;  ///< Transport of the current message. Used for authorization/identity, not for routing.
     definitions::ClientId active_client_;      ///< WiFi sender of the current message; 0 for serial.
     Authorizer authorizer_;                    ///< Owns the operator-role state and the actuation gate.
