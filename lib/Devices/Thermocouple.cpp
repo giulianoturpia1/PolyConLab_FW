@@ -204,8 +204,27 @@ float Thermocouple::readCelcius(uint32_t address) {
         return NAN;
     }
 
-    // Return the thermocouple temperature reading in Celsius
-    return thermocouples_[index].device.readThermocouple();
+    // Return the thermocouple temperature reading in Celsius as the average of the valid samples.
+    float avg = 0.0f;
+    uint8_t valid_count = 0;
+    for (int i = 0; i < config::kThermocoupleReadAverageCount; ++i) {
+        const float reading = thermocouples_[index].device.readThermocouple();
+        if (std::isnan(reading)) {
+            vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
+            continue;
+        }
+
+        avg += reading;
+        ++valid_count;
+        vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
+    }
+
+    if (valid_count == 0) {
+        return NAN;
+    }
+
+    avg /= static_cast<float>(valid_count);
+    return avg;
 }
 
 uint8_t Thermocouple::count() const {
