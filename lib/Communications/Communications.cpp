@@ -316,6 +316,7 @@ std::string Communications::format_response(const definitions::Command& cmd) con
         case definitions::CommandType::kHeaterState:
         case definitions::CommandType::kPumpState:
         case definitions::CommandType::kChillerState:
+        case definitions::CommandType::kMixerState:
         case definitions::CommandType::kTempSetIn:  // ManualState answers with the resulting control state
             response =
                 cmd.extra ? utils::to_scpi(definitions::ResponseType::kStatusOn) : utils::to_scpi(definitions::ResponseType::kStatusOff);

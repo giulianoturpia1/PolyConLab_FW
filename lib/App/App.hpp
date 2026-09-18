@@ -22,7 +22,7 @@ namespace modules {
 class Communications;
 class Heater;
 class Pump;
-class Chiller;
+class RelayOutput;
 class SolenoidValve;
 class Thermocouple;
 class Flowmeter;
@@ -122,7 +122,8 @@ class App {
     Communications& communications_;
     Heater& heater_;
     Pump& pump_;
-    Chiller& chiller_;
+    RelayOutput& chiller_;
+    RelayOutput& mixer_;
     SolenoidValve& valves_;
     Thermocouple& thermocouples_;
     Flowmeter& flowmeter_;
