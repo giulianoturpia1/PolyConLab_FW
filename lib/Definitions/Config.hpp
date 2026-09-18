@@ -324,4 +324,8 @@ constexpr uint8_t kOutboundRingLength = 8;
 constexpr float kTempSetpointMinC = 0.0f;
 constexpr float kTempSetpointMaxC = 100.0f;
 
+constexpr float kThermocoupleReadAverageCount = 5;  ///< Number of readings to average for thermocouple temperature. Not greater than 10 to
+                                                    ///< avoid excessive delay in the readCelcius() function.
+constexpr float kThermocoupleReadDelayMs = 5.0f;    ///< Delay in milliseconds between each thermocouple reading for averaging
+
 }  // namespace config
