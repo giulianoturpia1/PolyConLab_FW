@@ -39,13 +39,16 @@ bool Thermocouple::begin(const uint32_t* adds, size_t count) {
     }
 
     const uint8_t bounded_count = static_cast<uint8_t>(std::min(count, static_cast<size_t>(definitions::kMaxThermocouples)));
+    // Attempt every address even if an earlier one fails, so a dead amplifier at one address does
+    // not leave a later, healthy amplifier unregistered.
+    bool all_ok = true;
     for (uint8_t index = 0; index < bounded_count; ++index) {
         if (!add(adds[index])) {
-            return false;
+            all_ok = false;
         }
     }
 
-    return true;
+    return all_ok;
 }
 
 bool Thermocouple::accepts(definitions::CommandType type) const {
@@ -53,6 +56,10 @@ bool Thermocouple::accepts(definitions::CommandType type) const {
            type == definitions::CommandType::kTempBathRead || type == definitions::CommandType::kTempMixRead ||
            type == definitions::CommandType::kTempInReinit || type == definitions::CommandType::kTempOutReinit ||
            type == definitions::CommandType::kTempBathReinit || type == definitions::CommandType::kTempMixReinit;
+}
+
+bool Thermocouple::is_initialized(uint32_t address) const {
+    return find_index(address) < thermoc_count_;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
