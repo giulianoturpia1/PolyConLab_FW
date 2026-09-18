@@ -48,8 +48,10 @@ const char* CheckupState::name() const {
     return "CHECKUP";
 }
 
-bool CheckupState::handle_command(StateMachine* context, const definitions::Command& request) {
+definitions::CommandOutcome CheckupState::handle_command(StateMachine* context, const definitions::Command& request,
+                                                         definitions::Command& out_response) {
     (void) context;
+    (void) out_response;
     // Read-only sensor queries and per-sensor re-initialisation are accepted during CHECKUP so
     // the SCADA can probe each device and recover one that failed init.  Actuator commands are
     // always rejected here.
@@ -66,9 +68,10 @@ bool CheckupState::handle_command(StateMachine* context, const definitions::Comm
         case definitions::CommandType::kTempMixReinit:
         case definitions::CommandType::kFlowReinit:
         case definitions::CommandType::kLevelSwitchReinit:
-            return DeviceDispatcher::instance().issue_to_device(request, kCheckupTimeWindowMs);
+            return DeviceDispatcher::instance().issue_to_device(request, kCheckupTimeWindowMs) ? definitions::CommandOutcome::kPending
+                                                                                               : definitions::CommandOutcome::kRejected;
         default:
-            return false;
+            return definitions::CommandOutcome::kRejected;
     }
 }
 

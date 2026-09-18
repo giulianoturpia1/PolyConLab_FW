@@ -165,6 +165,9 @@ class AsyncDevice : public interfaces::IDevice {
         while (self->queue_ != nullptr) {
             if (xQueueReceive(self->queue_, &item, config::kDeviceWaitTicks) == pdPASS) {
                 if (self->execute_command(item.cmd, response) && item.publish) {
+                    // execute_command() builds the response from scratch, so the correlation id has
+                    // to be restamped here for the StateMachine to match it to its request.
+                    response.token = item.cmd.token;
                     self->publish_response(response);
                 }
             }

@@ -58,6 +58,17 @@ class Thermocouple : public AsyncDevice {
     /// @copydoc interfaces::IDevice::accepts
     bool accepts(definitions::CommandType type) const override;
 
+    ///
+    /// @brief Whether the Thermocouple Amplifier at @p address is currently registered.
+    ///
+    /// True after a successful begin()/add() for this address that has not since been dropped by
+    /// remove() or a failed reinit().
+    ///
+    /// @param address I2C address of the Thermocouple Amplifier.
+    /// @return bool True if the address is currently registered.
+    ///
+    bool is_initialized(uint32_t address) const;
+
    protected:
     ///
     /// @copydoc modules::AsyncDevice::execute_command

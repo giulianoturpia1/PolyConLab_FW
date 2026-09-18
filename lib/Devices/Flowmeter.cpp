@@ -62,7 +62,7 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
     pulsesPerLiter_ = pulsesPerLiter;
     hal_general().pin_mode(pin_, INPUT_PULLUP);
 
-    attachInterrupt(digitalPinToInterrupt(27), isrFlowMeter, FALLING);
+    attachInterrupt(digitalPinToInterrupt(pin_), isrFlowMeter, FALLING);
 
     flowTimer = timerBegin(0, 80, true);  // timer 0, prescaler 80 → 1 tick = 1 µs
     if (flowTimer == nullptr) {

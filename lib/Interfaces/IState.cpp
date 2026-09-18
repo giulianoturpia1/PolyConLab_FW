@@ -7,10 +7,12 @@
 
 namespace interfaces {
 
-bool IState::handle_command(modules::StateMachine* context, const definitions::Command& request) {
+definitions::CommandOutcome IState::handle_command(modules::StateMachine* context, const definitions::Command& request,
+                                                   definitions::Command& out_response) {
     (void) context;
     (void) request;
-    return false;
+    (void) out_response;
+    return definitions::CommandOutcome::kRejected;
 }
 
 void IState::on_enter(modules::StateMachine* context) {
@@ -36,6 +38,7 @@ void IState::apply_safe_outputs() {
     modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
     modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kPumpOff, 0u}, 0);
     modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kChillerOff, 0u}, 0);
+    modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kMixerOff, 0u}, 0);
 }
 
 void IState::close_all_valves() {

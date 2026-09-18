@@ -18,7 +18,8 @@ namespace modules {
 class ManualState final : public IState {
    public:
     definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) override;
-    bool handle_command(StateMachine* context, const definitions::Command& request) override;
+    definitions::CommandOutcome handle_command(StateMachine* context, const definitions::Command& request,
+                                               definitions::Command& out_response) override;
     definitions::SystemState tick(StateMachine* context) override;
     void on_enter(StateMachine* context) override;
     void on_exit(StateMachine* context) override;

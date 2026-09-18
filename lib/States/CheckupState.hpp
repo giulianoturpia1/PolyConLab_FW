@@ -21,7 +21,8 @@ class CheckupState final : public IState {
     /// @brief Allow read-only sensor queries and SYST:REINIT:* re-init commands during CHECKUP
     ///        so the SCADA can probe each device (deciding EVT:SENSORS OK vs EVT:FAULT
     ///        RECOVERABLE) and recover a failed sensor.  Actuator commands are rejected.
-    bool handle_command(StateMachine* context, const definitions::Command& request) override;
+    definitions::CommandOutcome handle_command(StateMachine* context, const definitions::Command& request,
+                                               definitions::Command& out_response) override;
     void on_enter(StateMachine* context) override;
     const char* name() const override;
 

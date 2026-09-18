@@ -199,6 +199,35 @@ inline float bits_to_float(uint32_t bits) {
 }
 
 ///
+/// @brief Look up the wire name of a FaultId.
+///
+/// @param id Fault identity to look up.
+/// @return const char* Wire name (e.g. "TEMP_IN"), or "UNKNOWN" if not found.
+///
+inline const char* fault_name(const definitions::FaultId id) {
+    const auto it = std::find_if(definitions::kFaultNameMap.begin(), definitions::kFaultNameMap.end(),
+                                 [id](const definitions::FaultNameEntry& entry) { return entry.id == id; });
+    return it != definitions::kFaultNameMap.end() ? it->name : "UNKNOWN";
+}
+
+///
+/// @brief Resolve a SYST:REINIT:* command to the FaultId it clears on success.
+///
+/// @param type Command type to look up.
+/// @param out_fault Set to the matching FaultId when @p type is one of the re-init commands.
+/// @return bool True if @p type is a re-init command and @p out_fault was filled.
+///
+inline bool fault_for_reinit(const definitions::CommandType type, definitions::FaultId& out_fault) {
+    const auto it = std::find_if(definitions::kReinitFaultMap.begin(), definitions::kReinitFaultMap.end(),
+                                 [type](const definitions::ReinitFaultEntry& entry) { return entry.command == type; });
+    if (it == definitions::kReinitFaultMap.end()) {
+        return false;
+    }
+    out_fault = it->fault;
+    return true;
+}
+
+///
 /// @brief Unpack an IEEE-754 float stored in a uint32_t and format it to 2 decimal places.
 ///
 /// Sensor modules pack float readings into Command::extra via memcpy. This function

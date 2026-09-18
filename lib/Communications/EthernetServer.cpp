@@ -9,6 +9,7 @@
 #include "Config.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
+#include "ScopedLock.hpp"
 
 // Arduino's own class (Ethernet.h) is also named EthernetServer. Bind the alias to the global
 // ::EthernetServer explicitly so it can never be confused with modules::EthernetServer (this class).
@@ -88,18 +89,17 @@ bool EthernetServer::begin() {
 static EthernetServer::ClientResponseCallback create_response_callback(std::shared_ptr<EthernetClient> client,
                                                                        SemaphoreHandle_t spi_mutex) {
     return [client, spi_mutex](const std::string& response) {
-        if (xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(config::kSpiMutexCallbackTimeoutMs)) != pdTRUE) {
+        ScopedLock lock(spi_mutex, pdMS_TO_TICKS(config::kSpiMutexCallbackTimeoutMs));
+        if (!lock.held()) {
             kLog.warning("callback: no se pudo tomar el mutex SPI, respuesta descartada: " + response);
             return;
         }
         if (!client->connected()) {
             kLog.warning("callback: Cliente desconectado, respuesta descartada: " + response);
-            xSemaphoreGive(spi_mutex);
             return;
         }
         client->println(response.c_str());
         kLog.debug("Respuesta Enviada: " + response);
-        xSemaphoreGive(spi_mutex);
     };
 }
 
@@ -109,46 +109,53 @@ void EthernetServer::poll(const ClientMessageHandler& handler) {
         return;
     }
 
-    if (xSemaphoreTake(spi_mutex_, pdMS_TO_TICKS(config::kSpiMutexPollTimeoutMs)) != pdTRUE) {
-        kLog.warning("poll: no se pudo tomar el mutex SPI, saltando tick.");
-        return;
+    // Drain up to kMaxLinesPerPollTick lines per tick, mirroring WifiServer::poll: a burst of queries
+    // is read in one tick instead of one line per tick, bounded so one client cannot hold the App task.
+    for (uint8_t line = 0; line < config::kMaxLinesPerPollTick; ++line) {
+        std::string msg;
+        ClientId client_id = 0;
+        std::shared_ptr<EthernetClient> client_ptr;
+        {
+            ScopedLock lock(spi_mutex_, pdMS_TO_TICKS(config::kSpiMutexPollTimeoutMs));
+            if (!lock.held()) {
+                kLog.warning("poll: no se pudo tomar el mutex SPI, saltando tick.");
+                return;
+            }
+
+            // Adopt the next arrival only when we have no live client; once connected, service it directly so
+            // its identity stays stable, and close any surplus socket so the session is single-client at the
+            // transport layer (a wired LAN, unlike the WiFi SoftAP, has no association cap of its own).
+            if (!gClient.connected()) {
+                gClient = gEthernetServer.available();
+            } else {
+                reject_extra_clients();
+            }
+
+            // Refresh the cached identity every tick — including idle ones — so connected_client() reports
+            // an accurate presence and the comms layer can free the operator role when the client leaves.
+            connected_client_ = gClient.connected() ? static_cast<ClientId>(gClient.remoteIP()) : 0;
+
+            if (!gClient.connected() || !gClient.available()) {
+                return;  // nothing more buffered: the tick is done — the guard releases on the way out
+            }
+
+            String arduino_msg = gClient.readStringUntil('\n');
+            client_id = connected_client_;
+            msg = utils::trim(std::string(arduino_msg.c_str()));
+            client_ptr = std::make_shared<EthernetClient>(gClient);
+        }
+
+        if (msg.length() == 0) {
+            kLog.warning("poll: mensaje recibido pero vacio tras acondicionamiento, descartando.");
+            continue;  // keep draining: the next line may be valid
+        }
+
+        kLog.debug("Nuevo Mensaje del Cliente: " + msg);
+
+        ClientResponseCallback respond = create_response_callback(client_ptr, spi_mutex_);
+
+        handler(msg, client_id, respond);
     }
-
-    // Adopt the next arrival only when we have no live client; once connected, service it directly so
-    // its identity stays stable, and close any surplus socket so the session is single-client at the
-    // transport layer (a wired LAN, unlike the WiFi SoftAP, has no association cap of its own).
-    if (!gClient.connected()) {
-        gClient = gEthernetServer.available();
-    } else {
-        reject_extra_clients();
-    }
-
-    // Refresh the cached identity every tick — including idle ones — so connected_client() reports
-    // an accurate presence and the comms layer can free the operator role when the client leaves.
-    connected_client_ = gClient.connected() ? static_cast<ClientId>(gClient.remoteIP()) : 0;
-
-    if (!gClient.connected() || !gClient.available()) {
-        xSemaphoreGive(spi_mutex_);
-        return;
-    }
-
-    String arduino_msg = gClient.readStringUntil('\n');
-    const ClientId client_id = connected_client_;
-    xSemaphoreGive(spi_mutex_);  // Release before handler — no more SPI needed here.
-
-    std::string msg(arduino_msg.c_str());
-    msg = utils::trim(msg);
-    if (msg.length() == 0) {
-        kLog.warning("poll: mensaje recibido pero vacio tras acondicionamiento, descartando.");
-        return;
-    }
-
-    kLog.debug("Nuevo Mensaje del Cliente: " + msg);
-
-    auto client_ptr = std::make_shared<EthernetClient>(gClient);
-    ClientResponseCallback respond = create_response_callback(client_ptr, spi_mutex_);
-
-    handler(msg, client_id, respond);
 }
 
 EthernetServer::ClientId EthernetServer::connected_client() const {

@@ -282,6 +282,36 @@ constexpr uint8_t kMaxCommandsPerTick = 4;
 ///
 constexpr uint8_t kMaxResponsesPerTick = 4;
 
+///
+/// @brief Commands that may await device confirmation at the same time.
+///
+/// Bounds both the StateMachine in-flight table and the Communications responder table, which are
+/// kept the same depth so a command that Communications accepts always finds a slot downstream.
+/// A command arriving with every slot occupied is answered kErrorBusy instead of displacing an
+/// older one. Kept at kMaxCommandsPerTick so a full intake tick never has to reject.
+///
+constexpr uint8_t kMaxInFlightCommands = 4;
+
+///
+/// @brief Lines read from the connected client in a single communications poll tick.
+///
+/// At kAppTaskPeriodMs this sets the ingest rate: one line per tick was below what a burst of
+/// sensor queries needs, so a round of them took several ticks just to be read. Bounds the work one
+/// busy client can impose on the App task, and is kept at kMaxInFlightCommands so a full tick of
+/// commands never has to be refused for want of a slot.
+///
+constexpr uint8_t kMaxLinesPerPollTick = 4;
+
+///
+/// @brief Replies Communications can hold before they are written to the client.
+///
+/// Every accepted message that owes a reply takes a slot, in arrival order: one answered on the
+/// spot (SYST:LOG*, a rejected parameter) and one still waiting on a device both occupy one. Sized
+/// above kMaxInFlightCommands so inline answers queued behind a slow command do not exhaust the
+/// ring and start refusing traffic the StateMachine could still have accepted.
+///
+constexpr uint8_t kOutboundRingLength = 8;
+
 // ── Control Setpoint Limits ───────────────────────────────────────────────────
 
 ///
