@@ -1,16 +1,13 @@
 #include "IState.hpp"
 
-#include "Chiller.hpp"
 #include "Definitions.hpp"
-#include "Heater.hpp"
-#include "Pump.hpp"
-#include "SolenoidValve.hpp"
+#include "DeviceDispatcher.hpp"
 #include "StateMachine.hpp"
 #include "TargetDefinitions.hpp"
 
 namespace interfaces {
 
-bool IState::dispatch_command(modules::StateMachine* context, const definitions::Command& request) {
+bool IState::handle_command(modules::StateMachine* context, const definitions::Command& request) {
     (void) context;
     (void) request;
     return false;
@@ -33,16 +30,20 @@ definitions::SystemState IState::tick(modules::StateMachine* context) {
 }
 
 void IState::apply_safe_outputs() {
-    modules::Heater::instance().queue_command({definitions::CommandType::kHeaterOff, 0u}, 10);
-    modules::Pump::instance().queue_command({definitions::CommandType::kPumpOff, 0u}, 10);
-    modules::Chiller::instance().queue_command({definitions::CommandType::kChillerOff, 0u}, 10);
+    // Safety actuation, not a client command: enforce it through the dispatcher so no
+    // confirmation report is injected into the StateMachine response queue. The timeout is
+    // ignored — every actuator is a SyncDevice that executes inline.
+    modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
+    modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kPumpOff, 0u}, 0);
+    modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kChillerOff, 0u}, 0);
 }
 
 void IState::close_all_valves() {
-    modules::SolenoidValve::instance().queue_command(
-        {definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve1)}, 10);
-    modules::SolenoidValve::instance().queue_command(
-        {definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve2)}, 10);
+    // Safety actuation, not a client command: see apply_safe_outputs().
+    modules::DeviceDispatcher::instance().enforce_to_device(
+        {definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve1)}, 0);
+    modules::DeviceDispatcher::instance().enforce_to_device(
+        {definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve2)}, 0);
 }
 
 }  // namespace interfaces

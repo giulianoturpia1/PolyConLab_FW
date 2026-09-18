@@ -15,16 +15,15 @@
 #include <Adafruit_I2CRegister.h>
 #include <Wire.h>
 #include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
+#include <freertos/semphr.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include <array>
 
 #include "Adafruit_MCP9600.h"
+#include "AsyncDevice.hpp"
 #include "Definitions.hpp"
-#include "ICommandResponseQueue.hpp"
-#include "IDevice.hpp"
 
 namespace modules {
 
@@ -32,7 +31,11 @@ namespace modules {
 /// @brief Singleton Thermocouple Amplifier controller. It supports multiple Thermocouple Amplifiers and manages their states.
 /// Thermocouple Amplifiers are identified by their I2C addresses.
 ///
-class Thermocouple : public interfaces::IDevice {
+/// An AsyncDevice: temperature reads are blocking I2C transactions served on a
+/// dedicated task (Core 1). All bus access — from the task and from synchronous
+/// callers (e.g. control states on Core 0) — is serialized by a shared bus mutex.
+///
+class Thermocouple : public AsyncDevice {
    public:
     ///
     /// @brief Get the singleton instance of the Thermocouple controller.
@@ -40,18 +43,6 @@ class Thermocouple : public interfaces::IDevice {
     /// @return Thermocouple&
     ///
     static Thermocouple& instance();
-
-    ///
-    /// @brief Create the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool create_task();
-
-    ///
-    /// @brief Set the sink used to publish command execution responses.
-    ///
-    /// @param queue Response queue implementation. If nullptr, response publishing is disabled.
-    ///
-    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
     ///
     /// @brief Initialize controller with an array of I2C addresses.
@@ -64,8 +55,29 @@ class Thermocouple : public interfaces::IDevice {
     ///
     bool begin(const uint32_t* adds, size_t count);
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+   protected:
     ///
-    /// @brief Register a Thermocouple with a certain address.
+    /// @copydoc modules::AsyncDevice::execute_command
+    /// @note Resolves cmd.type to the corresponding I2C address (kTempInRead → kTempIn, etc.),
+    ///       reads the sensor and packs the temperature as IEEE-754 bits in the response's extra.
+    ///
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+
+   private:
+    Thermocouple();
+
+    // Rule of Five
+    ~Thermocouple() = default;
+    Thermocouple(const Thermocouple&) = delete;
+    Thermocouple& operator=(const Thermocouple&) = delete;
+    Thermocouple(Thermocouple&&) = delete;
+    Thermocouple& operator=(Thermocouple&&) = delete;
+
+    ///
+    /// @brief Register a Thermocouple with a certain address. Used internally by begin().
     /// Should count be higher than the maximum supported, only the first kMaxThermocouples will be registered.
     /// @note If an address that already exists in the controller, it will not be registered again, but it will not cause any
     /// issue as the controller will ignore duplicates.
@@ -84,38 +96,23 @@ class Thermocouple : public interfaces::IDevice {
     bool remove(uint32_t address);
 
     ///
-    /// @brief Read temperature in Celsius of the Thermocouple Amplifier with the address given.
-    ///
-    /// @param address I2C address of the Thermocouple Amplifier.
-    /// @return temperature in °C or NaN if unavailable or address not registered.
-    ///
-    float readCelcius(uint32_t address);
-
-    ///
     /// @brief Get number of registered Thermocouple Amplifiers.
     ///
     /// @return uint8_t
     ///
     uint8_t count() const;
 
-    /// @copydoc interfaces::IDevice::accepts
-    bool accepts(definitions::CommandType type) const override;
-
     ///
-    /// @copydoc interfaces::IDevice::queue_command(const definitions::Command&, uint32_t)
-    /// @note Resolves cmd.type to the corresponding I2C address internally (kTempInRead → kTempIn, etc.).
+    /// @brief Read temperature in Celsius of the Thermocouple Amplifier with the address given.
     ///
-    bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) override;
-
-   private:
-    Thermocouple();
-
-    // Rule of Five
-    ~Thermocouple() = default;
-    Thermocouple(const Thermocouple&) = delete;
-    Thermocouple& operator=(const Thermocouple&) = delete;
-    Thermocouple(Thermocouple&&) = delete;
-    Thermocouple& operator=(Thermocouple&&) = delete;
+    /// Acquires the shared I2C bus mutex for the duration of the transaction, so it is safe to
+    /// call from any task. Returns NaN if the bus cannot be acquired within config::kI2cBusTimeoutMs.
+    /// Reached via execute_command() (command path and synchronous read() alike).
+    ///
+    /// @param address I2C address of the Thermocouple Amplifier.
+    /// @return temperature in °C or NaN if unavailable or address not registered.
+    ///
+    float readCelcius(uint32_t address);
 
     ///
     /// @brief Find the index of a Thermocouple Amplifier by its address.
@@ -126,32 +123,6 @@ class Thermocouple : public interfaces::IDevice {
     uint8_t find_index(uint32_t address) const;
 
     ///
-    /// @brief Process a Thermocouple Amplifier command from the task loop.
-    /// Reads the sensor at the given address and publishes a response with the temperature
-    /// packed as IEEE-754 bits in extra, or NaN bits if the sensor is unavailable.
-    ///
-    /// @param command Command to be processed (must be a kTemp*Read variant).
-    /// @param address I2C address of the Thermocouple Amplifier.
-    /// @return true if the command was handled and a response published, false otherwise.
-    ///
-    bool process_command(definitions::CommandType command, uint32_t address);
-
-    ///
-    /// @brief Publish a response through the configured sink.
-    ///
-    /// @param response Response payload.
-    /// @return true if the sink accepted the response.
-    ///
-    bool publish_response(const definitions::Command& response);
-
-    ///
-    /// @brief FreeRTOS task entry point for processing thermocouple commands from the queue.
-    ///
-    /// @param param
-    ///
-    static void task_entry(void* param);
-
-    ///
     /// @brief Internal structure to hold thermocouple information.
     ///
     struct ThermocoupleSlot {
@@ -160,11 +131,9 @@ class Thermocouple : public interfaces::IDevice {
         Adafruit_MCP9600 device;  ///< MCP9600 driver instance for this thermocouple
     };
 
-    std::array<ThermocoupleSlot, definitions::kMaxThermocouples>
-        thermocouples_;                                  ///< Array of registered thermocouples and their MCP devices
-    uint8_t thermoc_count_;                              ///< Current count of registered thermocouples
-    QueueHandle_t queue_;                                ///< FreeRTOS queue handle for thermocouple commands
-    interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
+    std::array<ThermocoupleSlot, definitions::kMaxThermocouples> thermocouples_;  ///< Array of registered thermocouples and their devices
+    uint8_t thermoc_count_;                                                       ///< Current count of registered thermocouples
+    SemaphoreHandle_t bus_mutex_;  ///< Serializes access to the shared I2C bus (priority-inheriting)
 };
 
 }  // namespace modules

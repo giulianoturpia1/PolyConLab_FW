@@ -23,9 +23,6 @@
 static QueueHandle_t gStateEventQueue = nullptr;
 static QueueHandle_t gStateCommandQueue = nullptr;
 static QueueHandle_t gStateResponseQueue = nullptr;
-definitions::SystemEvent currentEvent = definitions::SystemEvent::kPowerOn;
-definitions::Command currentCommand = {definitions::CommandType::kHeaterOff, 0};
-definitions::Command currentResponse = {definitions::CommandType::kHeaterOff, 0};
 constexpr char kStateMachineTaskName[] = "state_machine_task";
 
 namespace modules {
@@ -39,7 +36,7 @@ StateMachine& StateMachine::instance() {
     return instance;
 }
 
-void StateMachine::initialize() {
+void StateMachine::begin() {
     currentState_ = definitions::SystemState::kStartup;
     previousState_ = definitions::SystemState::kStartup;
     stateEntryTime_ = hal_general().millis();
@@ -288,7 +285,7 @@ void StateMachine::process_command(const definitions::Command& request) {
         return;
     }
 
-    if (!stateHandler->dispatch_command(this, request)) {
+    if (!stateHandler->handle_command(this, request)) {
         kLog.warning("Comando recibido, pero no se pudo ejecutar en el estado actual: " + std::string(utils::state_name(currentState_)));
         lastCommandConfirmed_ = false;
         commandPending_ = false;
@@ -325,29 +322,32 @@ void StateMachine::process_response(const definitions::Command& response) {
 
 void StateMachine::attend_queues() {
     if (gStateEventQueue != nullptr) {
+        definitions::SystemEvent event{};
         for (uint8_t i = 0; i < config::kMaxEventsPerTick; ++i) {
-            if (xQueueReceive(gStateEventQueue, &currentEvent, 0) != pdPASS) {
+            if (xQueueReceive(gStateEventQueue, &event, 0) != pdPASS) {
                 break;
             }
-            process_event(currentEvent);
+            process_event(event);
         }
     }
 
     if (gStateCommandQueue != nullptr) {
+        definitions::Command command{};
         for (uint8_t i = 0; i < config::kMaxCommandsPerTick; ++i) {
-            if (xQueueReceive(gStateCommandQueue, &currentCommand, 0) != pdPASS) {
+            if (xQueueReceive(gStateCommandQueue, &command, 0) != pdPASS) {
                 break;
             }
-            process_command(currentCommand);
+            process_command(command);
         }
     }
 
     if (gStateResponseQueue != nullptr) {
+        definitions::Command response{};
         for (uint8_t i = 0; i < config::kMaxResponsesPerTick; ++i) {
-            if (xQueueReceive(gStateResponseQueue, &currentResponse, 0) != pdPASS) {
+            if (xQueueReceive(gStateResponseQueue, &response, 0) != pdPASS) {
                 break;
             }
-            process_response(currentResponse);
+            process_response(response);
         }
     }
 }

@@ -11,20 +11,20 @@
 
 #pragma once
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
 #include <stdint.h>
 
 #include "Definitions.hpp"
-#include "ICommandResponseQueue.hpp"
-#include "IDevice.hpp"
+#include "SyncDevice.hpp"
 
 namespace modules {
 
 ///
 /// @brief Singleton chiller controller. Handles basic on/off and status logic.
 ///
-class Chiller : public interfaces::IDevice {
+/// A SyncDevice: commands are a single GPIO write executed inline on the caller's
+/// task (no dedicated task or queue).
+///
+class Chiller : public SyncDevice {
    public:
     ///
     /// @brief Get the singleton instance of the Chiller controller.
@@ -34,31 +34,35 @@ class Chiller : public interfaces::IDevice {
     static Chiller& instance();
 
     ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool create_task();
-
-    ///
-    /// @brief Set the sink used to publish command execution responses.
-    ///
-    /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
-    ///
-    void set_response_queue(interfaces::ICommandResponseQueue* queue);
-
-    ///
     /// @brief Initialize the chiller controller with the pin.
     ///
     /// @param pin Pin for chiller control.
     ///
     bool begin(uint32_t pin);
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+   protected:
+    /// @copydoc modules::SyncDevice::execute_command
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+
+   private:
+    Chiller();
+    // Rule of Five
+    ~Chiller() = default;
+    Chiller(const Chiller&) = delete;
+    Chiller& operator=(const Chiller&) = delete;
+    Chiller(Chiller&&) = delete;
+    Chiller& operator=(Chiller&&) = delete;
+
     ///
-    /// @brief Turn the chiller on.
+    /// @brief Turn the chiller on. Internal actuation reached via execute_command().
     ///
     void on();
 
     ///
-    /// @brief Turn the chiller off.
+    /// @brief Turn the chiller off. Internal actuation reached via execute_command()/begin().
     ///
     void off();
 
@@ -76,49 +80,8 @@ class Chiller : public interfaces::IDevice {
     ///
     uint32_t pin() const;
 
-    /// @copydoc interfaces::IDevice::accepts
-    bool accepts(definitions::CommandType type) const override;
-
-    /// @copydoc interfaces::IDevice::queue_command(const definitions::Command&, uint32_t)
-    bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) override;
-
-   private:
-    Chiller();
-    // Rule of Five
-    ~Chiller() = default;
-    Chiller(const Chiller&) = delete;
-    Chiller& operator=(const Chiller&) = delete;
-    Chiller(Chiller&&) = delete;
-    Chiller& operator=(Chiller&&) = delete;
-
-    ///
-    /// @brief Process a chiller command directly, without queueing. Used as a fallback when the queue is unavailable.
-    ///
-    /// @param command
-    /// @return true
-    /// @return false
-    ///
-    bool process_command(definitions::CommandType command);
-
-    ///
-    /// @brief Publish a response through the configured sink.
-    ///
-    /// @param response Response payload.
-    /// @return true if the sink accepted the response.
-    ///
-    bool publish_response(const definitions::Command& response);
-
-    ///
-    /// @brief FreeRTOS task entrypoint for the chiller module. Waits for commands on the queue and processes them.
-    ///
-    /// @param param Pointer to the Chiller instance.
-    ///
-    static void task_entry(void* param);
-
-    uint32_t pin_;                                       ///< Pin used for chiller control
-    bool status_;                                        ///< Current chiller status
-    QueueHandle_t queue_;                                ///< FreeRTOS queue handle for chiller commands
-    interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
+    uint32_t pin_;  ///< Pin used for chiller control
+    bool status_;   ///< Current chiller status
 };
 
 }  // namespace modules

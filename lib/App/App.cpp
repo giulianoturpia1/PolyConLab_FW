@@ -68,7 +68,7 @@ App::App()
 void App::initialize_network_server() {
     // WiFi credentials and static IP are read from config::. The Serial response
     // path is wired here as a fallback transport.
-    communications_.initialize_server([this](const std::string& response) { hal_.serial_println(response); });
+    communications_.begin([this](const std::string& response) { hal_.serial_println(response); });
 }
 
 void App::initialize_devices() {
@@ -145,7 +145,7 @@ void App::initialize_system() {
     // Initialize Devices
     initialize_devices();
 
-    // Build device list for IDevice routing in DeviceDispatcher::forward_to_device().
+    // Build device list for IDevice routing in DeviceDispatcher::issue_to_device().
     // Order determines priority; the first device that accepts() a command wins.
     static interfaces::IDevice* const kDevices[] = {
         &heater_, &pump_, &chiller_, &valves_, &thermocouples_, &flowmeter_, &level_switch_,
@@ -153,7 +153,7 @@ void App::initialize_system() {
     DeviceDispatcher::instance().set_devices(kDevices, sizeof(kDevices) / sizeof(kDevices[0]));
 
     // Create and Initialize State Machine
-    state_machine_.initialize();
+    state_machine_.begin();
     state_machine_.create_task();
     // Wire deferred responses: for every command outcome the SM fires handle_response(),
     // which sends the formatted SCPI string to whichever transport originated the command.
@@ -182,7 +182,7 @@ void App::create_task() {
 
 void App::tick() {
     // Delegate all communication polling to Communications module
-    communications_.poll();
+    communications_.tick();
 }
 
 void App::task_entry(void* param) {

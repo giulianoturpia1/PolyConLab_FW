@@ -10,7 +10,6 @@
 #include "Logger.hpp"
 #include "StateMachine.hpp"
 #include "TargetDefinitions.hpp"
-#include "Thermocouple.hpp"
 
 constexpr uint32_t kAcceptableTimeWindowMs = 100;
 constexpr unsigned long kManualControlIntervalUs = 1000000UL;
@@ -42,7 +41,7 @@ definitions::SystemState ManualState::handle_event(StateMachine* context, defini
     }
 }
 
-bool ManualState::dispatch_command(StateMachine* context, const definitions::Command& request) {
+bool ManualState::handle_command(StateMachine* context, const definitions::Command& request) {
     (void) context;
     // Handle temperature setpoint command locally (toggle mode)
     if (request.type == definitions::CommandType::kTempSetIn) {
@@ -56,18 +55,20 @@ bool ManualState::dispatch_command(StateMachine* context, const definitions::Com
             manual_control_tick_ready = true;
             kLog.info("ManualState: temperature control ENABLED, setpoint " + std::to_string(setpoint_) + "°C");
         } else {
-            // Disable temperature control and turn off heater/chiller
+            // Disable temperature control and turn off heater/chiller. Autonomous control
+            // actuation: enforce through the dispatcher (no confirmation report), so it does
+            // not masquerade as a client command in the StateMachine.
             enabled_ = false;
-            definitions::Command h_off{definitions::CommandType::kHeaterOff, 0};
-            definitions::Command c_off{definitions::CommandType::kChillerOff, 0};
-            DeviceDispatcher::instance().forward_to_device(h_off, kAcceptableTimeWindowMs);
-            DeviceDispatcher::instance().forward_to_device(c_off, kAcceptableTimeWindowMs);
+            DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
+            DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kChillerOff, 0u}, 0);
             kLog.info("ManualState: temperature control DISABLED, heater/chiller OFF");
         }
         return true;
     }
 
-    return DeviceDispatcher::instance().forward_to_device(request, kAcceptableTimeWindowMs);
+    // Client-originated command: route through the single device command API so its
+    // confirmation flows back through the StateMachine.
+    return DeviceDispatcher::instance().issue_to_device(request, kAcceptableTimeWindowMs);
 }
 
 definitions::SystemState ManualState::tick(StateMachine* context) {
@@ -88,27 +89,28 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     }
     manual_control_tick_ready = false;
 
-    // Read mix temperature
-    float temp = modules::Thermocouple::instance().readCelcius(static_cast<uint32_t>(definitions::Addresses::kTempMix));
+    // Read mix temperature synchronously through the dispatcher — no concrete device dependency.
+    // The thermocouple resolves kTempMixRead to its address and packs the reading (IEEE-754 bits,
+    // NaN on fault) into extra.
+    const definitions::Command temp_resp = DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempMixRead, 0u});
+    const float temp = utils::bits_to_float(temp_resp.extra);
     if (std::isnan(temp)) {
         interfaces::IState::apply_safe_outputs();
         kLog.warning("ManualState: temperature sensor fault (NaN), safe outputs applied");
         return definitions::SystemState::kManual;
     }
 
-    // Hysteresis control (only when enabled)
+    // Hysteresis control (only when enabled). Autonomous control actuation: enforce through
+    // the dispatcher — these are not client commands, so they must not publish confirmation
+    // reports into the StateMachine response queue.
     if (temp < setpoint_ - deadband_) {
         // heater ON, chiller OFF
-        definitions::Command h_on{definitions::CommandType::kHeaterOn, 0};
-        definitions::Command c_off{definitions::CommandType::kChillerOff, 0};
-        DeviceDispatcher::instance().forward_to_device(h_on, kAcceptableTimeWindowMs);
-        DeviceDispatcher::instance().forward_to_device(c_off, kAcceptableTimeWindowMs);
+        DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOn, 0u}, 0);
+        DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kChillerOff, 0u}, 0);
     } else if (temp > setpoint_ + deadband_) {
         // heater OFF, chiller ON
-        definitions::Command h_off{definitions::CommandType::kHeaterOff, 0};
-        definitions::Command c_on{definitions::CommandType::kChillerOn, 0};
-        DeviceDispatcher::instance().forward_to_device(h_off, kAcceptableTimeWindowMs);
-        DeviceDispatcher::instance().forward_to_device(c_on, kAcceptableTimeWindowMs);
+        DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
+        DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kChillerOn, 0u}, 0);
     }
 
     return definitions::SystemState::kManual;

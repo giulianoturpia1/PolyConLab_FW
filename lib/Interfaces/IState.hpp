@@ -42,7 +42,7 @@ class IState {
     /// @param request Command request to evaluate/dispatch.
     /// @return true if command was accepted and dispatched; false otherwise.
     ///
-    virtual bool dispatch_command(modules::StateMachine* context, const definitions::Command& request);
+    virtual bool handle_command(modules::StateMachine* context, const definitions::Command& request);
 
     ///
     /// @brief Optional callback executed when entering the state. Can be used for actions like applying safe outputs, logging, etc.

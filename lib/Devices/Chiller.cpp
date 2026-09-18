@@ -1,12 +1,7 @@
 #include "Chiller.hpp"
 
-#include <freertos/task.h>
-
-#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
-
-constexpr char kChillerTaskName[] = "chiller_task";
 
 namespace modules {
 
@@ -19,32 +14,6 @@ Chiller& Chiller::instance() {
     return instance;
 }
 
-bool Chiller::create_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        kLog.error("No se pudo crear la cola del chiller.");
-        return false;
-    }
-
-    if (xTaskCreatePinnedToCore(task_entry, kChillerTaskName, config::kChillerTaskStackSize, this, config::kDeviceTaskPriority, nullptr,
-                                config::kI2cCoreId) != pdPASS) {
-        kLog.error("No se pudo crear la tarea del chiller.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
-}
-
-void Chiller::set_response_queue(interfaces::ICommandResponseQueue* queue) {
-    response_queue_ = queue;
-}
-
 bool Chiller::begin(uint32_t pin) {
     if (pin == 0) {
         kLog.error("Pin invalido para el chiller.");
@@ -54,6 +23,36 @@ bool Chiller::begin(uint32_t pin) {
     pin_ = pin;
     hal_general().pin_mode(pin_, PIN_MODE_OUTPUT);
     off();
+    return true;
+}
+
+bool Chiller::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kChillerOn || type == definitions::CommandType::kChillerOff ||
+           type == definitions::CommandType::kChillerState;
+}
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+Chiller::Chiller() : pin_(0), status_(false) {}
+
+bool Chiller::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
+    switch (cmd.type) {
+        case definitions::CommandType::kChillerOn:
+            on();
+            break;
+
+        case definitions::CommandType::kChillerOff:
+            off();
+            break;
+
+        case definitions::CommandType::kChillerState:
+            break;
+
+        default:
+            return false;
+    }
+
+    out_response = {cmd.type, 0u};
     return true;
 }
 
@@ -73,65 +72,6 @@ bool Chiller::status() const {
 
 uint32_t Chiller::pin() const {
     return pin_;
-}
-
-bool Chiller::accepts(definitions::CommandType type) const {
-    return type == definitions::CommandType::kChillerOn || type == definitions::CommandType::kChillerOff ||
-           type == definitions::CommandType::kChillerState;
-}
-
-bool Chiller::queue_command(const definitions::Command& cmd, uint32_t timeout_ms) {
-    if (queue_ == nullptr) {
-        return false;
-    }
-    return xQueueSend(queue_, &cmd.type, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
-}
-
-////////////////////////////////////// Private Methods //////////////////////////////////////
-
-Chiller::Chiller() : pin_(0), status_(false), queue_(nullptr), response_queue_(nullptr) {}
-
-bool Chiller::process_command(definitions::CommandType command) {
-    switch (command) {
-        case definitions::CommandType::kChillerOn:
-            on();
-            publish_response({definitions::CommandType::kChillerOn, 0});
-            return true;
-
-        case definitions::CommandType::kChillerOff:
-            off();
-            publish_response({definitions::CommandType::kChillerOff, 0});
-            return true;
-
-        case definitions::CommandType::kChillerState:
-            publish_response({definitions::CommandType::kChillerState, 0});
-            return true;
-
-        default:
-            return false;
-    }
-}
-
-bool Chiller::publish_response(const definitions::Command& response) {
-    if (response_queue_ == nullptr) {
-        return false;
-    }
-
-    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
-}
-
-void Chiller::task_entry(void* param) {
-    Chiller* self = static_cast<Chiller*>(param);
-    definitions::CommandType command = definitions::CommandType::kChillerOff;
-
-    while (true) {
-        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
-            self->process_command(command);
-        }
-        if (self->queue_ == nullptr) {
-            break;
-        }
-    }
 }
 
 }  // namespace modules

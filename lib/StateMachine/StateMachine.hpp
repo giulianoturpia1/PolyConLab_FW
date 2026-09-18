@@ -31,7 +31,7 @@ using interfaces::IState;
 ///
 /// The current implementation utilizes a FreeRTOS task to run the state machine loop, which processes events and commands from queues.
 /// The main loop is implemented in the tick() method, which executes the handler for the current state.
-/// The StateMachine task constantly polls for events, commands, and response reports from the respective queues. Which represent the
+/// The StateMachine task constantly polls for events, commands, and responses from the respective queues. Which represent the
 /// following:
 ///
 /// + Events are used to trigger state transitions.
@@ -63,7 +63,7 @@ class StateMachine {
     /// @brief Initialize the state machine. Starts in the STARTUP state.
     ///
     ///
-    void initialize();
+    void begin();
 
     ///
     /// @brief Start the dedicated FSM FreeRTOS task and event queue.
@@ -93,9 +93,9 @@ class StateMachine {
     bool queue_command(const definitions::Command& request, uint32_t timeout_ms = 0);
 
     ///
-    /// @brief Queue an executed response report in the FSM task's local queue.
+    /// @brief Queue an executed response in the FSM task's local queue.
     ///
-    /// @note This is the intended method to send response reports from other tasks or ISRs. For non-RTOS paths.
+    /// @note This is the intended method to send responses from other tasks or ISRs. For non-RTOS paths.
     /// @param response Executed response payload.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if response was queued, false otherwise.
@@ -121,7 +121,7 @@ class StateMachine {
     ///
     /// @brief Query whether there is a command pending execution confirmation.
     ///
-    /// @return true if waiting for a matching module response report.
+    /// @return true if waiting for a matching module response.
     ///
     bool is_command_pending() const;
 
@@ -207,10 +207,10 @@ class StateMachine {
     void process_command(const definitions::Command& request);
 
     ///
-    /// @brief Process an executed response report.
+    /// @brief Process an executed response.
     /// Intended for internal scheduler/task use and non-RTOS fallback paths.
     ///
-    /// @param response Executed response report.
+    /// @param response Executed response.
     ///
     void process_response(const definitions::Command& response);
 

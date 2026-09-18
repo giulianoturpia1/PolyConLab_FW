@@ -11,20 +11,20 @@
 
 #pragma once
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
 #include <stdint.h>
 
 #include "Definitions.hpp"
-#include "ICommandResponseQueue.hpp"
-#include "IDevice.hpp"
+#include "SyncDevice.hpp"
 
 namespace modules {
 
 ///
 /// @brief Singleton heater controller. Handles basic on/off and status logic.
 ///
-class Heater : public interfaces::IDevice {
+/// A SyncDevice: commands are a single GPIO write executed inline on the caller's
+/// task (no dedicated task or queue).
+///
+class Heater : public SyncDevice {
    public:
     ///
     /// @brief Get the singleton instance of the Heater controller.
@@ -34,31 +34,35 @@ class Heater : public interfaces::IDevice {
     static Heater& instance();
 
     ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool create_task();
-
-    ///
-    /// @brief Set the sink used to publish command execution responses.
-    ///
-    /// @param sink Response sink implementation. If nullptr, response publishing is disabled.
-    ///
-    void set_response_queue(interfaces::ICommandResponseQueue* queue);
-
-    ///
     /// @brief Initialize the heater controller with the relay pin.
     ///
     /// @param pin Relay pin for heater control.
     ///
     bool begin(uint32_t pin);
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+   protected:
+    /// @copydoc modules::SyncDevice::execute_command
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+
+   private:
+    Heater();
+    // Rule of Five
+    ~Heater() = default;
+    Heater(const Heater&) = delete;
+    Heater& operator=(const Heater&) = delete;
+    Heater(Heater&&) = delete;
+    Heater& operator=(Heater&&) = delete;
+
     ///
-    /// @brief Turn the heater on.
+    /// @brief Turn the heater on. Internal actuation reached via execute_command().
     ///
     void on();
 
     ///
-    /// @brief Turn the heater off.
+    /// @brief Turn the heater off. Internal actuation reached via execute_command()/begin().
     ///
     void off();
 
@@ -76,49 +80,8 @@ class Heater : public interfaces::IDevice {
     ///
     uint32_t pin() const;
 
-    /// @copydoc interfaces::IDevice::accepts
-    bool accepts(definitions::CommandType type) const override;
-
-    /// @copydoc interfaces::IDevice::queue_command(const definitions::Command&, uint32_t)
-    bool queue_command(const definitions::Command& cmd, uint32_t timeout_ms) override;
-
-   private:
-    Heater();
-    // Rule of Five
-    ~Heater() = default;
-    Heater(const Heater&) = delete;
-    Heater& operator=(const Heater&) = delete;
-    Heater(Heater&&) = delete;
-    Heater& operator=(Heater&&) = delete;
-
-    ///
-    /// @brief Process a heater command directly, without queueing. Used as a fallback when the queue is unavailable.
-    ///
-    /// @param command Command to be processed.
-    /// @return true
-    /// @return false
-    ///
-    bool process_command(definitions::CommandType command);
-
-    ///
-    /// @brief Publish a response through the configured sink.
-    ///
-    /// @param response Response payload.
-    /// @return true if the sink accepted the response.
-    ///
-    bool publish_response(const definitions::Command& response);
-
-    ///
-    /// @brief FreeRTOS task entrypoint for the heater module. Waits for commands on the queue and processes them.
-    ///
-    /// @param param
-    ///
-    static void task_entry(void* param);
-
-    uint32_t pin_;                                       ///< Pin used for heater control
-    bool status_;                                        ///< Current heater status
-    QueueHandle_t queue_;                                ///< FreeRTOS queue handle for heater commands
-    interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
+    uint32_t pin_;  ///< Pin used for heater control
+    bool status_;   ///< Current heater status
 };
 
 }  // namespace modules
