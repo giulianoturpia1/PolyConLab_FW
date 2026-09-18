@@ -27,7 +27,7 @@ bool LevelSwitch::begin(uint32_t pin) {
 }
 
 bool LevelSwitch::accepts(definitions::CommandType type) const {
-    return type == definitions::CommandType::kLevelSwitchState;
+    return type == definitions::CommandType::kLevelSwitchState || type == definitions::CommandType::kLevelSwitchReinit;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
@@ -35,6 +35,13 @@ bool LevelSwitch::accepts(definitions::CommandType type) const {
 LevelSwitch::LevelSwitch() : pin_(0), status_(false) {}
 
 bool LevelSwitch::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
+    if (cmd.type == definitions::CommandType::kLevelSwitchReinit) {
+        const bool ok = begin(pin_);
+        out_response = {cmd.type,
+                        static_cast<uint32_t>(ok ? definitions::ResponseType::kReinitOk : definitions::ResponseType::kErrorReinitFailed)};
+        return true;
+    }
+
     if (cmd.type != definitions::CommandType::kLevelSwitchState) {
         return false;
     }

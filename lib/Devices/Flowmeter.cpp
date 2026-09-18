@@ -24,19 +24,19 @@ static const TaggedLogger kLog("Flowmeter");
 // Counts one pulse per falling edge on the flow sensor pin.
 // Only integer arithmetic: no float in ISR context.
 void IRAM_ATTR isrFlowMeter() {
-    portENTER_CRITICAL_ISR(&flowMux);
+    taskENTER_CRITICAL_ISR(&flowMux);
     flow_pulses++;
-    portEXIT_CRITICAL_ISR(&flowMux);
+    taskEXIT_CRITICAL_ISR(&flowMux);
 }
 
 // Fires once per second. Snapshots and resets the pulse counter.
 // Float conversion is intentionally deferred to readFlow() (task context)
 // to avoid FPU state corruption in ISR context.
 void IRAM_ATTR isrTimerFlow() {
-    portENTER_CRITICAL_ISR(&flowMux);
+    taskENTER_CRITICAL_ISR(&flowMux);
     flow_pulses_snapshot = flow_pulses;
     flow_pulses = 0;
-    portEXIT_CRITICAL_ISR(&flowMux);
+    taskEXIT_CRITICAL_ISR(&flowMux);
 }
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
@@ -79,7 +79,7 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
 }
 
 bool Flowmeter::accepts(definitions::CommandType type) const {
-    return type == definitions::CommandType::kFlowRead;
+    return type == definitions::CommandType::kFlowRead || type == definitions::CommandType::kFlowReinit;
 }
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
@@ -87,6 +87,15 @@ bool Flowmeter::accepts(definitions::CommandType type) const {
 Flowmeter::Flowmeter() : pin_(0), status_(false), pulsesPerLiter_(450.0f) {}
 
 bool Flowmeter::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
+    if (cmd.type == definitions::CommandType::kFlowReinit) {
+        // Tear down the interrupt/timer, then re-run begin() from the cached pin and calibration.
+        stop();
+        const bool ok = begin(pin_, pulsesPerLiter_);
+        out_response = {cmd.type,
+                        static_cast<uint32_t>(ok ? definitions::ResponseType::kReinitOk : definitions::ResponseType::kErrorReinitFailed)};
+        return true;
+    }
+
     if (cmd.type != definitions::CommandType::kFlowRead) {
         return false;
     }
@@ -115,10 +124,10 @@ float Flowmeter::readFlow() {
 
     // Read both counters in a single critical section for a consistent snapshot.
     uint32_t pulses, pulses_raw;
-    portENTER_CRITICAL(&flowMux);
+    taskENTER_CRITICAL(&flowMux);
     pulses = flow_pulses_snapshot;
     pulses_raw = flow_pulses;
-    portEXIT_CRITICAL(&flowMux);
+    taskEXIT_CRITICAL(&flowMux);
 
     // Convert pulses/second → liters/minute in task context (safe for FPU).
     kLog.debug("Calculando flujo: snapshot=" + std::to_string(pulses) + " raw=" + std::to_string(pulses_raw) + " pulsos");

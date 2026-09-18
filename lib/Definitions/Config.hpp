@@ -230,6 +230,12 @@ constexpr uint32_t kCommsQueueTimeoutMs = 100;
 constexpr uint32_t kStateMachineCommandTimeoutMs = 150;
 
 ///
+/// @brief Maximum time (ms) SOFT ERROR waits to dispatch a SYST:REINIT:* sensor
+///        re-initialisation command to its device.
+///
+constexpr uint32_t kReinitCommandTimeoutMs = 200;
+
+///
 /// @brief Maximum time in milliseconds a device task waits to publish its
 ///        response back to the StateMachine response queue.
 ///

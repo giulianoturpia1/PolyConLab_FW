@@ -1,5 +1,7 @@
 #include "SoftErrorState.hpp"
 
+#include "Config.hpp"
+#include "DeviceDispatcher.hpp"
 #include "Logger.hpp"
 #include "StateMachine.hpp"
 
@@ -52,6 +54,23 @@ void SoftErrorState::on_enter(StateMachine* context) {
 
 const char* SoftErrorState::name() const {
     return "SOFT_ERROR";
+}
+
+bool SoftErrorState::handle_command(StateMachine* context, const definitions::Command& request) {
+    (void) context;
+    // Only sensor re-initialisation is accepted while in SOFT ERROR — it lets the operator recover
+    // a device that failed hardware init without leaving the recovery flow.  Everything else is rejected.
+    switch (request.type) {
+        case definitions::CommandType::kTempInReinit:
+        case definitions::CommandType::kTempOutReinit:
+        case definitions::CommandType::kTempBathReinit:
+        case definitions::CommandType::kTempMixReinit:
+        case definitions::CommandType::kFlowReinit:
+        case definitions::CommandType::kLevelSwitchReinit:
+            return DeviceDispatcher::instance().issue_to_device(request, config::kReinitCommandTimeoutMs);
+        default:
+            return false;
+    }
 }
 
 }  // namespace modules

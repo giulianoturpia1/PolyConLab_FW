@@ -18,6 +18,9 @@ namespace modules {
 class SoftErrorState final : public IState {
    public:
     definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) override;
+    /// @brief Accept only SYST:REINIT:* sensor re-init commands during SOFT ERROR so the operator
+    ///        can recover a failed sensor in place; all other commands are rejected.
+    bool handle_command(StateMachine* context, const definitions::Command& request) override;
     void on_enter(StateMachine* context) override;
     const char* name() const override;
 
