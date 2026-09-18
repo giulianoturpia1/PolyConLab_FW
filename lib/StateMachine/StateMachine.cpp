@@ -2,6 +2,7 @@
 
 #include "CheckupState.hpp"
 #include "Config.hpp"
+#include "FaultRegistry.hpp"
 #include "HALGeneral.hpp"
 #include "HardErrorState.hpp"
 #include "Helpers.hpp"
@@ -355,6 +356,17 @@ void StateMachine::process_response(const definitions::Command& response) {
         --pendingCount_;
         kLog.debug("Comando confirmado como ejecutado por modulo.");
         publish_response(response);
+
+        // A successful SYST:REINIT:* re-initialisation clears the corresponding fault. This lives
+        // here, in process_response(), because it is the single point every device response passes
+        // through regardless of origin — a client-issued re-init from MANUAL and an autonomous
+        // retry from CHECKUP/SOFT_ERROR are both covered by this one hook.
+        definitions::FaultId recovered_fault;
+        if (utils::fault_for_reinit(response.type, recovered_fault) &&
+            response.extra == static_cast<uint32_t>(definitions::ResponseType::kReinitOk)) {
+            FaultRegistry::instance().remove(recovered_fault);
+            kLog.info("Fallo despejado tras reinicializacion: " + std::string(utils::fault_name(recovered_fault)));
+        }
         break;
     }
 

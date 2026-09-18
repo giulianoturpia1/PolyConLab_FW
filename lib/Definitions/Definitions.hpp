@@ -120,6 +120,11 @@ enum class CommandType {
     kChillerOff,
     kChillerState,
 
+    // Mixer/emulsifier commands
+    kMixerOn,
+    kMixerOff,
+    kMixerState,
+
     // Valve commands (parameterized by valve number)
     kValveOpen,
     kValveClose,
@@ -314,7 +319,7 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
     {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<CommandEntry, 31> kCommandMap = {{
+constexpr std::array<CommandEntry, 34> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn, true},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff, true},
     {("OUTP:HEAT?"), CommandType::kHeaterState, false},
@@ -324,6 +329,9 @@ constexpr std::array<CommandEntry, 31> kCommandMap = {{
     {("OUTP:CHILL ON"), CommandType::kChillerOn, true},
     {("OUTP:CHILL OFF"), CommandType::kChillerOff, true},
     {("OUTP:CHILL?"), CommandType::kChillerState, false},
+    {("OUTP:MIX ON"), CommandType::kMixerOn, true},
+    {("OUTP:MIX OFF"), CommandType::kMixerOff, true},
+    {("OUTP:MIX?"), CommandType::kMixerState, false},
     {("OUTP:VALV OPEN"), CommandType::kValveOpen, true},
     {("OUTP:VALV CLOSE"), CommandType::kValveClose, true},
     {("OUTP:VALV?"), CommandType::kValveState, false},
@@ -369,7 +377,7 @@ constexpr std::array<ResponseEntry, 18> kResponseMap = {{
     {"-106,’BUSY’", ResponseType::kErrorBusy},
 }};
 
-constexpr std::array<CommandResponseEntry, 29> kCommandResponseMap = {{
+constexpr std::array<CommandResponseEntry, 32> kCommandResponseMap = {{
     {CommandType::kHeaterOn, ResponseType::kStatusOn},
     {CommandType::kHeaterOff, ResponseType::kStatusOff},
     {CommandType::kHeaterState, ResponseType::kStatusOn},
@@ -379,6 +387,9 @@ constexpr std::array<CommandResponseEntry, 29> kCommandResponseMap = {{
     {CommandType::kChillerOn, ResponseType::kStatusOn},
     {CommandType::kChillerOff, ResponseType::kStatusOff},
     {CommandType::kChillerState, ResponseType::kStatusOn},
+    {CommandType::kMixerOn, ResponseType::kStatusOn},
+    {CommandType::kMixerOff, ResponseType::kStatusOff},
+    {CommandType::kMixerState, ResponseType::kStatusOn},
     {CommandType::kValveOpen, ResponseType::kStatusOpen},
     {CommandType::kValveClose, ResponseType::kStatusClosed},
     {CommandType::kTempInRead, ResponseType::kMeasTemp},
@@ -409,6 +420,71 @@ constexpr std::array<StateNameEntry, 7> kStateNameMap = {{
     {SystemState::kSoftError, "SOFT ERROR"},
     {SystemState::kHardError, "HARD ERROR"},
     {SystemState::kShutdown, "SHUTDOWN"},
+}};
+
+///
+/// @brief Identity of a device that can fail hardware initialisation, used as the bit index into
+/// modules::FaultRegistry's bitmask (bit N = this FaultId's numeric value). Keep this enum under
+/// 32 entries: the registry stores it as a single uint32_t bitmask, one bit per FaultId.
+///
+/// @note SYST:FAULT? now answers with per-sensor names (e.g. "TEMP_IN,FLOWMETER") instead of the
+/// old coarse "THERMOCOUPLES" entry that lumped all four I2C amplifiers together, so a single dead
+/// amplifier is now distinguishable from four. The SCADA does not currently send SYST:FAULT?, so
+/// this wire-format change breaks nothing today.
+///
+enum class FaultId : uint8_t {
+    kPump,
+    kChiller,
+    kMixer,
+    kHeater,
+    kTempIn,
+    kTempOut,
+    kTempBath,
+    kTempMix,
+    kFlowmeter,
+    kLevelSwitch,
+    kCount  ///< Sentinel: also gives the registry its bit width (must stay <= 32).
+};
+
+static_assert(static_cast<uint8_t>(FaultId::kCount) <= 32, "FaultId must fit in FaultRegistry's uint32_t bitmask");
+
+///
+/// @brief Single entry in the fault name lookup table: maps a FaultId to its wire name.
+///
+struct FaultNameEntry {
+    FaultId id;        ///< Fault identity
+    const char* name;  ///< Wire name used in the SYST:FAULT? response (e.g. "TEMP_IN")
+};
+
+constexpr std::array<FaultNameEntry, 10> kFaultNameMap = {{
+    {FaultId::kPump, "PUMP"},
+    {FaultId::kChiller, "CHILLER"},
+    {FaultId::kMixer, "MIXER"},
+    {FaultId::kHeater, "HEATER"},
+    {FaultId::kTempIn, "TEMP_IN"},
+    {FaultId::kTempOut, "TEMP_OUT"},
+    {FaultId::kTempBath, "TEMP_CAM"},
+    {FaultId::kTempMix, "TEMP_MEZ"},
+    {FaultId::kFlowmeter, "FLOWMETER"},
+    {FaultId::kLevelSwitch, "LEVEL_SWITCH"},
+}};
+
+///
+/// @brief Single entry in the re-init lookup table: maps a SYST:REINIT:* command to the FaultId
+/// it clears when that device confirms the re-initialisation succeeded (kReinitOk).
+///
+struct ReinitFaultEntry {
+    CommandType command;  ///< Re-initialisation command
+    FaultId fault;        ///< Fault cleared on that command's successful response
+};
+
+constexpr std::array<ReinitFaultEntry, 6> kReinitFaultMap = {{
+    {CommandType::kTempInReinit, FaultId::kTempIn},
+    {CommandType::kTempOutReinit, FaultId::kTempOut},
+    {CommandType::kTempBathReinit, FaultId::kTempBath},
+    {CommandType::kTempMixReinit, FaultId::kTempMix},
+    {CommandType::kFlowReinit, FaultId::kFlowmeter},
+    {CommandType::kLevelSwitchReinit, FaultId::kLevelSwitch},
 }};
 
 }  // namespace definitions
