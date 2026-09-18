@@ -8,6 +8,7 @@
 #include "Config.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
+#include "ScopedLock.hpp"
 
 static WiFiServer gWifiServer(config::kWifiServerPort);
 
@@ -96,18 +97,17 @@ bool WifiServer::begin() {
 ///
 static WifiServer::ClientResponseCallback create_response_callback(std::shared_ptr<WiFiClient> client, SemaphoreHandle_t client_mutex) {
     return [client, client_mutex](const std::string& response) {
-        if (xSemaphoreTake(client_mutex, pdMS_TO_TICKS(config::kClientMutexCallbackTimeoutMs)) != pdTRUE) {
+        ScopedLock lock(client_mutex, pdMS_TO_TICKS(config::kClientMutexCallbackTimeoutMs));
+        if (!lock.held()) {
             kLog.warning("callback: no se pudo tomar el mutex de cliente, respuesta descartada: " + response);
             return;
         }
         if (!client->connected()) {
             kLog.warning("callback: Cliente desconectado, respuesta descartada: " + response);
-            xSemaphoreGive(client_mutex);
             return;
         }
         client->println(response.c_str());
         kLog.debug("Respuesta Enviada: " + response);
-        xSemaphoreGive(client_mutex);
     };
 }
 
@@ -121,35 +121,39 @@ void WifiServer::poll(const ClientMessageHandler& handler) {
     // sensor queries, say — is read in one tick instead of one line per tick, while the bound keeps
     // a busy client from holding the App task for an unbounded stretch.
     for (uint8_t line = 0; line < config::kMaxLinesPerPollTick; ++line) {
-        if (xSemaphoreTake(client_mutex_, pdMS_TO_TICKS(config::kClientMutexPollTimeoutMs)) != pdTRUE) {
-            kLog.warning("poll: no se pudo tomar el mutex de cliente, saltando tick.");
-            return;
+        std::string msg;
+        ClientId client_id = 0;
+        std::shared_ptr<WiFiClient> client_ptr;
+        {
+            ScopedLock lock(client_mutex_, pdMS_TO_TICKS(config::kClientMutexPollTimeoutMs));
+            if (!lock.held()) {
+                kLog.warning("poll: no se pudo tomar el mutex de cliente, saltando tick.");
+                return;
+            }
+
+            // Adopt the next arrival only when we have no live client; once connected, service it directly so
+            // its identity stays stable (kApMaxClients == 1), and close any surplus socket so the session is
+            // single-client at the transport layer, not merely single-association at the 802.11 layer.
+            if (!gClient.connected()) {
+                gClient = gWifiServer.available();
+            } else {
+                reject_extra_clients();
+            }
+
+            // Refresh the cached identity every tick — including idle ones — so connected_client() reports
+            // an accurate presence and the comms layer can free the operator role when the client leaves.
+            connected_client_ = gClient.connected() ? static_cast<ClientId>(gClient.remoteIP()) : 0;
+
+            if (!gClient.connected() || !gClient.available()) {
+                return;  // nothing more buffered: the tick is done — the guard releases on the way out
+            }
+
+            String arduino_msg = gClient.readStringUntil('\n');
+            client_id = connected_client_;
+            msg = utils::trim(std::string(arduino_msg.c_str()));
+            client_ptr = std::make_shared<WiFiClient>(gClient);
         }
 
-        // Adopt the next arrival only when we have no live client; once connected, service it directly so
-        // its identity stays stable (kApMaxClients == 1), and close any surplus socket so the session is
-        // single-client at the transport layer, not merely single-association at the 802.11 layer.
-        if (!gClient.connected()) {
-            gClient = gWifiServer.available();
-        } else {
-            reject_extra_clients();
-        }
-
-        // Refresh the cached identity every tick — including idle ones — so connected_client() reports
-        // an accurate presence and the comms layer can free the operator role when the client leaves.
-        connected_client_ = gClient.connected() ? static_cast<ClientId>(gClient.remoteIP()) : 0;
-
-        if (!gClient.connected() || !gClient.available()) {
-            xSemaphoreGive(client_mutex_);
-            return;  // nothing more buffered: the tick is done
-        }
-
-        String arduino_msg = gClient.readStringUntil('\n');
-        const ClientId client_id = connected_client_;
-        xSemaphoreGive(client_mutex_);  // Release before handler — no more client I/O needed here.
-
-        std::string msg(arduino_msg.c_str());
-        msg = utils::trim(msg);
         if (msg.length() == 0) {
             kLog.warning("poll: mensaje recibido pero vacio tras acondicionamiento, descartando.");
             continue;  // keep draining: the next line may be valid
@@ -157,7 +161,6 @@ void WifiServer::poll(const ClientMessageHandler& handler) {
 
         kLog.debug("Nuevo Mensaje del Cliente: " + msg);
 
-        auto client_ptr = std::make_shared<WiFiClient>(gClient);
         ClientResponseCallback respond = create_response_callback(client_ptr, client_mutex_);
 
         handler(msg, client_id, respond);
