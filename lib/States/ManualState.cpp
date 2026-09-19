@@ -14,6 +14,7 @@
 constexpr uint32_t kAcceptableTimeWindowMs = 100;
 constexpr unsigned long kManualControlIntervalUs = 1000000UL;
 constexpr int kManualControlTimerIndex = 1;
+constexpr float kMaxBathTempC = 65.0f;
 
 static volatile bool manual_control_tick_ready = false;
 static hw_timer_t* manualControlTimer = nullptr;
@@ -84,8 +85,32 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
         return definitions::SystemState::kManual;
     }
 
-    // Only apply hysteresis control if temperature control is enabled
-    if (!enabled_) {
+    // Read bath temperature synchronously through the dispatcher. This sensor is the safety
+    // gate for the manual heating loop; if the bath reaches the overtemperature threshold,
+    // the heater must be forced off regardless of the configured setpoint.
+    const definitions::Command bath_temp_resp =
+        DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempBathRead, 0u});
+    const float bath_temp = utils::bits_to_float(bath_temp_resp.extra);
+    if (std::isnan(bath_temp)) {
+        interfaces::IState::apply_safe_outputs();
+        kLog.warning("ManualState: bath temperature sensor fault (NaN)");
+        return definitions::SystemState::kManual;
+    }
+
+    if (bath_temp >= kMaxBathTempC) {
+        DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
+        kLog.warning("ManualState: bath temperature limit reached (" + std::to_string(bath_temp) + "°C), heater disabled");
+        return definitions::SystemState::kManual;
+    }
+
+    // Read mix temperature synchronously through the dispatcher — no concrete device dependency.
+    // The thermocouple resolves kTempMixRead to its address and packs the reading (IEEE-754 bits,
+    // NaN on fault) into extra.
+    const definitions::Command temp_resp = DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempMixRead, 0u});
+    const float temp = utils::bits_to_float(temp_resp.extra);
+    if (std::isnan(temp) || temp < 0.0f || temp > 100.0f) {
+        interfaces::IState::apply_safe_outputs();
+        kLog.warning("ManualState: temperature sensor fault (NaN)");
         return definitions::SystemState::kManual;
     }
 
@@ -94,14 +119,9 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     }
     manual_control_tick_ready = false;
 
-    // Read mix temperature synchronously through the dispatcher — no concrete device dependency.
-    // The thermocouple resolves kTempMixRead to its address and packs the reading (IEEE-754 bits,
-    // NaN on fault) into extra.
-    const definitions::Command temp_resp = DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempMixRead, 0u});
-    const float temp = utils::bits_to_float(temp_resp.extra);
-    if (std::isnan(temp)) {
-        interfaces::IState::apply_safe_outputs();
-        kLog.warning("ManualState: temperature sensor fault (NaN), safe outputs applied");
+    ////////// Temperature control logic: hysteresis loop with ±deadband around setpoint.
+    // Only apply hysteresis control if temperature control is enabled
+    if (!enabled_) {
         return definitions::SystemState::kManual;
     }
 
