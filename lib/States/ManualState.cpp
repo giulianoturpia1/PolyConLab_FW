@@ -80,6 +80,16 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
         return definitions::SystemState::kManual;
     }
 
+    // Everything below runs once per control period (hardware timer, kManualControlIntervalUs), not
+    // on every StateMachine tick: each reading is a multi-sample average that holds the shared I2C bus,
+    // and reading both sensors every 50 ms tick kept the bus saturated -- the SCADA's own reads (and
+    // these) timed out, and the StateMachine task overran its period. The bath limit at 1 Hz is still
+    // far faster than the bath can heat.
+    if (!manual_control_tick_ready) {
+        return definitions::SystemState::kManual;
+    }
+    manual_control_tick_ready = false;
+
     // Read bath temperature synchronously through the dispatcher. This sensor is the safety
     // gate for the manual heating loop; if the bath reaches the overtemperature threshold,
     // the heater must be forced off regardless of the configured setpoint.
@@ -88,11 +98,11 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     const float bath_temp = utils::bits_to_float(bath_temp_resp.extra);
     if (std::isnan(bath_temp)) {
         // A single missing reading is usually a bus timeout, not a dead sensor: hold the outputs and
-        // skip this tick until it has been missing for the whole grace period.
+        // skip this control period until it has been missing for the whole grace period.
         if (!reading_lost(bath_misses_)) {
             return definitions::SystemState::kManual;
         }
-        if (bath_misses_ == config::kManualSensorFaultTicks) {
+        if (bath_misses_ == config::kManualSensorFaultPeriods) {
             kLog.warning("ManualState: bath temperature sensor fault (NaN)");
         }
         interfaces::IState::apply_safe_outputs();
@@ -116,18 +126,13 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
         if (!reading_lost(mix_misses_)) {
             return definitions::SystemState::kManual;
         }
-        if (mix_misses_ == config::kManualSensorFaultTicks) {
+        if (mix_misses_ == config::kManualSensorFaultPeriods) {
             kLog.warning("ManualState: temperature sensor fault (NaN)");
         }
         interfaces::IState::apply_safe_outputs();
         return definitions::SystemState::kManual;
     }
     mix_misses_ = 0;
-
-    if (!manual_control_tick_ready) {
-        return definitions::SystemState::kManual;
-    }
-    manual_control_tick_ready = false;
 
     ////////// Temperature control logic: hysteresis loop with ±deadband around setpoint.
     // Only apply hysteresis control if temperature control is enabled
@@ -149,15 +154,15 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     return definitions::SystemState::kManual;
 }
 
-static_assert(config::kManualSensorFaultTicks < UINT8_MAX, "kManualSensorFaultTicks must leave room for the one-past saturation");
+static_assert(config::kManualSensorFaultPeriods < UINT8_MAX, "kManualSensorFaultPeriods must leave room for the one-past saturation");
 
 bool ManualState::reading_lost(uint8_t& misses) {
-    // Saturate one past the threshold, so `misses == kManualSensorFaultTicks` is true on exactly one
-    // tick: the one that confirms the fault (callers log it there, not on every tick after).
-    if (misses <= config::kManualSensorFaultTicks) {
+    // Saturate one past the threshold, so `misses == kManualSensorFaultPeriods` is true on exactly one
+    // period: the one that confirms the fault (callers log it there, not on every period after).
+    if (misses <= config::kManualSensorFaultPeriods) {
         ++misses;
     }
-    return misses >= config::kManualSensorFaultTicks;
+    return misses >= config::kManualSensorFaultPeriods;
 }
 
 void ManualState::on_enter(StateMachine* context) {

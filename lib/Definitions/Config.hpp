@@ -349,14 +349,15 @@ constexpr float kMixTempPlausibleMinC = 0.0f;
 constexpr float kMixTempPlausibleMaxC = 85.0f;
 
 ///
-/// @brief Consecutive StateMachine ticks a MANUAL temperature reading may be missing before it counts as a sensor fault.
+/// @brief Consecutive control periods a MANUAL temperature reading may be missing before it counts as a sensor fault.
 ///
-/// A missing reading (NaN or outside the plausible range) is usually transient: the synchronous read gives up
-/// after kI2cBusTimeoutMs while the Thermocouple task holds the bus for a SCADA-driven averaged read. During
-/// this grace period MANUAL keeps the current outputs and skips the control decision; once it is exceeded,
-/// every output goes to its safe state as before. 5 ticks x kStateMachineTaskPeriodMs (50 ms) = 250 ms.
+/// MANUAL reads the bath and mix temperatures once per control period (kManualControlIntervalUs). A missing
+/// reading (NaN or outside the plausible range) is usually transient: the synchronous read gives up after
+/// kI2cBusTimeoutMs while the Thermocouple task holds the bus for a SCADA-driven averaged read. During this
+/// grace period MANUAL keeps the current outputs and skips the control decision; once it is exceeded, every
+/// output goes to its safe state as before. 3 periods x 1 s = 3 s.
 ///
-constexpr uint8_t kManualSensorFaultTicks = 5;
+constexpr uint8_t kManualSensorFaultPeriods = 3;
 
 /// @brief Period (µs) of the hardware timer that allows one hysteresis decision per tick.
 constexpr unsigned long kManualControlIntervalUs = 1000000UL;
