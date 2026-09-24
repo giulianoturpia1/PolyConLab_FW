@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "Config.hpp"
 #include "IState.hpp"
 
 namespace modules {
@@ -26,9 +27,9 @@ class ManualState final : public IState {
     const char* name() const override;
 
    private:
-    bool enabled_{false};    // toggle: temperature control on/off
-    float setpoint_{20.0f};  // default 20.0°C
-    float deadband_{0.5f};   // ±0.5°C hysteresis
+    bool enabled_{false};                              // toggle: temperature control on/off
+    float setpoint_{config::kManualDefaultSetpointC};  // inlet setpoint (°C), set by TEMP:SET:IN
+    float deadband_{config::kManualDeadbandC};         // hysteresis half-width (°C), starts at the config default
 };
 
 }  // namespace modules

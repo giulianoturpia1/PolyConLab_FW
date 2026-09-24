@@ -4,17 +4,13 @@
 
 #include <cmath>
 
+#include "Config.hpp"
 #include "DeviceDispatcher.hpp"
 #include "FaultRegistry.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
 #include "StateMachine.hpp"
 #include "TargetDefinitions.hpp"
-
-constexpr uint32_t kAcceptableTimeWindowMs = 100;
-constexpr unsigned long kManualControlIntervalUs = 1000000UL;
-constexpr int kManualControlTimerIndex = 1;
-constexpr float kMaxBathTempC = 65.0f;
 
 static volatile bool manual_control_tick_ready = false;
 static hw_timer_t* manualControlTimer = nullptr;
@@ -72,8 +68,8 @@ definitions::CommandOutcome ManualState::handle_command(StateMachine* context, c
 
     // Client-originated command: route through the single device command API so its
     // confirmation flows back through the StateMachine.
-    return DeviceDispatcher::instance().issue_to_device(request, kAcceptableTimeWindowMs) ? definitions::CommandOutcome::kPending
-                                                                                          : definitions::CommandOutcome::kRejected;
+    return DeviceDispatcher::instance().issue_to_device(request, config::kManualCommandTimeoutMs) ? definitions::CommandOutcome::kPending
+                                                                                                  : definitions::CommandOutcome::kRejected;
 }
 
 definitions::SystemState ManualState::tick(StateMachine* context) {
@@ -96,7 +92,7 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
         return definitions::SystemState::kManual;
     }
 
-    if (bath_temp >= kMaxBathTempC) {
+    if (bath_temp >= config::kMaxBathTempC) {
         DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
         kLog.warning("ManualState: bath temperature limit reached (" + std::to_string(bath_temp) + "°C), heater disabled");
         return definitions::SystemState::kManual;
@@ -107,7 +103,7 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     // NaN on fault) into extra.
     const definitions::Command temp_resp = DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempMixRead, 0u});
     const float temp = utils::bits_to_float(temp_resp.extra);
-    if (std::isnan(temp) || temp < 0.0f || temp > 100.0f) {
+    if (std::isnan(temp) || temp < config::kMixTempPlausibleMinC || temp > config::kMixTempPlausibleMaxC) {
         interfaces::IState::apply_safe_outputs();
         kLog.warning("ManualState: temperature sensor fault (NaN)");
         return definitions::SystemState::kManual;
@@ -148,14 +144,14 @@ void ManualState::on_enter(StateMachine* context) {
     // timer 1 with its ISR attached — a plausible cause of the restarts seen when leaving and
     // re-entering MANUAL, and needless work regardless.
     if (manualControlTimer == nullptr) {
-        manualControlTimer = timerBegin(kManualControlTimerIndex, 80, true);  // 1 tick = 1 µs
+        manualControlTimer = timerBegin(config::kManualControlTimerIndex, config::kManualControlTimerPrescaler, true);
         if (manualControlTimer == nullptr) {
             kLog.error("ManualState: failed to initialize hardware timer for control gating.");
             kLog.info("Iniciando Estado: MANUAL - Esperando comandos del usuario");
             return;
         }
         timerAttachInterrupt(manualControlTimer, &isrManualControlTimer, true);
-        timerAlarmWrite(manualControlTimer, kManualControlIntervalUs, true);
+        timerAlarmWrite(manualControlTimer, config::kManualControlIntervalUs, true);
     }
 
     timerAlarmEnable(manualControlTimer);

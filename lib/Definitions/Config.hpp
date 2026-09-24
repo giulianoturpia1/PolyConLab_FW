@@ -319,7 +319,7 @@ constexpr uint8_t kOutboundRingLength = 8;
 ///
 /// Setpoints outside this range — and non-finite values — are rejected with kErrorInvalidParam
 /// before reaching the StateMachine. Tune to the physical envelope of the bath/chiller; the
-/// ManualState default setpoint (20 °C) sits inside it.
+/// ManualState default setpoint (kManualDefaultSetpointC) sits inside it.
 ///
 constexpr float kTempSetpointMinC = 0.0f;
 constexpr float kTempSetpointMaxC = 100.0f;
@@ -327,6 +327,38 @@ constexpr float kTempSetpointMaxC = 100.0f;
 constexpr float kThermocoupleReadAverageCount = 5;  ///< Number of readings to average for thermocouple temperature. Not greater than 10 to
                                                     ///< avoid excessive delay in the readCelcius() function.
 constexpr float kThermocoupleReadDelayMs = 5.0f;    ///< Delay in milliseconds between each thermocouple reading for averaging
+
+// ── Manual Temperature Control (ManualState) ──────────────────────────────────
+
+/// @brief Inlet setpoint (°C) MANUAL starts from, until the operator sends TEMP:SET:IN.
+constexpr float kManualDefaultSetpointC = 20.0f;
+
+/// @brief Initial hysteresis half-width (°C): heater ON below setpoint - deadband, OFF above setpoint + deadband.
+/// ManualState copies it into its own deadband_ member, which is what the loop uses.
+constexpr float kManualDeadbandC = 0.5f;
+
+/// @brief Bath (jacket) temperature (°C) at or above which MANUAL forces the heater OFF, whatever the setpoint.
+constexpr float kMaxBathTempC = 65.0f;
+
+///
+/// @brief Plausible range (°C) of the mix reading that drives the hysteresis loop.
+///
+/// A reading outside it (or NaN) is treated as a sensor fault and every output goes to its safe state.
+///
+constexpr float kMixTempPlausibleMinC = 0.0f;
+constexpr float kMixTempPlausibleMaxC = 85.0f;
+
+/// @brief Period (µs) of the hardware timer that allows one hysteresis decision per tick.
+constexpr unsigned long kManualControlIntervalUs = 1000000UL;
+
+/// @brief ESP32 hardware timer used for that gate.
+constexpr uint8_t kManualControlTimerIndex = 1;
+
+/// @brief Prescaler of that timer: 80 MHz APB clock / 80 = one tick per µs.
+constexpr uint16_t kManualControlTimerPrescaler = 80;
+
+/// @brief Timeout (ms) for a client command MANUAL forwards to a device.
+constexpr uint32_t kManualCommandTimeoutMs = 100;
 
 // ── Relay Outputs ─────────────────────────────────────────────────────────────
 
