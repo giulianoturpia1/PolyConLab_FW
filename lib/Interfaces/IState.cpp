@@ -45,8 +45,6 @@ void IState::close_all_valves() {
     // Safety actuation, not a client command: see apply_safe_outputs().
     modules::DeviceDispatcher::instance().enforce_to_device(
         {definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve1)}, 0);
-    modules::DeviceDispatcher::instance().enforce_to_device(
-        {definitions::CommandType::kValveClose, static_cast<uint32_t>(definitions::Pins::kValve2)}, 0);
 }
 
 }  // namespace interfaces

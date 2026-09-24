@@ -25,7 +25,7 @@
 #include "TargetDefinitions.hpp"
 #include "Thermocouple.hpp"
 
-constexpr uint8_t kValveCount = 2;
+constexpr uint8_t kValveCount = 1;
 constexpr uint8_t kTemperatureSensorCount = 4;
 constexpr char kAppTaskName[] = "app_task";
 
@@ -132,8 +132,7 @@ void App::initialize_devices() {
         FaultRegistry::instance().add(definitions::FaultId::kHeater);
     }
 
-    const std::array<uint32_t, kValveCount> valve_pins = {static_cast<uint32_t>(definitions::Pins::kValve1),
-                                                          static_cast<uint32_t>(definitions::Pins::kValve2)};
+    const std::array<uint32_t, kValveCount> valve_pins = {static_cast<uint32_t>(definitions::Pins::kValve1)};
     // SolenoidValve::begin() returns void (GPIO setup never fails on ESP32).
     valves_.begin(valve_pins.data(), valve_pins.size());
 

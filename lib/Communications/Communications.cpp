@@ -273,9 +273,6 @@ uint32_t Communications::parse_valve_pin(const std::string& msg) const {
         case '1': {
             return static_cast<uint32_t>(definitions::Pins::kValve1);
         }
-        case '2': {
-            return static_cast<uint32_t>(definitions::Pins::kValve2);
-        }
         default: {
             return 0;  // Invalid valve number
         }
