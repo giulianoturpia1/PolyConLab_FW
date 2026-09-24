@@ -1,5 +1,7 @@
 #include "PauseState.hpp"
 
+#include "Config.hpp"
+#include "DeviceDispatcher.hpp"
 #include "Logger.hpp"
 #include "StateMachine.hpp"
 
@@ -26,6 +28,32 @@ definitions::SystemState PauseState::handle_event(StateMachine* context, definit
             return definitions::SystemState::kShutdown;
         default:
             return definitions::SystemState::kPause;
+    }
+}
+
+definitions::CommandOutcome PauseState::handle_command(StateMachine* context, const definitions::Command& request,
+                                                       definitions::Command& out_response) {
+    (void) context;
+    (void) out_response;
+    // Read-only queries are answered while paused, so the SCADA keeps showing the real readings and
+    // sees the safe output applied on entry instead of assuming it. Anything that would change an
+    // output (actuator ON/OFF, valve open/close, setpoint) or re-initialise a device stays rejected.
+    switch (request.type) {
+        case definitions::CommandType::kTempInRead:
+        case definitions::CommandType::kTempOutRead:
+        case definitions::CommandType::kTempBathRead:
+        case definitions::CommandType::kTempMixRead:
+        case definitions::CommandType::kFlowRead:
+        case definitions::CommandType::kLevelSwitchState:
+        case definitions::CommandType::kHeaterState:
+        case definitions::CommandType::kPumpState:
+        case definitions::CommandType::kMixerState:
+        case definitions::CommandType::kValveState:
+            return DeviceDispatcher::instance().issue_to_device(request, config::kPauseQueryTimeoutMs)
+                       ? definitions::CommandOutcome::kPending
+                       : definitions::CommandOutcome::kRejected;
+        default:
+            return definitions::CommandOutcome::kRejected;
     }
 }
 

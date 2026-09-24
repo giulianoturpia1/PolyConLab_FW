@@ -18,6 +18,8 @@ namespace modules {
 class PauseState final : public IState {
    public:
     definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) override;
+    definitions::CommandOutcome handle_command(StateMachine* context, const definitions::Command& request,
+                                               definitions::Command& out_response) override;
     void on_enter(StateMachine* context) override;
     const char* name() const override;
 };

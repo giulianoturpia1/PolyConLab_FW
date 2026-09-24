@@ -370,6 +370,9 @@ constexpr uint16_t kManualControlTimerPrescaler = 80;
 /// @brief Timeout (ms) for a client command MANUAL forwards to a device.
 constexpr uint32_t kManualCommandTimeoutMs = 100;
 
+/// @brief Timeout (ms) for a read-only query PAUSE forwards to a device.
+constexpr uint32_t kPauseQueryTimeoutMs = 100;
+
 // ── Relay Outputs ─────────────────────────────────────────────────────────────
 
 ///
