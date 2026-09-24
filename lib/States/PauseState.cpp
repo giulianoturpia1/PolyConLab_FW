@@ -31,6 +31,11 @@ definitions::SystemState PauseState::handle_event(StateMachine* context, definit
 
 void PauseState::on_enter(StateMachine* context) {
     (void) context;
+    // Partial safe output (state diagram), as in SOFT ERROR: every relay output to its configured safe
+    // state (heater and pump OFF, mixer ON), valves left as they are. The temperature interlocks only
+    // run in MANUAL, so without this a heater left ON would heat unguarded for as long as the pause
+    // lasts -- including a pause forced by a lost SCADA link.
+    apply_safe_outputs();
     kLog.info("Iniciando Estado: PAUSE - Timers congelados y salida segura parcial");
 }
 
