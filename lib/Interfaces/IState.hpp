@@ -86,7 +86,8 @@ class IState {
     IState& operator=(IState&&) = delete;
 
     ///
-    /// @brief Turn off all actuators (Heater, Pump, Mixer). Call from on_enter() when entering any safe or error state.
+    /// @brief Drive every relay output to its safe state from config:: (heater and pump OFF, mixer ON). Call from
+    /// on_enter() when entering any safe or error state.
     ///
     static void apply_safe_outputs();
 
