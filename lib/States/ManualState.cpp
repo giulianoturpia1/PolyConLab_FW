@@ -87,10 +87,18 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
         DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempBathRead, 0u});
     const float bath_temp = utils::bits_to_float(bath_temp_resp.extra);
     if (std::isnan(bath_temp)) {
+        // A single missing reading is usually a bus timeout, not a dead sensor: hold the outputs and
+        // skip this tick until it has been missing for the whole grace period.
+        if (!reading_lost(bath_misses_)) {
+            return definitions::SystemState::kManual;
+        }
+        if (bath_misses_ == config::kManualSensorFaultTicks) {
+            kLog.warning("ManualState: bath temperature sensor fault (NaN)");
+        }
         interfaces::IState::apply_safe_outputs();
-        kLog.warning("ManualState: bath temperature sensor fault (NaN)");
         return definitions::SystemState::kManual;
     }
+    bath_misses_ = 0;
 
     if (bath_temp >= config::kMaxBathTempC) {
         DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
@@ -104,10 +112,17 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     const definitions::Command temp_resp = DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempMixRead, 0u});
     const float temp = utils::bits_to_float(temp_resp.extra);
     if (std::isnan(temp) || temp < config::kMixTempPlausibleMinC || temp > config::kMixTempPlausibleMaxC) {
+        // Same grace period as the bath reading (see above).
+        if (!reading_lost(mix_misses_)) {
+            return definitions::SystemState::kManual;
+        }
+        if (mix_misses_ == config::kManualSensorFaultTicks) {
+            kLog.warning("ManualState: temperature sensor fault (NaN)");
+        }
         interfaces::IState::apply_safe_outputs();
-        kLog.warning("ManualState: temperature sensor fault (NaN)");
         return definitions::SystemState::kManual;
     }
+    mix_misses_ = 0;
 
     if (!manual_control_tick_ready) {
         return definitions::SystemState::kManual;
@@ -134,10 +149,23 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     return definitions::SystemState::kManual;
 }
 
+static_assert(config::kManualSensorFaultTicks < UINT8_MAX, "kManualSensorFaultTicks must leave room for the one-past saturation");
+
+bool ManualState::reading_lost(uint8_t& misses) {
+    // Saturate one past the threshold, so `misses == kManualSensorFaultTicks` is true on exactly one
+    // tick: the one that confirms the fault (callers log it there, not on every tick after).
+    if (misses <= config::kManualSensorFaultTicks) {
+        ++misses;
+    }
+    return misses >= config::kManualSensorFaultTicks;
+}
+
 void ManualState::on_enter(StateMachine* context) {
     (void) context;
     enabled_ = false;  // Reset control state on entry
     manual_control_tick_ready = true;
+    bath_misses_ = 0;
+    mix_misses_ = 0;
 
     // The timer is created once for the life of the board and only re-armed on entry. It used to be
     // torn down on exit and rebuilt here, so every MANUAL round trip destroyed and recreated hardware

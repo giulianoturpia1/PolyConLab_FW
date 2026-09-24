@@ -30,6 +30,16 @@ class ManualState final : public IState {
     bool enabled_{false};                              // toggle: temperature control on/off
     float setpoint_{config::kManualDefaultSetpointC};  // inlet setpoint (°C), set by TEMP:SET:IN
     float deadband_{config::kManualDeadbandC};         // hysteresis half-width (°C), starts at the config default
+    uint8_t bath_misses_{0};                           // consecutive ticks without a valid bath reading
+    uint8_t mix_misses_{0};                            // consecutive ticks without a valid mix reading
+
+    ///
+    /// @brief Count one more tick without a valid reading and report whether it is now a sensor fault.
+    ///
+    /// @param misses Per-sensor consecutive-miss counter (saturates, reset by the caller on a valid reading).
+    /// @return true once the reading has been missing for config::kManualSensorFaultTicks ticks.
+    ///
+    static bool reading_lost(uint8_t& misses);
 };
 
 }  // namespace modules
