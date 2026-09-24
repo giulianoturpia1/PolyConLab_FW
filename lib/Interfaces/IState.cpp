@@ -37,7 +37,6 @@ void IState::apply_safe_outputs() {
     // ignored — every actuator is a SyncDevice that executes inline.
     modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
     modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kPumpOff, 0u}, 0);
-    modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kChillerOff, 0u}, 0);
     modules::DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kMixerOff, 0u}, 0);
 }
 

@@ -115,11 +115,6 @@ enum class CommandType {
     kPumpOff,
     kPumpState,
 
-    // Chiller commands
-    kChillerOn,
-    kChillerOff,
-    kChillerState,
-
     // Mixer/emulsifier commands
     kMixerOn,
     kMixerOff,
@@ -319,16 +314,13 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
     {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<CommandEntry, 34> kCommandMap = {{
+constexpr std::array<CommandEntry, 31> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn, true},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff, true},
     {("OUTP:HEAT?"), CommandType::kHeaterState, false},
     {("OUTP:PUMP ON"), CommandType::kPumpOn, true},
     {("OUTP:PUMP OFF"), CommandType::kPumpOff, true},
     {("OUTP:PUMP?"), CommandType::kPumpState, false},
-    {("OUTP:CHILL ON"), CommandType::kChillerOn, true},
-    {("OUTP:CHILL OFF"), CommandType::kChillerOff, true},
-    {("OUTP:CHILL?"), CommandType::kChillerState, false},
     {("OUTP:MIX ON"), CommandType::kMixerOn, true},
     {("OUTP:MIX OFF"), CommandType::kMixerOff, true},
     {("OUTP:MIX?"), CommandType::kMixerState, false},
@@ -377,16 +369,13 @@ constexpr std::array<ResponseEntry, 18> kResponseMap = {{
     {"-106,’BUSY’", ResponseType::kErrorBusy},
 }};
 
-constexpr std::array<CommandResponseEntry, 32> kCommandResponseMap = {{
+constexpr std::array<CommandResponseEntry, 29> kCommandResponseMap = {{
     {CommandType::kHeaterOn, ResponseType::kStatusOn},
     {CommandType::kHeaterOff, ResponseType::kStatusOff},
     {CommandType::kHeaterState, ResponseType::kStatusOn},
     {CommandType::kPumpOn, ResponseType::kStatusOn},
     {CommandType::kPumpOff, ResponseType::kStatusOff},
     {CommandType::kPumpState, ResponseType::kStatusOn},
-    {CommandType::kChillerOn, ResponseType::kStatusOn},
-    {CommandType::kChillerOff, ResponseType::kStatusOff},
-    {CommandType::kChillerState, ResponseType::kStatusOn},
     {CommandType::kMixerOn, ResponseType::kStatusOn},
     {CommandType::kMixerOff, ResponseType::kStatusOff},
     {CommandType::kMixerState, ResponseType::kStatusOn},
@@ -434,7 +423,6 @@ constexpr std::array<StateNameEntry, 7> kStateNameMap = {{
 ///
 enum class FaultId : uint8_t {
     kPump,
-    kChiller,
     kMixer,
     kHeater,
     kTempIn,
@@ -456,9 +444,8 @@ struct FaultNameEntry {
     const char* name;  ///< Wire name used in the SYST:FAULT? response (e.g. "TEMP_IN")
 };
 
-constexpr std::array<FaultNameEntry, 10> kFaultNameMap = {{
+constexpr std::array<FaultNameEntry, 9> kFaultNameMap = {{
     {FaultId::kPump, "PUMP"},
-    {FaultId::kChiller, "CHILLER"},
     {FaultId::kMixer, "MIXER"},
     {FaultId::kHeater, "HEATER"},
     {FaultId::kTempIn, "TEMP_IN"},

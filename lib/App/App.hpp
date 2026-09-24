@@ -122,7 +122,6 @@ class App {
     Communications& communications_;
     Heater& heater_;
     Pump& pump_;
-    RelayOutput& chiller_;
     RelayOutput& mixer_;
     SolenoidValve& valves_;
     Thermocouple& thermocouples_;

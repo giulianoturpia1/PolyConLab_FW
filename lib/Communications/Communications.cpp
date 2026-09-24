@@ -312,7 +312,6 @@ std::string Communications::format_response(const definitions::Command& cmd) con
         // Boolean state queries: extra = 1 → ON/HIGH, 0 → OFF/LOW
         case definitions::CommandType::kHeaterState:
         case definitions::CommandType::kPumpState:
-        case definitions::CommandType::kChillerState:
         case definitions::CommandType::kMixerState:
         case definitions::CommandType::kTempSetIn:  // ManualState answers with the resulting control state
             response =

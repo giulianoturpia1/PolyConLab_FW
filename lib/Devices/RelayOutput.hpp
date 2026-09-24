@@ -23,17 +23,10 @@ namespace modules {
 /// Handles basic on/off and status logic against a command triple supplied at construction.
 ///
 /// A SyncDevice: commands are a single GPIO write executed inline on the caller's
-/// task (no dedicated task or queue). Instances are the chiller() and mixer() outputs.
+/// task (no dedicated task or queue). The only instance today is the mixer() output.
 ///
 class RelayOutput : public SyncDevice {
    public:
-    ///
-    /// @brief Get the singleton instance of the chiller RelayOutput.
-    ///
-    /// @return RelayOutput&
-    ///
-    static RelayOutput& chiller();
-
     ///
     /// @brief Get the singleton instance of the mixer/emulsifier RelayOutput.
     ///
@@ -88,7 +81,7 @@ class RelayOutput : public SyncDevice {
     ///
     uint32_t pin() const;
 
-    const char* name_;                          ///< Instance name, used in log messages (e.g. "CHILLER", "MIXER")
+    const char* name_;                          ///< Instance name, used in log messages (e.g. "MIXER")
     const definitions::CommandType on_cmd_;     ///< Command type that turns the output on
     const definitions::CommandType off_cmd_;    ///< Command type that turns the output off
     const definitions::CommandType state_cmd_;  ///< Command type that queries the output status

@@ -86,7 +86,7 @@ class IState {
     IState& operator=(IState&&) = delete;
 
     ///
-    /// @brief Turn off all actuators (Heater, Pump, Chiller, Mixer). Call from on_enter() when entering any safe or error state.
+    /// @brief Turn off all actuators (Heater, Pump, Mixer). Call from on_enter() when entering any safe or error state.
     ///
     static void apply_safe_outputs();
 

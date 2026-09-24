@@ -97,7 +97,6 @@ App::App()
       communications_(modules::Communications::instance()),
       heater_(modules::Heater::instance()),
       pump_(modules::Pump::instance()),
-      chiller_(modules::RelayOutput::chiller()),
       mixer_(modules::RelayOutput::mixer()),
       valves_(modules::SolenoidValve::instance()),
       thermocouples_(modules::Thermocouple::instance()),
@@ -118,10 +117,6 @@ void App::initialize_devices() {
     if (!pump_.begin(static_cast<uint32_t>(definitions::Pins::kPump))) {
         kLog.error("Fallo al inicializar PUMP.");
         FaultRegistry::instance().add(definitions::FaultId::kPump);
-    }
-    if (!chiller_.begin(static_cast<uint32_t>(definitions::Pins::kChiller))) {
-        kLog.error("Fallo al inicializar CHILLER.");
-        FaultRegistry::instance().add(definitions::FaultId::kChiller);
     }
     if (!mixer_.begin(static_cast<uint32_t>(definitions::Pins::kMixer))) {
         kLog.error("Fallo al inicializar MIXER.");
@@ -172,7 +167,6 @@ void App::initialize_devices() {
 void App::create_tasks() {
     heater_.create_task();
     pump_.create_task();
-    chiller_.create_task();
     mixer_.create_task();
     valves_.create_task();
     thermocouples_.create_task();
@@ -184,7 +178,6 @@ void App::set_response_queues() {
     // Set the response queue for each module to the State Machine's response queue
     heater_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     pump_.set_response_queue(&modules::StateMachineResponseQueue::instance());
-    chiller_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     mixer_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     valves_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     thermocouples_.set_response_queue(&modules::StateMachineResponseQueue::instance());
@@ -202,7 +195,7 @@ void App::initialize_system() {
     // Build device list for IDevice routing in DeviceDispatcher::issue_to_device().
     // Order determines priority; the first device that accepts() a command wins.
     static interfaces::IDevice* const kDevices[] = {
-        &heater_, &pump_, &chiller_, &mixer_, &valves_, &thermocouples_, &flowmeter_, &level_switch_,
+        &heater_, &pump_, &mixer_, &valves_, &thermocouples_, &flowmeter_, &level_switch_,
     };
     DeviceDispatcher::instance().set_devices(kDevices, sizeof(kDevices) / sizeof(kDevices[0]));
 

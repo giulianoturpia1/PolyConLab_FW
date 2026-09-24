@@ -27,7 +27,6 @@ enum class Pins : uint32_t {
     // Actuators
     kHeater = Q0_4,        ///< Heating Resistor - Output Digital Pin
     kPump = Q0_5,          ///< Circulation Pump - Output Digital Pin
-    kChiller = Q0_3,       ///< Chiller - Output Digital Pin (Enables PSU to it)
     kValve1 = Q0_1,        ///< Valve 1 -  Output Digital Pin
     kMixer = Q0_2,         ///< Mixer/Emulsifier - Output Digital Pin (Enables PSU to it)
     kFlowmeter = I0_5,     ///< Flowmeter Sensor - Input  Digital Pin (Interrupt Capable)
