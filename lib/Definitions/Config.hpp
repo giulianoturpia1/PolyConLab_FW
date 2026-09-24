@@ -337,7 +337,13 @@ constexpr float kManualDefaultSetpointC = 20.0f;
 /// ManualState copies it into its own deadband_ member, which is what the loop uses.
 constexpr float kManualDeadbandC = 0.5f;
 
+///
 /// @brief Bath (jacket) temperature (°C) at or above which MANUAL forces the heater OFF, whatever the setpoint.
+///
+/// MANUAL only turns the heater off on a measured threshold, never because a reading is missing. When the
+/// bath reading is missing, this limit is checked against the mix reading instead; with neither reading
+/// nothing is measured, so no action is taken.
+///
 constexpr float kMaxBathTempC = 65.0f;
 
 ///
@@ -347,17 +353,6 @@ constexpr float kMaxBathTempC = 65.0f;
 ///
 constexpr float kMixTempPlausibleMinC = 0.0f;
 constexpr float kMixTempPlausibleMaxC = 85.0f;
-
-///
-/// @brief Consecutive control periods a MANUAL temperature reading may be missing before it counts as a sensor fault.
-///
-/// MANUAL reads the bath and mix temperatures once per control period (kManualControlIntervalUs). A missing
-/// reading (NaN or outside the plausible range) is usually transient: the synchronous read gives up after
-/// kI2cBusTimeoutMs while the Thermocouple task holds the bus for a SCADA-driven averaged read. During this
-/// grace period MANUAL keeps the current outputs and skips the control decision; once it is exceeded, every
-/// output goes to its safe state as before. 3 periods x 1 s = 3 s.
-///
-constexpr uint8_t kManualSensorFaultPeriods = 3;
 
 /// @brief Period (µs) of the hardware timer that allows one hysteresis decision per tick.
 constexpr unsigned long kManualControlIntervalUs = 1000000UL;
