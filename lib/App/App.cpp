@@ -13,11 +13,9 @@
 #include "FaultRegistry.hpp"
 #include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
-#include "Heater.hpp"
 #include "Helpers.hpp"
 #include "LevelSwitch.hpp"
 #include "Logger.hpp"
-#include "Pump.hpp"
 #include "RelayOutput.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -95,8 +93,8 @@ App::App()
     : state_machine_(modules::StateMachine::instance()),
       hal_(modules::hal_general()),
       communications_(modules::Communications::instance()),
-      heater_(modules::Heater::instance()),
-      pump_(modules::Pump::instance()),
+      heater_(modules::RelayOutput::heater()),
+      pump_(modules::RelayOutput::pump()),
       mixer_(modules::RelayOutput::mixer()),
       valves_(modules::SolenoidValve::instance()),
       thermocouples_(modules::Thermocouple::instance()),

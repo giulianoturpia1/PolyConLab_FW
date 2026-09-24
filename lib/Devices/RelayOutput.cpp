@@ -11,6 +11,18 @@ static const TaggedLogger kLog("RelayOutput");
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
+RelayOutput& RelayOutput::heater() {
+    static RelayOutput instance("HEATER", definitions::CommandType::kHeaterOn, definitions::CommandType::kHeaterOff,
+                                definitions::CommandType::kHeaterState);
+    return instance;
+}
+
+RelayOutput& RelayOutput::pump() {
+    static RelayOutput instance("PUMP", definitions::CommandType::kPumpOn, definitions::CommandType::kPumpOff,
+                                definitions::CommandType::kPumpState);
+    return instance;
+}
+
 RelayOutput& RelayOutput::mixer() {
     static RelayOutput instance("MIXER", definitions::CommandType::kMixerOn, definitions::CommandType::kMixerOff,
                                 definitions::CommandType::kMixerState);
