@@ -369,6 +369,15 @@ constexpr uint32_t kManualCommandTimeoutMs = 100;
 /// @brief Timeout (ms) for a read-only query PAUSE forwards to a device.
 constexpr uint32_t kPauseQueryTimeoutMs = 100;
 
+// ── Logging ───────────────────────────────────────────────────────────────────
+
+///
+/// @brief Whether debug/info/warning logs are printed from boot. Off keeps the Serial port and the
+/// tasks that log free; SYST:LOG ON turns them on at runtime. Errors are printed regardless, so a
+/// device that fails at boot is always visible.
+///
+constexpr bool kLogEnabledAtBoot = false;
+
 // ── Relay Outputs ─────────────────────────────────────────────────────────────
 
 ///

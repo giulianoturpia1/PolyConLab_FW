@@ -6,7 +6,6 @@
 
 #include "Config.hpp"
 #include "DeviceDispatcher.hpp"
-#include "FaultRegistry.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
 #include "StateMachine.hpp"
@@ -74,11 +73,8 @@ definitions::CommandOutcome ManualState::handle_command(StateMachine* context, c
 
 definitions::SystemState ManualState::tick(StateMachine* context) {
     (void) context;
-    // Safety: if faults present, disable outputs
-    if (modules::FaultRegistry::instance().has_faults()) {
-        interfaces::IState::apply_safe_outputs();
-        return definitions::SystemState::kManual;
-    }
+    // A device that failed its startup check no longer forces safe outputs here: the operator
+    // accepted it to reach MANUAL, and outputs are only changed on a measured threshold (below).
 
     // Everything below runs once per control period (hardware timer, kManualControlIntervalUs), not
     // on every StateMachine tick: each reading is a multi-sample average that holds the shared I2C bus,
