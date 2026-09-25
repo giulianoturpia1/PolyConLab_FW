@@ -32,6 +32,7 @@ class ManualState final : public IState {
     float deadband_{config::kManualDeadbandC};         // hysteresis half-width (°C), starts at the config default
     bool bath_missing_{false};                         // bath reading currently unavailable (logged once per outage)
     bool mix_missing_{false};                          // mix reading currently unavailable (logged once per outage)
+    bool over_limit_{false};                           // limit reached; heater held off until under kBathTempClearC
 
     ///
     /// @brief Track whether a reading is available and log only when that changes (lost / back).

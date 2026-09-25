@@ -102,13 +102,21 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     // The heater is turned off only on a measured threshold, never because a reading is missing. The
     // over-temperature limit uses the bath reading; if that is missing, the same limit is checked against
     // the mix reading (any measured value, even outside the plausible range: a high reading must still cut
-    // the heater). With neither reading nothing is measured, so the outputs are left as they are.
+    // the heater). With neither reading nothing is measured, so the outputs are left as they are. Once the
+    // limit is reached the heater stays off until the reading drops below kBathTempClearC: without that gap
+    // the loop would switch it back on as soon as the reading dipped under the limit.
     const bool limit_measured = bath_ok || mix_measured;
     const float limit_temp = bath_ok ? bath_temp : temp;
-    if (limit_measured && limit_temp >= config::kMaxBathTempC) {
-        DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
+    if (limit_measured && limit_temp >= config::kMaxBathTempC && !over_limit_) {
+        over_limit_ = true;
         kLog.warning(std::string("ManualState: limite de temperatura alcanzado en la lectura de ") + (bath_ok ? "camisa" : "mezcla") +
                      " (" + std::to_string(limit_temp) + "°C), calentador apagado");
+    } else if (limit_measured && limit_temp < config::kBathTempClearC && over_limit_) {
+        over_limit_ = false;
+        kLog.info("ManualState: temperatura bajo el umbral de liberacion, el control puede volver a encender el calentador");
+    }
+    if (over_limit_) {
+        DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
         return definitions::SystemState::kManual;
     }
 
@@ -152,6 +160,7 @@ void ManualState::on_enter(StateMachine* context) {
     manual_control_tick_ready = true;
     bath_missing_ = false;
     mix_missing_ = false;
+    over_limit_ = false;
 
     // The timer is created once for the life of the board and only re-armed on entry. It used to be
     // torn down on exit and rebuilt here, so every MANUAL round trip destroyed and recreated hardware
