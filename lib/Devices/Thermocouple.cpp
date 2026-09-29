@@ -16,6 +16,31 @@ namespace modules {
 
 static const TaggedLogger kLog("Thermocouple");
 
+// True when a reading can be a real temperature: finite and inside the plausibility window. The lower
+// bound is exclusive: a bus held low reads 0x0000, exactly 0 °C, and a failed read comes back as -0.0625 °C.
+static bool in_window(float reading) {
+    return std::isfinite(reading) && reading > config::kThermocoupleMinValidC && reading <= config::kThermocoupleMaxValidC;
+}
+
+// True when a reading is within the allowed jump of a reference (false while there is no reference).
+static bool agrees_with(float reading, float reference) {
+    return !std::isnan(reference) && std::fabs(reading - reference) <= config::kThermocoupleMaxJumpC;
+}
+
+// Maps config::kThermocoupleAdcResolutionBits to the driver's enum (Config.hpp static_asserts the value).
+static MCP9600_ADCResolution to_adc_resolution(uint8_t bits) {
+    switch (bits) {
+        case 16:
+            return MCP9600_ADCRESOLUTION_16;
+        case 14:
+            return MCP9600_ADCRESOLUTION_14;
+        case 12:
+            return MCP9600_ADCRESOLUTION_12;
+        default:
+            return MCP9600_ADCRESOLUTION_18;
+    }
+}
+
 ////////////////////////////////////// Public Methods //////////////////////////////////////
 
 Thermocouple& Thermocouple::instance() {
@@ -152,17 +177,19 @@ bool Thermocouple::add(uint32_t address) {
         return false;
     }
 
-    // Store the address and mark as active
+    // Store the address and mark as active. The spike filter restarts from scratch, so a re-init
+    // also recovers a sensor whose last valid reading drifted too far from the real temperature.
     thermocouples_[slot_index].address = address;
     thermocouples_[slot_index].status = true;
+    thermocouples_[slot_index].last_valid_temperature = NAN;
     ++thermoc_count_;
 
-    // Configure the thermocouple with default settings
-    thermocouples_[slot_index].device.setThermocoupleType(MCP9600_TYPE_K);
-    thermocouples_[slot_index].device.setAmbientResolution(RES_ZERO_POINT_0625);
-    thermocouples_[slot_index].device.setADCresolution(MCP9600_ADCRESOLUTION_18);  // 12, 14, 16, or 18
-    thermocouples_[slot_index].device.setFilterCoefficient(3);
-    thermocouples_[slot_index].device.enable(true);
+    Adafruit_MCP9600& device = thermocouples_[slot_index].device;
+    device.setThermocoupleType(MCP9600_TYPE_K);
+    device.setAmbientResolution(config::kThermocoupleColdJunctionFine ? RES_ZERO_POINT_0625 : RES_ZERO_POINT_25);
+    device.setADCresolution(to_adc_resolution(config::kThermocoupleAdcResolutionBits));
+    device.setFilterCoefficient(config::kThermocoupleFilterCoefficient);
+    device.enable(true);
 
     return true;
 }
@@ -211,46 +238,24 @@ float Thermocouple::readCelcius(uint32_t address) {
         return NAN;
     }
 
-    constexpr float kMinAcceptableTempC = 0.0f;
-    constexpr float kMaxAcceptableTempC = 100.0f;
-    constexpr float kMaxJumpFromLastValidC = 15.0f;
-
-    float avg = 0.0f;
-    uint8_t valid_count = 0;
-    const int average_count = static_cast<int>(config::kThermocoupleReadAverageCount);
-
-    for (int i = 0; i < average_count; ++i) {
+    // The MCP9600 filters on-chip, so one good register read is the measurement; no averaging. On top of
+    // that, outliers are rejected: a reading is accepted when it agrees with the last accepted one, or
+    // with the previous attempt.
+    float& last_valid = thermocouples_[index].last_valid_temperature;
+    float candidate = NAN;
+    for (uint8_t attempt = 0; attempt < config::kThermocoupleReadAttempts; ++attempt) {
         const float reading = thermocouples_[index].device.readThermocouple();
-        if (!std::isfinite(reading)) {
-            vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
+        if (!in_window(reading)) {
             continue;
         }
-
-        if (reading < kMinAcceptableTempC || reading > kMaxAcceptableTempC) {
-            vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
-            continue;
+        if (agrees_with(reading, last_valid) || agrees_with(reading, candidate)) {
+            last_valid = reading;
+            return reading;
         }
-
-        if (!std::isnan(thermocouples_[index].last_valid_temperature)) {
-            const float delta = std::fabs(reading - thermocouples_[index].last_valid_temperature);
-            if (delta > kMaxJumpFromLastValidC) {
-                vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
-                continue;
-            }
-        }
-
-        avg += reading;
-        ++valid_count;
-        vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
+        candidate = reading;
     }
 
-    if (valid_count == 0) {
-        return NAN;
-    }
-
-    const float filtered = avg / static_cast<float>(valid_count);
-    thermocouples_[index].last_valid_temperature = filtered;
-    return filtered;
+    return NAN;
 }
 
 uint8_t Thermocouple::count() const {

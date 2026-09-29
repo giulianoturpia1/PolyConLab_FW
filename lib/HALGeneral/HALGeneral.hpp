@@ -182,6 +182,16 @@ class HALGeneral {
     ///
     virtual void analog_write(uint32_t pin, int value) = 0;
 
+    // ==================== I2C Bus ====================
+
+    ///
+    /// @brief Set the clock of the shared I2C bus, starting the bus first if it is not running.
+    ///
+    /// @param frequency_hz Requested bus clock in Hz
+    /// @return uint32_t Clock the bus actually runs at, in Hz (0 if it could not be set)
+    ///
+    virtual uint32_t i2c_set_clock(uint32_t frequency_hz) = 0;
+
     // ==================== System Functions ====================
 
     ///

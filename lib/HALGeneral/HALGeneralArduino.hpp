@@ -12,6 +12,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <Wire.h>
 
 #include "HALGeneral.hpp"
 
@@ -117,6 +118,17 @@ class HALGeneralArduino : public interfaces::HALGeneral {
 
     void analog_write(uint32_t pin, int value) override {
         analogWrite(pin, value);
+    }
+
+    // ==================== I2C Bus ====================
+
+    uint32_t i2c_set_clock(uint32_t frequency_hz) override {
+        // The PLC core already runs this bus for its I/O expanders; begin() then only attaches Wire to
+        // it, which setClock() needs, and leaves the running configuration alone.
+        if (!Wire.begin() || !Wire.setClock(frequency_hz)) {
+            return 0;
+        }
+        return Wire.getClock();
     }
 
     // ==================== System Functions ====================
