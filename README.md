@@ -24,7 +24,7 @@ Repository that holds all the firmware and utilities related to the ESP32-based 
 
 ### 1.1. Introduction
 
-PolyConLab_FW is a state-machine driven firmware for an ESP32-based Programmable Logic Controller (PLC) designed to manage industrial automation workflows. The firmware implements a modular, asynchronous architecture using FreeRTOS queues and tasks to coordinate multiple actuators (heaters, pumps, chillers, solenoid valves) and sensors across different operational states. It supports both manual control and autonomous calibration modes, with robust state management and feedback tracking. This project uses PlatformIO as the build system to manage dependencies and facilitate cross-platform development.
+PolyConLab_FW is a state-machine driven firmware for an ESP32-based Programmable Logic Controller (PLC) designed to manage industrial automation workflows. The firmware implements a modular, asynchronous architecture using FreeRTOS queues and tasks to coordinate multiple actuators (heater, pump, mixer, solenoid valve) and sensors across different operational states. It supports both manual control and autonomous calibration modes, with robust state management and feedback tracking. This project uses PlatformIO as the build system to manage dependencies and facilitate cross-platform development.
 
 For detailed information about the firmware implementation, architecture, and design patterns, please refer to [lib/README.md](lib/README.md).
 

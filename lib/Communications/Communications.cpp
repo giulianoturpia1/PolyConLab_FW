@@ -273,9 +273,6 @@ uint32_t Communications::parse_valve_pin(const std::string& msg) const {
         case '1': {
             return static_cast<uint32_t>(definitions::Pins::kValve1);
         }
-        case '2': {
-            return static_cast<uint32_t>(definitions::Pins::kValve2);
-        }
         default: {
             return 0;  // Invalid valve number
         }
@@ -315,7 +312,6 @@ std::string Communications::format_response(const definitions::Command& cmd) con
         // Boolean state queries: extra = 1 → ON/HIGH, 0 → OFF/LOW
         case definitions::CommandType::kHeaterState:
         case definitions::CommandType::kPumpState:
-        case definitions::CommandType::kChillerState:
         case definitions::CommandType::kMixerState:
         case definitions::CommandType::kTempSetIn:  // ManualState answers with the resulting control state
             response =

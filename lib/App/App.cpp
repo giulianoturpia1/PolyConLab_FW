@@ -13,11 +13,9 @@
 #include "FaultRegistry.hpp"
 #include "Flowmeter.hpp"
 #include "HALGeneral.hpp"
-#include "Heater.hpp"
 #include "Helpers.hpp"
 #include "LevelSwitch.hpp"
 #include "Logger.hpp"
-#include "Pump.hpp"
 #include "RelayOutput.hpp"
 #include "SolenoidValve.hpp"
 #include "StateMachine.hpp"
@@ -25,7 +23,7 @@
 #include "TargetDefinitions.hpp"
 #include "Thermocouple.hpp"
 
-constexpr uint8_t kValveCount = 2;
+constexpr uint8_t kValveCount = 1;
 constexpr uint8_t kTemperatureSensorCount = 4;
 constexpr char kAppTaskName[] = "app_task";
 
@@ -95,9 +93,8 @@ App::App()
     : state_machine_(modules::StateMachine::instance()),
       hal_(modules::hal_general()),
       communications_(modules::Communications::instance()),
-      heater_(modules::Heater::instance()),
-      pump_(modules::Pump::instance()),
-      chiller_(modules::RelayOutput::chiller()),
+      heater_(modules::RelayOutput::heater()),
+      pump_(modules::RelayOutput::pump()),
       mixer_(modules::RelayOutput::mixer()),
       valves_(modules::SolenoidValve::instance()),
       thermocouples_(modules::Thermocouple::instance()),
@@ -119,10 +116,6 @@ void App::initialize_devices() {
         kLog.error("Fallo al inicializar PUMP.");
         FaultRegistry::instance().add(definitions::FaultId::kPump);
     }
-    if (!chiller_.begin(static_cast<uint32_t>(definitions::Pins::kChiller))) {
-        kLog.error("Fallo al inicializar CHILLER.");
-        FaultRegistry::instance().add(definitions::FaultId::kChiller);
-    }
     if (!mixer_.begin(static_cast<uint32_t>(definitions::Pins::kMixer))) {
         kLog.error("Fallo al inicializar MIXER.");
         FaultRegistry::instance().add(definitions::FaultId::kMixer);
@@ -132,8 +125,7 @@ void App::initialize_devices() {
         FaultRegistry::instance().add(definitions::FaultId::kHeater);
     }
 
-    const std::array<uint32_t, kValveCount> valve_pins = {static_cast<uint32_t>(definitions::Pins::kValve1),
-                                                          static_cast<uint32_t>(definitions::Pins::kValve2)};
+    const std::array<uint32_t, kValveCount> valve_pins = {static_cast<uint32_t>(definitions::Pins::kValve1)};
     // SolenoidValve::begin() returns void (GPIO setup never fails on ESP32).
     valves_.begin(valve_pins.data(), valve_pins.size());
 
@@ -173,7 +165,6 @@ void App::initialize_devices() {
 void App::create_tasks() {
     heater_.create_task();
     pump_.create_task();
-    chiller_.create_task();
     mixer_.create_task();
     valves_.create_task();
     thermocouples_.create_task();
@@ -185,7 +176,6 @@ void App::set_response_queues() {
     // Set the response queue for each module to the State Machine's response queue
     heater_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     pump_.set_response_queue(&modules::StateMachineResponseQueue::instance());
-    chiller_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     mixer_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     valves_.set_response_queue(&modules::StateMachineResponseQueue::instance());
     thermocouples_.set_response_queue(&modules::StateMachineResponseQueue::instance());
@@ -203,7 +193,7 @@ void App::initialize_system() {
     // Build device list for IDevice routing in DeviceDispatcher::issue_to_device().
     // Order determines priority; the first device that accepts() a command wins.
     static interfaces::IDevice* const kDevices[] = {
-        &heater_, &pump_, &chiller_, &mixer_, &valves_, &thermocouples_, &flowmeter_, &level_switch_,
+        &heater_, &pump_, &mixer_, &valves_, &thermocouples_, &flowmeter_, &level_switch_,
     };
     DeviceDispatcher::instance().set_devices(kDevices, sizeof(kDevices) / sizeof(kDevices[0]));
 

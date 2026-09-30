@@ -20,8 +20,6 @@ class HALGeneral;
 
 namespace modules {
 class Communications;
-class Heater;
-class Pump;
 class RelayOutput;
 class SolenoidValve;
 class Thermocouple;
@@ -120,9 +118,8 @@ class App {
     StateMachine& state_machine_;
     interfaces::HALGeneral& hal_;
     Communications& communications_;
-    Heater& heater_;
-    Pump& pump_;
-    RelayOutput& chiller_;
+    RelayOutput& heater_;
+    RelayOutput& pump_;
     RelayOutput& mixer_;
     SolenoidValve& valves_;
     Thermocouple& thermocouples_;

@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <array>
+#include <limits>
 
 #include "Adafruit_MCP9600.h"
 #include "AsyncDevice.hpp"
@@ -149,9 +150,10 @@ class Thermocouple : public AsyncDevice {
     /// @brief Internal structure to hold thermocouple information.
     ///
     struct ThermocoupleSlot {
-        uint32_t address;         ///< I2C address of the Thermocouple Amplifier
-        bool status;              ///< True when the amplifier was successfully initialized
-        Adafruit_MCP9600 device;  ///< MCP9600 driver instance for this thermocouple
+        uint32_t address;                                                       ///< I2C address of the Thermocouple Amplifier
+        bool status;                                                            ///< True when the amplifier was successfully initialized
+        float last_valid_temperature{std::numeric_limits<float>::quiet_NaN()};  ///< Last accepted temperature reading for spike filtering
+        Adafruit_MCP9600 device;                                                ///< MCP9600 driver instance for this thermocouple
     };
 
     std::array<ThermocoupleSlot, definitions::kMaxThermocouples> thermocouples_;  ///< Array of registered thermocouples and their devices

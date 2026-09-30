@@ -324,4 +324,37 @@ constexpr uint8_t kOutboundRingLength = 8;
 constexpr float kTempSetpointMinC = 0.0f;
 constexpr float kTempSetpointMaxC = 100.0f;
 
+constexpr float kThermocoupleReadAverageCount = 5;  ///< Number of readings to average for thermocouple temperature. Not greater than 10 to
+                                                    ///< avoid excessive delay in the readCelcius() function.
+constexpr float kThermocoupleReadDelayMs = 5.0f;    ///< Delay in milliseconds between each thermocouple reading for averaging
+
+// ── Relay Outputs ─────────────────────────────────────────────────────────────
+
+///
+/// @brief Wiring and fallback state of one relay-driven output (modules::RelayOutput).
+///
+/// on/off always keep their process meaning (ON = load powered); normally_closed only decides which
+/// pin level achieves it. safe_on is the state RelayOutput::begin() leaves the load in and the one
+/// IState::apply_safe_outputs() forces in every safe/error state.
+///
+struct RelayConfig {
+    bool normally_closed;  ///< true if the load hangs off the relay's NC contact (pin LOW = load powered)
+    bool safe_on;          ///< Safe/default state of the load: true = powered, false = cut
+};
+
+/// @brief Heater: NO contact, safe state OFF.
+constexpr RelayConfig kHeaterRelay = {false, false};
+
+/// @brief Circulation pump: NO contact, safe state OFF.
+constexpr RelayConfig kPumpRelay = {false, false};
+
+///
+/// @brief Mixer/emulsifier: NC contact, safe state ON.
+///
+/// The mixer must keep running unless the operator explicitly stops it, so it is ON by default and
+/// in every safe/error state (including HARD ERROR and SHUTDOWN). The NC contact makes that hold
+/// even while the PLC is unpowered, booting or hung: a de-energised coil keeps the mixer powered.
+///
+constexpr RelayConfig kMixerRelay = {true, true};
+
 }  // namespace config

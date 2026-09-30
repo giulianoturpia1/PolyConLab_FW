@@ -211,8 +211,46 @@ float Thermocouple::readCelcius(uint32_t address) {
         return NAN;
     }
 
-    // Return the thermocouple temperature reading in Celsius
-    return thermocouples_[index].device.readThermocouple();
+    constexpr float kMinAcceptableTempC = 0.0f;
+    constexpr float kMaxAcceptableTempC = 100.0f;
+    constexpr float kMaxJumpFromLastValidC = 15.0f;
+
+    float avg = 0.0f;
+    uint8_t valid_count = 0;
+    const int average_count = static_cast<int>(config::kThermocoupleReadAverageCount);
+
+    for (int i = 0; i < average_count; ++i) {
+        const float reading = thermocouples_[index].device.readThermocouple();
+        if (!std::isfinite(reading)) {
+            vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
+            continue;
+        }
+
+        if (reading < kMinAcceptableTempC || reading > kMaxAcceptableTempC) {
+            vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
+            continue;
+        }
+
+        if (!std::isnan(thermocouples_[index].last_valid_temperature)) {
+            const float delta = std::fabs(reading - thermocouples_[index].last_valid_temperature);
+            if (delta > kMaxJumpFromLastValidC) {
+                vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
+                continue;
+            }
+        }
+
+        avg += reading;
+        ++valid_count;
+        vTaskDelay(pdMS_TO_TICKS(config::kThermocoupleReadDelayMs));
+    }
+
+    if (valid_count == 0) {
+        return NAN;
+    }
+
+    const float filtered = avg / static_cast<float>(valid_count);
+    thermocouples_[index].last_valid_temperature = filtered;
+    return filtered;
 }
 
 uint8_t Thermocouple::count() const {

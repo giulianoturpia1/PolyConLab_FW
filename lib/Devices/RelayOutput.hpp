@@ -2,8 +2,8 @@
 /// @file RelayOutput.hpp
 /// @author F. Galietta, G. Turpia, S. Miranda (proyectopolyconlab@gmail.com)
 /// @brief Generic relay-driven output control module for the reactor system.
-/// @version 0.1
-/// @date 17-09-2026
+/// @version 0.2
+/// @date 24-09-2026
 ///
 /// @copyright Copyright (c) 2026
 ///
@@ -13,26 +13,39 @@
 
 #include <stdint.h>
 
+#include "Config.hpp"
 #include "Definitions.hpp"
 #include "SyncDevice.hpp"
 
 namespace modules {
 
 ///
-/// @brief Generic controller for a single digital output that enables an external relay/PSU.
+/// @brief Generic controller for a single digital output that drives an external relay.
 /// Handles basic on/off and status logic against a command triple supplied at construction.
 ///
 /// A SyncDevice: commands are a single GPIO write executed inline on the caller's
-/// task (no dedicated task or queue). Instances are the chiller() and mixer() outputs.
+/// task (no dedicated task or queue). Instances are the heater(), pump() and mixer() outputs.
+/// An output that needs behaviour beyond plain on/off/status gets its own class instead.
+///
+/// on()/off()/status() always speak process logic (ON = load powered). Each instance carries a
+/// config::RelayConfig: which relay contact the load is wired to (NO drives the pin HIGH for ON, NC
+/// drives it LOW for ON) and which state is safe, applied by begin().
 ///
 class RelayOutput : public SyncDevice {
    public:
     ///
-    /// @brief Get the singleton instance of the chiller RelayOutput.
+    /// @brief Get the singleton instance of the heater RelayOutput.
     ///
     /// @return RelayOutput&
     ///
-    static RelayOutput& chiller();
+    static RelayOutput& heater();
+
+    ///
+    /// @brief Get the singleton instance of the circulation pump RelayOutput.
+    ///
+    /// @return RelayOutput&
+    ///
+    static RelayOutput& pump();
 
     ///
     /// @brief Get the singleton instance of the mixer/emulsifier RelayOutput.
@@ -42,7 +55,7 @@ class RelayOutput : public SyncDevice {
     static RelayOutput& mixer();
 
     ///
-    /// @brief Initialize the relay output with the pin.
+    /// @brief Initialize the relay output with the pin and immediately drive it to its safe state.
     ///
     /// @param pin Pin for relay control.
     ///
@@ -56,7 +69,8 @@ class RelayOutput : public SyncDevice {
     bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
 
    private:
-    RelayOutput(const char* name, definitions::CommandType on_cmd, definitions::CommandType off_cmd, definitions::CommandType state_cmd);
+    RelayOutput(const char* name, definitions::CommandType on_cmd, definitions::CommandType off_cmd, definitions::CommandType state_cmd,
+                const config::RelayConfig& relay);
     // Rule of Five
     ~RelayOutput() = default;
     RelayOutput(const RelayOutput&) = delete;
@@ -65,7 +79,7 @@ class RelayOutput : public SyncDevice {
     RelayOutput& operator=(RelayOutput&&) = delete;
 
     ///
-    /// @brief Turn the output on. Internal actuation reached via execute_command().
+    /// @brief Turn the output on. Internal actuation reached via execute_command()/begin().
     ///
     void on();
 
@@ -73,6 +87,14 @@ class RelayOutput : public SyncDevice {
     /// @brief Turn the output off. Internal actuation reached via execute_command()/begin().
     ///
     void off();
+
+    ///
+    /// @brief Drive the pin to the level that powers (on = true) or cuts the load, honouring the
+    /// relay wiring.
+    ///
+    /// @param on true to power the load, false to cut it.
+    ///
+    void write_output(bool on);
 
     ///
     /// @brief Get the output status.
@@ -88,10 +110,11 @@ class RelayOutput : public SyncDevice {
     ///
     uint32_t pin() const;
 
-    const char* name_;                          ///< Instance name, used in log messages (e.g. "CHILLER", "MIXER")
+    const char* name_;                          ///< Instance name, used in log messages (e.g. "HEATER", "MIXER")
     const definitions::CommandType on_cmd_;     ///< Command type that turns the output on
     const definitions::CommandType off_cmd_;    ///< Command type that turns the output off
     const definitions::CommandType state_cmd_;  ///< Command type that queries the output status
+    const config::RelayConfig relay_;           ///< Relay wiring (NO/NC) and safe state
     uint32_t pin_;                              ///< Pin used for output control
     bool status_;                               ///< Current output status
 };

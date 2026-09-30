@@ -20,7 +20,7 @@ namespace modules {
 /// @brief Owns the operator/observer role state and decides whether a sender may actuate.
 ///
 /// Clients fall into two roles. The @b operator is the single privileged client — it may drive
-/// physical outputs (heater/pump/chiller, valves) as well as read; the local Serial console is always
+/// physical outputs (heater/pump/mixer, valves) as well as read; the local Serial console is always
 /// an operator, since it has physical access. An @b observer is any other client: reads (queries,
 /// PING, STATE?, SYST:LOG*, SYST:FAULT?) are allowed, actuation is rejected with kErrorNotOperator.
 ///
