@@ -112,10 +112,12 @@ constexpr uint16_t kEthernetPort = 80;
 ///
 /// @brief App task wakeup period in milliseconds.
 ///
-/// The App task polls WiFi and serial. SCADA commands arrive at ~1 Hz, so
-/// 100 ms is more than responsive enough while reducing traffic on the scheduler.
+/// The App task polls WiFi and serial. Every SCADA query waits on two App ticks (reading the line
+/// and writing the reply), so this period is the largest fixed delay in a reading's round trip:
+/// 20 ms keeps a full sensor round within ~150 ms. Polling is non-blocking, so the extra wakeups
+/// cost little CPU.
 ///
-constexpr uint32_t kAppTaskPeriodMs = 100;
+constexpr uint32_t kAppTaskPeriodMs = 20;
 
 ///
 /// @brief StateMachine task wakeup period in milliseconds.
@@ -209,7 +211,12 @@ constexpr TickType_t kDeviceWaitTicks = portMAX_DELAY;
 ///
 /// @brief Delay in milliseconds before peripheral initialisation begins at startup.
 ///
-constexpr uint32_t kAppStartupDelayMs = 1000;
+/// Settling time after power-up: lets the supplies, the I2C bus and its external cabling, and the
+/// thermocouple amplifiers stabilise (each MCP9600 also completes its first conversions) before any
+/// device is probed, so a slow-starting sensor is not recorded as an init fault. The Wi-Fi server
+/// only starts afterwards, so the SCADA cannot connect during this window.
+///
+constexpr uint32_t kAppStartupDelayMs = 5000;
 
 ///
 /// @brief Maximum time in milliseconds the StateMachine waits for a device task
@@ -247,9 +254,20 @@ constexpr uint32_t kDeviceResponseTimeoutMs = 150;
 ///
 /// Serializes access to the bus between the Thermocouple task (Core 1)
 /// and synchronous reads issued from control states (Core 0). Kept short so a
-/// wedged transaction cannot stall the caller indefinitely.
+/// wedged transaction cannot stall the caller indefinitely, yet well above a read that
+/// uses every retry at kI2cClockHz (~2 ms per attempt at 50 kHz), plus a queued one.
 ///
-constexpr uint32_t kI2cBusTimeoutMs = 50;
+constexpr uint32_t kI2cBusTimeoutMs = 100;
+
+///
+/// @brief Clock of the shared I2C bus, in Hz.
+///
+/// The bus carries both the PLC's own I/O expanders (relay outputs Q0_x, inputs such as I0_12) and
+/// the thermocouple amplifiers on their external cabling. The PLC core starts it at 100 kHz; a slower
+/// clock gives the long cable time to settle between edges and makes transactions less sensitive to
+/// interference. At 50 kHz a temperature read takes ~2 ms and a relay write ~1 ms.
+///
+constexpr uint32_t kI2cClockHz = 50000;
 
 ///
 /// @brief Queue-send timeout in milliseconds for a SyncDevice publishing its response.
@@ -275,12 +293,12 @@ constexpr uint8_t kMaxEventsPerTick = 4;
 ///
 /// @brief Maximum number of commands drained from the command queue in a single SM tick.
 ///
-constexpr uint8_t kMaxCommandsPerTick = 4;
+constexpr uint8_t kMaxCommandsPerTick = 8;
 
 ///
 /// @brief Maximum number of responses drained from the response queue in a single SM tick.
 ///
-constexpr uint8_t kMaxResponsesPerTick = 4;
+constexpr uint8_t kMaxResponsesPerTick = 8;
 
 ///
 /// @brief Commands that may await device confirmation at the same time.
@@ -288,9 +306,13 @@ constexpr uint8_t kMaxResponsesPerTick = 4;
 /// Bounds both the StateMachine in-flight table and the Communications responder table, which are
 /// kept the same depth so a command that Communications accepts always finds a slot downstream.
 /// A command arriving with every slot occupied is answered kErrorBusy instead of displacing an
-/// older one. Kept at kMaxCommandsPerTick so a full intake tick never has to reject.
+/// older one. Sized so a whole SCADA sampling round (6 sensor queries) plus a STATE? poll goes out
+/// as one batch instead of waiting for earlier replies to free slots, and kept at
+/// kMaxCommandsPerTick so a full intake tick never has to reject.
 ///
-constexpr uint8_t kMaxInFlightCommands = 4;
+constexpr uint8_t kMaxInFlightCommands = 8;
+static_assert(kMaxInFlightCommands <= kMaxCommandsPerTick && kMaxInFlightCommands <= kMaxResponsesPerTick,
+              "One SM tick must be able to take in and answer every command in flight");
 
 ///
 /// @brief Lines read from the connected client in a single communications poll tick.
@@ -300,7 +322,8 @@ constexpr uint8_t kMaxInFlightCommands = 4;
 /// busy client can impose on the App task, and is kept at kMaxInFlightCommands so a full tick of
 /// commands never has to be refused for want of a slot.
 ///
-constexpr uint8_t kMaxLinesPerPollTick = 4;
+constexpr uint8_t kMaxLinesPerPollTick = 8;
+static_assert(kMaxLinesPerPollTick <= kMaxInFlightCommands, "A full poll tick of commands must find in-flight slots");
 
 ///
 /// @brief Replies Communications can hold before they are written to the client.
@@ -310,7 +333,8 @@ constexpr uint8_t kMaxLinesPerPollTick = 4;
 /// above kMaxInFlightCommands so inline answers queued behind a slow command do not exhaust the
 /// ring and start refusing traffic the StateMachine could still have accepted.
 ///
-constexpr uint8_t kOutboundRingLength = 8;
+constexpr uint8_t kOutboundRingLength = 12;
+static_assert(kOutboundRingLength > kMaxInFlightCommands, "The outbound ring must leave room for inline replies");
 
 // ── Control Setpoint Limits ───────────────────────────────────────────────────
 
@@ -319,14 +343,130 @@ constexpr uint8_t kOutboundRingLength = 8;
 ///
 /// Setpoints outside this range — and non-finite values — are rejected with kErrorInvalidParam
 /// before reaching the StateMachine. Tune to the physical envelope of the bath/chiller; the
-/// ManualState default setpoint (20 °C) sits inside it.
+/// ManualState default setpoint (kManualDefaultSetpointC) sits inside it.
 ///
 constexpr float kTempSetpointMinC = 0.0f;
 constexpr float kTempSetpointMaxC = 100.0f;
 
-constexpr float kThermocoupleReadAverageCount = 5;  ///< Number of readings to average for thermocouple temperature. Not greater than 10 to
-                                                    ///< avoid excessive delay in the readCelcius() function.
-constexpr float kThermocoupleReadDelayMs = 5.0f;    ///< Delay in milliseconds between each thermocouple reading for averaging
+// ── Thermocouple Amplifiers (MCP9600) ────────────────────────────────────────
+
+///
+/// @brief ADC resolution of every MCP9600, in bits (18, 16, 14 or 12).
+///
+/// Trades step size against conversion time (type K, ~41 uV/°C): 18 -> ~0.05 °C every 320 ms,
+/// 16 -> ~0.2 °C every 80 ms, 14 -> ~0.8 °C every 20 ms, 12 -> ~3 °C every 5 ms. Accuracy is the same
+/// at every setting. 16 bits keeps the step under the 0.5 °C control deadband and refreshes the
+/// reading 4x faster than 18 bits; 14 and 12 bits would switch the heater on quantization noise.
+///
+constexpr uint8_t kThermocoupleAdcResolutionBits = 16;
+static_assert(kThermocoupleAdcResolutionBits == 18 || kThermocoupleAdcResolutionBits == 16 || kThermocoupleAdcResolutionBits == 14 ||
+                  kThermocoupleAdcResolutionBits == 12,
+              "The MCP9600 ADC supports only 18, 16, 14 or 12 bits");
+
+///
+/// @brief On-chip digital filter coefficient n of every MCP9600 (0 = off, 7 = strongest).
+///
+/// First-order filter applied per conversion with k = 2 / (2^n + 1); its time constant is
+/// -1 / ln(1 - k) conversions. n = 4 (k ~ 0.118) gives ~8 conversions and cuts conversion noise ~4x.
+/// A step reaches 95 % after ~24 conversions: ~1.9 s at 16 bits if the cold-junction conversion runs
+/// in parallel (80 ms per update), up to ~8 s if the chip runs it in series with the ADC (~330 ms).
+///
+constexpr uint8_t kThermocoupleFilterCoefficient = 4;
+static_assert(kThermocoupleFilterCoefficient <= 7, "The MCP9600 filter coefficient ranges 0-7");
+
+///
+/// @brief Cold-junction resolution: true = 0.0625 °C (250 ms per conversion), false = 0.25 °C (63 ms).
+///
+/// The MCP9600 offers only these two. 0.0625 °C is the original configuration; 0.25 °C would add up
+/// to ±0.125 °C of quantization (still inside the ±1.5 °C type-K accuracy) in exchange for a shorter
+/// conversion, which only matters if the chip runs it in series with the thermocouple ADC.
+///
+constexpr bool kThermocoupleColdJunctionFine = true;
+
+///
+/// @brief Plausibility window (°C): a reading outside it is reported as missing (NaN).
+///
+/// The lower bound is exclusive: a bus held low reads exactly 0 °C and a failed read -0.0625 °C, and
+/// the water-based process never runs at or below 0 °C.
+///
+constexpr float kThermocoupleMinValidC = 0.0f;
+constexpr float kThermocoupleMaxValidC = 100.0f;
+
+///
+/// @brief Largest difference (°C) between two readings for them to count as agreeing.
+///
+/// Outlier rejection on top of the on-chip filter: a reading further than this from the last accepted
+/// one is dropped unless the next attempt confirms it. Between reads (~0.5 s apart) the filtered
+/// temperature moves a fraction of a degree, so anything beyond this is a corrupted transaction.
+///
+constexpr float kThermocoupleMaxJumpC = 5.0f;
+
+///
+/// @brief Attempts per temperature read before the reading is reported as missing.
+///
+/// Interference shows up as a failed or corrupted transaction, so a rejected reading is retried at
+/// once; a good first read costs nothing extra, and a genuine large change needs two agreeing
+/// attempts. Each attempt holds the bus ~2 ms at 50 kHz, so the worst case stays well inside
+/// kI2cBusTimeoutMs.
+///
+constexpr uint8_t kThermocoupleReadAttempts = 3;
+static_assert(kThermocoupleReadAttempts >= 2, "Confirming a large change needs two agreeing attempts");
+
+// ── Manual Temperature Control (ManualState) ──────────────────────────────────
+
+/// @brief Inlet setpoint (°C) MANUAL starts from, until the operator sends TEMP:SET:IN.
+constexpr float kManualDefaultSetpointC = 20.0f;
+
+/// @brief Initial hysteresis half-width (°C): heater ON below setpoint - deadband, OFF above setpoint + deadband.
+/// ManualState copies it into its own deadband_ member, which is what the loop uses.
+constexpr float kManualDeadbandC = 0.5f;
+
+///
+/// @brief Bath (jacket) temperature (°C) at or above which MANUAL forces the heater OFF, whatever the setpoint.
+///
+/// MANUAL only turns the heater off on a measured threshold, never because a reading is missing. When the
+/// bath reading is missing, this limit is checked against the mix reading instead; with neither reading
+/// nothing is measured, so no action is taken. Once reached, the heater stays off until the reading drops
+/// below kBathTempClearC.
+///
+constexpr float kMaxBathTempC = 65.0f;
+
+/// @brief Temperature (°C) the limit reading must drop below before MANUAL lets the heater back on.
+constexpr float kBathTempClearC = 60.0f;
+
+static_assert(kBathTempClearC < kMaxBathTempC, "The clear threshold must sit below the limit");
+
+///
+/// @brief Plausible range (°C) of the mix reading that drives the hysteresis loop.
+///
+/// A reading outside it (or NaN) is treated as a sensor fault and every output goes to its safe state.
+///
+constexpr float kMixTempPlausibleMinC = 0.0f;
+constexpr float kMixTempPlausibleMaxC = 85.0f;
+
+/// @brief Period (µs) of the hardware timer that allows one hysteresis decision per tick.
+constexpr unsigned long kManualControlIntervalUs = 1000000UL;
+
+/// @brief ESP32 hardware timer used for that gate.
+constexpr uint8_t kManualControlTimerIndex = 1;
+
+/// @brief Prescaler of that timer: 80 MHz APB clock / 80 = one tick per µs.
+constexpr uint16_t kManualControlTimerPrescaler = 80;
+
+/// @brief Timeout (ms) for a client command MANUAL forwards to a device.
+constexpr uint32_t kManualCommandTimeoutMs = 100;
+
+/// @brief Timeout (ms) for a read-only query PAUSE forwards to a device.
+constexpr uint32_t kPauseQueryTimeoutMs = 100;
+
+// ── Logging ───────────────────────────────────────────────────────────────────
+
+///
+/// @brief Whether debug/info/warning logs are printed from boot. Off keeps the Serial port and the
+/// tasks that log free; SYST:LOG ON turns them on at runtime. Errors are printed regardless, so a
+/// device that fails at boot is always visible.
+///
+constexpr bool kLogEnabledAtBoot = false;
 
 // ── Relay Outputs ─────────────────────────────────────────────────────────────
 

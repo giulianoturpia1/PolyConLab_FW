@@ -4,17 +4,12 @@
 
 #include <cmath>
 
+#include "Config.hpp"
 #include "DeviceDispatcher.hpp"
-#include "FaultRegistry.hpp"
 #include "Helpers.hpp"
 #include "Logger.hpp"
 #include "StateMachine.hpp"
 #include "TargetDefinitions.hpp"
-
-constexpr uint32_t kAcceptableTimeWindowMs = 100;
-constexpr unsigned long kManualControlIntervalUs = 1000000UL;
-constexpr int kManualControlTimerIndex = 1;
-constexpr float kMaxBathTempC = 65.0f;
 
 static volatile bool manual_control_tick_ready = false;
 static hw_timer_t* manualControlTimer = nullptr;
@@ -55,14 +50,14 @@ definitions::CommandOutcome ManualState::handle_command(StateMachine* context, c
             enabled_ = true;
             setpoint_ = sp;
             manual_control_tick_ready = true;
-            kLog.info("ManualState: temperature control ENABLED, setpoint " + std::to_string(setpoint_) + "°C");
+            kLog.info("ManualState: control de temperatura ACTIVADO, consigna " + std::to_string(setpoint_) + "°C");
         } else {
             // Disable temperature control and turn off the heater. Autonomous control
             // actuation: enforce through the dispatcher (no confirmation report), so it does
             // not masquerade as a client command in the StateMachine.
             enabled_ = false;
             DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
-            kLog.info("ManualState: temperature control DISABLED, heater OFF");
+            kLog.info("ManualState: control de temperatura DESACTIVADO, calentador apagado");
         }
         // No device confirms a setpoint, so the command is closed here and reports the resulting
         // control state. Leaving it pending would hold up every reply behind it until it timed out.
@@ -72,51 +67,63 @@ definitions::CommandOutcome ManualState::handle_command(StateMachine* context, c
 
     // Client-originated command: route through the single device command API so its
     // confirmation flows back through the StateMachine.
-    return DeviceDispatcher::instance().issue_to_device(request, kAcceptableTimeWindowMs) ? definitions::CommandOutcome::kPending
-                                                                                          : definitions::CommandOutcome::kRejected;
+    return DeviceDispatcher::instance().issue_to_device(request, config::kManualCommandTimeoutMs) ? definitions::CommandOutcome::kPending
+                                                                                                  : definitions::CommandOutcome::kRejected;
 }
 
 definitions::SystemState ManualState::tick(StateMachine* context) {
     (void) context;
-    // Safety: if faults present, disable outputs
-    if (modules::FaultRegistry::instance().has_faults()) {
-        interfaces::IState::apply_safe_outputs();
-        return definitions::SystemState::kManual;
-    }
+    // A device that failed its startup check no longer forces safe outputs here: the operator
+    // accepted it to reach MANUAL, and outputs are only changed on a measured threshold (below).
 
-    // Read bath temperature synchronously through the dispatcher. This sensor is the safety
-    // gate for the manual heating loop; if the bath reaches the overtemperature threshold,
-    // the heater must be forced off regardless of the configured setpoint.
-    const definitions::Command bath_temp_resp =
-        DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempBathRead, 0u});
-    const float bath_temp = utils::bits_to_float(bath_temp_resp.extra);
-    if (std::isnan(bath_temp)) {
-        interfaces::IState::apply_safe_outputs();
-        kLog.warning("ManualState: bath temperature sensor fault (NaN)");
-        return definitions::SystemState::kManual;
-    }
-
-    if (bath_temp >= kMaxBathTempC) {
-        DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
-        kLog.warning("ManualState: bath temperature limit reached (" + std::to_string(bath_temp) + "°C), heater disabled");
-        return definitions::SystemState::kManual;
-    }
-
-    // Read mix temperature synchronously through the dispatcher — no concrete device dependency.
-    // The thermocouple resolves kTempMixRead to its address and packs the reading (IEEE-754 bits,
-    // NaN on fault) into extra.
-    const definitions::Command temp_resp = DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempMixRead, 0u});
-    const float temp = utils::bits_to_float(temp_resp.extra);
-    if (std::isnan(temp) || temp < 0.0f || temp > 100.0f) {
-        interfaces::IState::apply_safe_outputs();
-        kLog.warning("ManualState: temperature sensor fault (NaN)");
-        return definitions::SystemState::kManual;
-    }
-
+    // Everything below runs once per control period (hardware timer, kManualControlIntervalUs), not
+    // on every StateMachine tick: each reading is a multi-sample average that holds the shared I2C bus,
+    // and reading both sensors every 50 ms tick kept the bus saturated -- the SCADA's own reads (and
+    // these) timed out, and the StateMachine task overran its period. The bath limit at 1 Hz is still
+    // far faster than the bath can heat.
     if (!manual_control_tick_ready) {
         return definitions::SystemState::kManual;
     }
     manual_control_tick_ready = false;
+
+    // Read both temperatures synchronously through the dispatcher -- no concrete device dependency. The
+    // thermocouple packs each reading (IEEE-754 bits, NaN on fault) into extra.
+    const float bath_temp =
+        utils::bits_to_float(DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempBathRead, 0u}).extra);
+    const float temp =
+        utils::bits_to_float(DeviceDispatcher::instance().read_from_device({definitions::CommandType::kTempMixRead, 0u}).extra);
+    const bool bath_ok = !std::isnan(bath_temp);
+    const bool mix_measured = !std::isnan(temp);
+    // The control loop only trusts a mix reading inside the plausible range.
+    const bool mix_ok = mix_measured && temp >= config::kMixTempPlausibleMinC && temp <= config::kMixTempPlausibleMaxC;
+    track_reading(bath_ok, bath_missing_, "camisa");
+    track_reading(mix_ok, mix_missing_, "mezcla");
+
+    // The heater is turned off only on a measured threshold, never because a reading is missing. The
+    // over-temperature limit uses the bath reading; if that is missing, the same limit is checked against
+    // the mix reading (any measured value, even outside the plausible range: a high reading must still cut
+    // the heater). With neither reading nothing is measured, so the outputs are left as they are. Once the
+    // limit is reached the heater stays off until the reading drops below kBathTempClearC: without that gap
+    // the loop would switch it back on as soon as the reading dipped under the limit.
+    const bool limit_measured = bath_ok || mix_measured;
+    const float limit_temp = bath_ok ? bath_temp : temp;
+    if (limit_measured && limit_temp >= config::kMaxBathTempC && !over_limit_) {
+        over_limit_ = true;
+        kLog.warning(std::string("ManualState: limite de temperatura alcanzado en la lectura de ") + (bath_ok ? "camisa" : "mezcla") +
+                     " (" + std::to_string(limit_temp) + "°C), calentador apagado");
+    } else if (limit_measured && limit_temp < config::kBathTempClearC && over_limit_) {
+        over_limit_ = false;
+        kLog.info("ManualState: temperatura bajo el umbral de liberacion, el control puede volver a encender el calentador");
+    }
+    if (over_limit_) {
+        DeviceDispatcher::instance().enforce_to_device({definitions::CommandType::kHeaterOff, 0u}, 0);
+        return definitions::SystemState::kManual;
+    }
+
+    // The control loop needs the mix reading; without it this period makes no decision (outputs unchanged).
+    if (!mix_ok) {
+        return definitions::SystemState::kManual;
+    }
 
     ////////// Temperature control logic: hysteresis loop with ±deadband around setpoint.
     // Only apply hysteresis control if temperature control is enabled
@@ -138,24 +145,36 @@ definitions::SystemState ManualState::tick(StateMachine* context) {
     return definitions::SystemState::kManual;
 }
 
+void ManualState::track_reading(bool available, bool& missing, const char* sensor) {
+    if (!available && !missing) {
+        kLog.warning(std::string("ManualState: lectura de temperatura de ") + sensor + " no disponible; no se actua sobre ella");
+    } else if (available && missing) {
+        kLog.info(std::string("ManualState: lectura de temperatura de ") + sensor + " disponible nuevamente");
+    }
+    missing = !available;
+}
+
 void ManualState::on_enter(StateMachine* context) {
     (void) context;
     enabled_ = false;  // Reset control state on entry
     manual_control_tick_ready = true;
+    bath_missing_ = false;
+    mix_missing_ = false;
+    over_limit_ = false;
 
     // The timer is created once for the life of the board and only re-armed on entry. It used to be
     // torn down on exit and rebuilt here, so every MANUAL round trip destroyed and recreated hardware
     // timer 1 with its ISR attached — a plausible cause of the restarts seen when leaving and
     // re-entering MANUAL, and needless work regardless.
     if (manualControlTimer == nullptr) {
-        manualControlTimer = timerBegin(kManualControlTimerIndex, 80, true);  // 1 tick = 1 µs
+        manualControlTimer = timerBegin(config::kManualControlTimerIndex, config::kManualControlTimerPrescaler, true);
         if (manualControlTimer == nullptr) {
-            kLog.error("ManualState: failed to initialize hardware timer for control gating.");
+            kLog.error("ManualState: no se pudo inicializar el timer de hardware del lazo de control.");
             kLog.info("Iniciando Estado: MANUAL - Esperando comandos del usuario");
             return;
         }
         timerAttachInterrupt(manualControlTimer, &isrManualControlTimer, true);
-        timerAlarmWrite(manualControlTimer, kManualControlIntervalUs, true);
+        timerAlarmWrite(manualControlTimer, config::kManualControlIntervalUs, true);
     }
 
     timerAlarmEnable(manualControlTimer);

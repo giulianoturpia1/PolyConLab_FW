@@ -28,7 +28,7 @@ namespace modules {
 ///
 /// @brief Leveled, runtime-toggleable firmware logger.
 ///
-/// Singleton — access via logger(). Enabled by default.
+/// Singleton — access via logger(). Starts enabled or not per config::kLogEnabledAtBoot.
 ///
 /// Output format: "[LVL] message\n" written to hal_general().serial_println().
 /// All output is silenced when disabled; SCPI responses are unaffected.
