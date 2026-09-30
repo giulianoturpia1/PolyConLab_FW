@@ -38,11 +38,17 @@ class IState {
     ///
     /// @brief Validate and dispatch a command request while this state is active.
     ///
+    /// A state that answers a command itself (no device round-trip) returns kCompleted and fills
+    /// @p out_response, so the StateMachine can close the command instead of leaving it waiting for
+    /// a confirmation that will never arrive.
+    ///
     /// @param context FSM runtime context.
     /// @param request Command request to evaluate/dispatch.
-    /// @return true if command was accepted and dispatched; false otherwise.
+    /// @param out_response Response to send back; filled only when returning kCompleted.
+    /// @return definitions::CommandOutcome How the command was disposed of.
     ///
-    virtual bool dispatch_command(modules::StateMachine* context, const definitions::Command& request);
+    virtual definitions::CommandOutcome handle_command(modules::StateMachine* context, const definitions::Command& request,
+                                                       definitions::Command& out_response);
 
     ///
     /// @brief Optional callback executed when entering the state. Can be used for actions like applying safe outputs, logging, etc.
@@ -78,6 +84,17 @@ class IState {
     IState& operator=(const IState&) = delete;
     IState(IState&&) = delete;
     IState& operator=(IState&&) = delete;
+
+    ///
+    /// @brief Drive every relay output to its safe state from config:: (heater and pump OFF, mixer ON). Call from
+    /// on_enter() when entering any safe or error state.
+    ///
+    static void apply_safe_outputs();
+
+    ///
+    /// @brief Close both solenoid valves. No-op on targets that do not define valve pins.
+    ///
+    static void close_all_valves();
 };
 
 }  // namespace interfaces

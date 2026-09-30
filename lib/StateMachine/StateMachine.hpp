@@ -11,12 +11,14 @@
 
 #pragma once
 
-#include <functional>
+#include <array>
 #include <map>
 #include <memory>
 #include <string>
 
+#include "Config.hpp"
 #include "Definitions.hpp"
+#include "ICommandResponseQueue.hpp"
 
 namespace interfaces {
 class IState;
@@ -31,7 +33,7 @@ using interfaces::IState;
 ///
 /// The current implementation utilizes a FreeRTOS task to run the state machine loop, which processes events and commands from queues.
 /// The main loop is implemented in the tick() method, which executes the handler for the current state.
-/// The StateMachine task constantly polls for events, commands, and response reports from the respective queues. Which represent the
+/// The StateMachine task constantly polls for events, commands, and responses from the respective queues. Which represent the
 /// following:
 ///
 /// + Events are used to trigger state transitions.
@@ -63,7 +65,7 @@ class StateMachine {
     /// @brief Initialize the state machine. Starts in the STARTUP state.
     ///
     ///
-    void initialize();
+    void begin();
 
     ///
     /// @brief Start the dedicated FSM FreeRTOS task and event queue.
@@ -93,9 +95,9 @@ class StateMachine {
     bool queue_command(const definitions::Command& request, uint32_t timeout_ms = 0);
 
     ///
-    /// @brief Queue an executed response report in the FSM task's local queue.
+    /// @brief Queue an executed response in the FSM task's local queue.
     ///
-    /// @note This is the intended method to send response reports from other tasks or ISRs. For non-RTOS paths.
+    /// @note This is the intended method to send responses from other tasks or ISRs. For non-RTOS paths.
     /// @param response Executed response payload.
     /// @param timeout_ms Queue send timeout in milliseconds.
     /// @return true if response was queued, false otherwise.
@@ -121,7 +123,7 @@ class StateMachine {
     ///
     /// @brief Query whether there is a command pending execution confirmation.
     ///
-    /// @return true if waiting for a matching module response report.
+    /// @return true if waiting for a matching module response.
     ///
     bool is_command_pending() const;
 
@@ -149,7 +151,7 @@ class StateMachine {
     ///
     /// @param callback Callable invoked with the outcome Command.
     ///
-    void set_response_callback(std::function<void(const definitions::Command&)> callback);
+    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
    private:
     StateMachine();
@@ -207,10 +209,10 @@ class StateMachine {
     void process_command(const definitions::Command& request);
 
     ///
-    /// @brief Process an executed response report.
+    /// @brief Process an executed response.
     /// Intended for internal scheduler/task use and non-RTOS fallback paths.
     ///
-    /// @param response Executed response report.
+    /// @param response Executed response.
     ///
     void process_response(const definitions::Command& response);
 
@@ -248,10 +250,28 @@ class StateMachine {
     ///
     /// @brief Monitor pending command confirmation timeout.
     ///
-    /// Used by all states to check if a pending command has not been confirmed as executed within a reasonable time window, which could
-    /// indicate a fault or communication issue with the modules.
+    /// Each entry is aged against its own dispatch time: with delivery ordered downstream, a slow
+    /// command no longer holds up the ones behind it, so none of them inherits its deadline either.
     ///
     void handle_command_feedback_timeout();
+
+    ///
+    /// @brief Hand a command outcome to the response sink, if one is set.
+    ///
+    /// Published as soon as it is known: Communications holds each client's replies in the order
+    /// their commands arrived, so nothing has to be held back here.
+    ///
+    /// @param response Outcome carrying the token of the command it answers.
+    ///
+    void publish_response(const definitions::Command& response);
+
+    ///
+    /// @brief Claim a free in-flight slot for a command dispatched to a device.
+    ///
+    /// @param request Command as received, carrying its token.
+    /// @return false when every slot is occupied.
+    ///
+    bool push_pending(const definitions::Command& request);
 
     ///
     /// @brief Execute one state-machine cycle (to be called repeatedly in a loop).
@@ -274,14 +294,26 @@ class StateMachine {
     definitions::SystemState currentState_;                                      ///< Current state of the system
     definitions::SystemState previousState_;                                     ///< Previous state of the system
     unsigned long stateEntryTime_;                                               ///< Timestamp of when the current state was entered
-    bool stateChanged_;                    ///< Flag indicating if the state has changed since the last tick
-    definitions::Command lastResponse_;    ///< Last executed response
-    definitions::Command pendingCommand_;  ///< Last command request pending execution confirmation
-    unsigned long pendingCommandTimeMs_;   ///< Timestamp of when the pending command was sent
-    bool commandPending_;                  ///< Flag indicating if there is a command pending execution confirmation
-    bool lastCommandConfirmed_;            ///< Flag indicating if the last command was confirmed as executed by a module
-    std::function<void(const definitions::Command&)>
-        response_callback_;  ///< Fired on every command outcome; kCommandError type encodes failures
+    bool stateChanged_;                  ///< Flag indicating if the state has changed since the last tick
+    definitions::Command lastResponse_;  ///< Last executed response
+
+    ///
+    /// @brief One command dispatched to a device and awaiting its confirmation.
+    ///
+    /// Only device-bound commands take a slot: anything the FSM can answer on the spot is published
+    /// straight away. The token is what pairs the device's reply with the request, so entries are
+    /// independent of each other and of the order replies arrive in.
+    ///
+    struct PendingCommand {
+        definitions::Command request;  ///< The command as dispatched, carrying its token
+        unsigned long sentTimeMs;      ///< Dispatch timestamp, aged by handle_command_feedback_timeout()
+        bool occupied;                 ///< Slot is waiting on a device
+    };
+
+    std::array<PendingCommand, config::kMaxInFlightCommands> pending_;  ///< Commands awaiting their devices
+    uint8_t pendingCount_;                                              ///< Number of occupied slots
+    bool lastCommandConfirmed_;                         ///< True when the most recent outcome was a confirmation, not a timeout
+    interfaces::ICommandResponseQueue* response_sink_;  ///< Where command outcomes are published; may be nullptr
 };
 
 }  // namespace modules

@@ -20,9 +20,7 @@ class HALGeneral;
 
 namespace modules {
 class Communications;
-class Heater;
-class Pump;
-class Chiller;
+class RelayOutput;
 class SolenoidValve;
 class Thermocouple;
 class Flowmeter;
@@ -67,7 +65,7 @@ class App {
     App& operator=(App&&) = delete;
 
     ///
-    /// @brief Initialize the Ethernet TCP server (bind, begin, link-check setup).
+    /// @brief Initialize the WiFi (SoftAP) TCP server (start AP, begin listening).
     /// Serial transport wiring is done separately in initialize_system().
     ///
     void initialize_network_server();
@@ -120,9 +118,9 @@ class App {
     StateMachine& state_machine_;
     interfaces::HALGeneral& hal_;
     Communications& communications_;
-    Heater& heater_;
-    Pump& pump_;
-    Chiller& chiller_;
+    RelayOutput& heater_;
+    RelayOutput& pump_;
+    RelayOutput& mixer_;
     SolenoidValve& valves_;
     Thermocouple& thermocouples_;
     Flowmeter& flowmeter_;

@@ -20,7 +20,7 @@ Some libraries may contain additional files, such as configuration files, exampl
 
 ## 1. Firmware Implementation Details
 
-This section summarizes how the firmware is assembled and executed at runtime. The core idea is simple: `App` boots and wires the system, `StateMachine` coordinates decisions, and device modules execute actions asynchronously through FreeRTOS queues/tasks.
+This section summarizes how the firmware is assembled and executed at runtime. The core idea is simple: `App` boots and wires the system, `StateMachine` coordinates decisions, and device modules execute actions — synchronous GPIO devices inline on the caller's task, the I2C thermocouple on its own FreeRTOS task.
 Since the project utilizes Arduino as the Framework (due to the libraries needed for utilizing the ESP-32 PLC's) which uses the ESP-IDF, the `vTaskStartScheduler()` function is run automatically after setting up the device and does not need to be run in the main application.
 
 The runtime is organized around two central components:
@@ -39,8 +39,8 @@ The firmware architecture can be grouped into three layers that clarify ownershi
 2. **Middle Level Logic (Device Modules)**
    - `Communications` connects protocol inputs to this layer by parsing serial/ethernet messages and forwarding requests.
    - Modules implement domain-level actuator and sensor behavior.
-   - Each module owns its queue/task and executes accepted commands asynchronously.
-   - Modules report executed actions back to `StateMachine` for confirmation and feedback tracking.
+   - GPIO modules (`SyncDevice`) execute accepted commands inline on the caller's task; the I2C `Thermocouple` (`AsyncDevice`) owns a queue/task.
+   - Modules report executed commands back to `StateMachine` for confirmation; autonomous control-loop and safe-output actuations are enforced without a report.
 
 3. **System Utilities (`FreeRTOS`, `HAL`)**
    - `FreeRTOS` provides scheduler, task model, delays, and queue primitives used by upper layers.
@@ -50,7 +50,7 @@ The firmware architecture can be grouped into three layers that clarify ownershi
 
 FreeRTOS is used to make the firmware responsive, modular, and safe under concurrent I/O and control workloads. Instead of running all logic in a single loop, the system assigns independent responsibilities to dedicated tasks and communicates through queues. It allows
 
-- Each actuator module owns its own queue and task.
+- Only the I2C `Thermocouple` owns its own queue and task; GPIO devices actuate synchronously inline.
 - Control loops (`StateMachine` and `App`) run periodically and concurrently by utilizing the FreeRTOS scheduler.
 - Producers enqueue commands/events; consumers process asynchronously.
 
@@ -60,10 +60,10 @@ The ESP32 is dual-core, in particular, the main target device we are using (PLC 
 
 | Core | Tasks | Rationale |
 |------|-------|-----------|
-| **0 (PRO\_CPU)** | `App`, `StateMachine` | Ethernet polling drives SPI/APB traffic. Keeping these together avoids cross-core coordination overhead. |
-| **1 (APP\_CPU)** | All device tasks (`Thermocouple`, `Heater`, `Pump`, `Chiller`, `SolenoidValve`, `Flowmeter`, `LevelSwitch`) | I2C and GPIO operations. Isolating them from Core 0 prevents SPI APB bursts from time-slicing into I2C transactions, which can corrupt I2C timing on the ESP32. |
+| **0 (PRO\_CPU)** | `App`, `StateMachine`, inline `SyncDevice` actuation | Ethernet polling drives SPI/APB traffic. Keeping these together avoids cross-core coordination overhead. |
+| **1 (APP\_CPU)** | `Thermocouple` task (I2C only) | Blocking I2C transactions on a shared bus. Isolating from Core 0 prevents SPI APB bursts from time-slicing into I2C transactions, which can corrupt I2C timing on the ESP32. GPIO devices (`SyncDevice`) actuate inline on Core 0. |
 
-The `Thermocouple` task is intentionally set to a higher priority than the other device tasks (see `Config.hpp`) so it is never preempted mid-I2C-transaction by a same-core peer.
+The `Thermocouple` task is intentionally set to a high priority (see `Config.hpp`) so it is never preempted mid-I2C-transaction by a same-core peer.
 
 ### 1.3. Startup and Runtime Flow
 
@@ -146,7 +146,7 @@ Constants are grouped under the `config::` namespace. The file is the **only pla
 | Group | Examples |
 |-------|---------|
 | **Task Periods** | `kAppTaskPeriodMs`, `kStateMachineTaskPeriodMs` |
-| **Task Priorities** | `kAppTaskPriority`, `kThermocoupleTaskPriority`, `kDeviceTaskPriority` |
+| **Task Priorities** | `kAppTaskPriority`, `kStateMachineTaskPriority`, `kThermocoupleTaskPriority` |
 | **Core Affinity** | `kSpiCoreId` (Core 0), `kI2cCoreId` (Core 1) |
 | **Stack Sizes** | `kAppTaskStackSize`, `kThermocoupleTaskStackSize`, … |
 | **Queue Depths** | `kStateMachineQueueLength`, `kDeviceQueueLength` |

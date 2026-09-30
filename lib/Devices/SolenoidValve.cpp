@@ -1,19 +1,9 @@
 #include "SolenoidValve.hpp"
 
-#include <freertos/task.h>
-
 #include <algorithm>
 
-#include "Config.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
-
-constexpr char kSolenoidValveTaskName[] = "valve_task";
-
-struct ValveCommand {
-    definitions::CommandType command;
-    uint32_t pin;
-};
 
 namespace modules {
 
@@ -24,32 +14,6 @@ static const TaggedLogger kLog("SolenoidValve");
 SolenoidValve& SolenoidValve::instance() {
     static SolenoidValve instance;
     return instance;
-}
-
-bool SolenoidValve::create_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(ValveCommand));
-    if (queue_ == nullptr) {
-        kLog.error("No se pudo crear la cola de valvulas.");
-        return false;
-    }
-
-    if (xTaskCreatePinnedToCore(task_entry, kSolenoidValveTaskName, config::kSolenoidValveTaskStackSize, this, config::kDeviceTaskPriority,
-                                nullptr, config::kI2cCoreId) != pdPASS) {
-        kLog.error("No se pudo crear la tarea de valvulas.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
-}
-
-void SolenoidValve::set_response_queue(interfaces::ICommandResponseQueue* queue) {
-    response_queue_ = queue;
 }
 
 void SolenoidValve::begin(const uint32_t* pins, size_t count) {
@@ -63,6 +27,56 @@ void SolenoidValve::begin(const uint32_t* pins, size_t count) {
     const uint8_t bounded_count = static_cast<uint8_t>(std::min(count, static_cast<size_t>(definitions::kMaxSolenoidValves)));
     for (uint8_t index = 0; index < bounded_count; ++index) {
         add(pins[index]);
+    }
+}
+
+bool SolenoidValve::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kValveOpen || type == definitions::CommandType::kValveClose ||
+           type == definitions::CommandType::kValveState;
+}
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0) {}
+
+uint8_t SolenoidValve::find_index(uint32_t pin) const {
+    for (uint8_t index = 0; index < valve_count_; ++index) {
+        if (valves_[index].pin == pin) {
+            return index;
+        }
+    }
+
+    return definitions::kMaxSolenoidValves;  // Return an out-of-range index to indicate not found
+}
+
+bool SolenoidValve::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
+    const uint32_t pin = cmd.extra;
+    switch (cmd.type) {
+        case definitions::CommandType::kValveOpen:
+            if (!open(pin)) {
+                return false;
+            }
+            out_response = {definitions::CommandType::kValveOpen, pin};
+            return true;
+
+        case definitions::CommandType::kValveClose:
+            if (!close(pin)) {
+                return false;
+            }
+            out_response = {definitions::CommandType::kValveClose, pin};
+            return true;
+
+        case definitions::CommandType::kValveState: {
+            if (find_index(pin) >= definitions::kMaxSolenoidValves) {
+                return false;  // unregistered pin — let the SM answer with kErrorCommandRejected
+            }
+            const uint32_t payload = pin | (status(pin) ? definitions::kValveStatusOpenMask : 0u);
+            out_response = {definitions::CommandType::kValveState, payload};
+            return true;
+        }
+
+        default:
+            return false;
     }
 }
 
@@ -141,78 +155,6 @@ bool SolenoidValve::status(uint32_t pin) const {
 
 uint8_t SolenoidValve::count() const {
     return valve_count_;
-}
-
-bool SolenoidValve::queue_command(definitions::CommandType command, uint32_t pin, uint32_t timeout_ms) {
-    const ValveCommand queue_command = {command, pin};
-    if (queue_ == nullptr) {
-        return false;
-    }
-
-    return xQueueSend(queue_, &queue_command, pdMS_TO_TICKS(timeout_ms)) == pdPASS;
-}
-
-////////////////////////////////////// Private Methods //////////////////////////////////////
-
-SolenoidValve::SolenoidValve() : valves_({}), valve_count_(0), queue_(nullptr), response_queue_(nullptr) {}
-
-uint8_t SolenoidValve::find_index(uint32_t pin) const {
-    for (uint8_t index = 0; index < valve_count_; ++index) {
-        if (valves_[index].pin == pin) {
-            return index;
-        }
-    }
-
-    return definitions::kMaxSolenoidValves;  // Return an out-of-range index to indicate not found
-}
-
-bool SolenoidValve::process_command(definitions::CommandType command, uint32_t pin) {
-    switch (command) {
-        case definitions::CommandType::kValveOpen: {
-            const bool executed = open(pin);
-            if (executed) {
-                publish_response({definitions::CommandType::kValveOpen, pin});
-            }
-            return executed;
-        }
-
-        case definitions::CommandType::kValveClose: {
-            const bool executed = close(pin);
-            if (executed) {
-                publish_response({definitions::CommandType::kValveClose, pin});
-            }
-            return executed;
-        }
-
-        case definitions::CommandType::kValveState:
-            publish_response({definitions::CommandType::kValveState, pin});
-            return find_index(pin) < definitions::kMaxSolenoidValves;
-
-        default:
-            return false;
-    }
-}
-
-bool SolenoidValve::publish_response(const definitions::Command& response) {
-    if (response_queue_ == nullptr) {
-        return false;
-    }
-
-    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
-}
-
-void SolenoidValve::task_entry(void* param) {
-    SolenoidValve* self = static_cast<SolenoidValve*>(param);
-    ValveCommand command = {definitions::CommandType::kValveClose, 0};
-
-    while (true) {
-        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
-            self->process_command(command.command, command.pin);
-        }
-        if (self->queue_ == nullptr) {
-            break;
-        }
-    }
 }
 
 }  // namespace modules

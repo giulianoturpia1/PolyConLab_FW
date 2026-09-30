@@ -130,6 +130,24 @@ inline const char* command_name(const definitions::CommandType command) {
 }
 
 ///
+/// @brief Whether a message sender holds operator privilege (pure authorization policy).
+///
+/// Serial is the local physical console and is always privileged. Over WiFi, only the client
+/// holding the operator role may actuate; operator_id == 0 means the role is unclaimed.
+///
+/// @param transport   Transport the message arrived on.
+/// @param sender      Identity of the sending client (0 for serial).
+/// @param operator_id Client currently holding the operator role (0 = unclaimed).
+/// @return bool True if the sender holds operator privilege.
+///
+inline bool sender_is_operator(const definitions::Transport transport, const uint32_t sender, const uint32_t operator_id) {
+    if (transport == definitions::Transport::kSerial) {
+        return true;
+    }
+    return operator_id != 0 && sender == operator_id;
+}
+
+///
 /// @brief Format an integer value as a "0xNN" hex string.
 ///
 /// @param value Value to format.
@@ -155,6 +173,61 @@ inline std::string format_float(float value, int precision) {
 }
 
 ///
+/// @brief Type-pun a float into its raw uint32_t bit pattern, for packing into Command::extra.
+///
+/// @param value Float to encode.
+/// @return uint32_t IEEE-754 bit pattern of @p value.
+///
+inline uint32_t float_to_bits(float value) {
+    static_assert(sizeof(float) == sizeof(uint32_t), "float/uint32_t size mismatch");
+    uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+///
+/// @brief Inverse of @c float_to_bits: recover a float from its raw uint32_t bit pattern.
+///
+/// @param bits IEEE-754 bit pattern (as carried in Command::extra).
+/// @return float Decoded value.
+///
+inline float bits_to_float(uint32_t bits) {
+    static_assert(sizeof(float) == sizeof(uint32_t), "float/uint32_t size mismatch");
+    float value = 0.0f;
+    std::memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+///
+/// @brief Look up the wire name of a FaultId.
+///
+/// @param id Fault identity to look up.
+/// @return const char* Wire name (e.g. "TEMP_IN"), or "UNKNOWN" if not found.
+///
+inline const char* fault_name(const definitions::FaultId id) {
+    const auto it = std::find_if(definitions::kFaultNameMap.begin(), definitions::kFaultNameMap.end(),
+                                 [id](const definitions::FaultNameEntry& entry) { return entry.id == id; });
+    return it != definitions::kFaultNameMap.end() ? it->name : "UNKNOWN";
+}
+
+///
+/// @brief Resolve a SYST:REINIT:* command to the FaultId it clears on success.
+///
+/// @param type Command type to look up.
+/// @param out_fault Set to the matching FaultId when @p type is one of the re-init commands.
+/// @return bool True if @p type is a re-init command and @p out_fault was filled.
+///
+inline bool fault_for_reinit(const definitions::CommandType type, definitions::FaultId& out_fault) {
+    const auto it = std::find_if(definitions::kReinitFaultMap.begin(), definitions::kReinitFaultMap.end(),
+                                 [type](const definitions::ReinitFaultEntry& entry) { return entry.command == type; });
+    if (it == definitions::kReinitFaultMap.end()) {
+        return false;
+    }
+    out_fault = it->fault;
+    return true;
+}
+
+///
 /// @brief Unpack an IEEE-754 float stored in a uint32_t and format it to 2 decimal places.
 ///
 /// Sensor modules pack float readings into Command::extra via memcpy. This function
@@ -164,8 +237,7 @@ inline std::string format_float(float value, int precision) {
 /// @return std::string Formatted value (e.g. "25.50") or SCPI error string.
 ///
 inline std::string format_sensor_value(uint32_t bits) {
-    float val;
-    std::memcpy(&val, &bits, sizeof(float));
+    float val = bits_to_float(bits);
     if (std::isnan(val)) {
         return to_scpi(definitions::ResponseType::kErrorSensorFault);
     }

@@ -33,7 +33,21 @@ constexpr uint8_t kMaxThermocouples = 5;
 /// calibration data.
 ///
 ///
-constexpr float kFlowmeterPulsesPerLiter = 489.125f;
+constexpr float kFlowmeterPulsesPerLiter = 28.75f;  // 489.125f;
+
+///
+///@brief Reference flow rate in liters per second for the flowmeter. Adjust based on the specific flowmeter used.
+///
+///
+constexpr float kReferenceFlow =
+    0.015f;  ///< Reference flow rate in liters per second for the flowmeter. Adjust based on the specific flowmeter used.
+
+///
+///@brief Frequency of pulses per second for the flowmeter. Adjust based on the specific flowmeter used. Refers to kReferenceFlow
+///
+///
+constexpr float kReferenceFrequencyofPulsesPerSecond =
+    12.5f;  ///< Frequency of pulses per second for the flowmeter. Adjust based on the specific flowmeter used.
 
 ///
 /// @brief System states for the Finite State Machine. Refer to the design documentation for details.
@@ -101,10 +115,10 @@ enum class CommandType {
     kPumpOff,
     kPumpState,
 
-    // Chiller commands
-    kChillerOn,
-    kChillerOff,
-    kChillerState,
+    // Mixer/emulsifier commands
+    kMixerOn,
+    kMixerOff,
+    kMixerState,
 
     // Valve commands (parameterized by valve number)
     kValveOpen,
@@ -120,8 +134,19 @@ enum class CommandType {
     // Flow meter command
     kFlowRead,
 
+    // Manual setpoint from SCADA: pack IEEE-754 float into Command::extra
+    kTempSetIn,
+
     // Level switch command
     kLevelSwitchState,
+
+    // Sensor re-initialisation (re-run one sensor's hardware begin())
+    kTempInReinit,
+    kTempOutReinit,
+    kTempBathReinit,
+    kTempMixReinit,
+    kFlowReinit,
+    kLevelSwitchReinit,
 
     // Diagnostics/Status
     kPing,
@@ -153,23 +178,42 @@ enum class ResponseType {
     kStatusClosed,
     kStatusHigh,
     kStatusLow,
+    kReinitOk,              ///< A sensor re-initialisation succeeded ("OK")
     kErrorCommandRejected,  ///< Command not accepted in the current FSM state
     kErrorCommandTimeout,   ///< Device did not confirm command execution within timeout
     kErrorInvalidParam,     ///< Command parameter is out of range (e.g. valve number = 0)
+    kErrorNotOperator,      ///< Actuation command from a client that does not hold the operator role
     kErrorSensorFault,      ///< Sensor returned NaN (disconnected or CRC failure)
+    kErrorReinitFailed,     ///< A sensor re-initialisation (re-run begin()) did not succeed
+    kErrorBusy,             ///< No free in-flight slot: the command was not dispatched and may be retried
     kMeasTemp,              ///< Runtime-formatted temperature reading in Celsius — no static wire string
     kMeasFlow,              ///< Runtime-formatted flow rate in L/min — no static wire string
     kStateValue,            ///< Runtime-formatted FSM state name — no static wire string
 };
 
 ///
+/// @brief Result of offering a command to the active state's handler.
+///
+enum class CommandOutcome {
+    kRejected,   ///< Not valid in this state; the client is answered kErrorCommandRejected
+    kPending,    ///< Dispatched to a device; that device's reply will confirm it
+    kCompleted,  ///< Handled by the state itself, which filled the response to send back
+};
+
+///
 /// @brief Communication transport that originated a command or response.
 ///
 enum class Transport {
-    kNone,      ///< No active transport (idle / after response delivery)
-    kEthernet,  ///< Command received over Ethernet TCP
-    kSerial     ///< Command received over Serial
+    kNone,   ///< No active transport (idle / after response delivery)
+    kWifi,   ///< Command received over WiFi TCP
+    kSerial  ///< Command received over Serial
 };
+
+///
+/// @brief Identity of a connected client (its IP packed as uint32_t); 0 = none/unknown.
+/// Used by the authorization layer to tell clients apart, independent of the transport.
+///
+using ClientId = uint32_t;
 
 ///
 /// @brief Command structure used for representing a command in the system.
@@ -180,8 +224,30 @@ struct Command {
                        ///<   actuator/sensor pin or I2C address for device commands;
                        ///<   IEEE-754 float bits for temperature/flow reads;
                        ///<   SystemState cast to uint32_t for kStateQuery;
-                       ///<   ResponseType cast to uint32_t for kCommandError.
+                       ///<   ResponseType cast to uint32_t for kCommandError;
+                       ///<   valve pin in the low bits plus kValveStatusOpenMask for a kValveState response.
+    uint16_t token;    ///< Correlation id: assigned by Communications when the command is queued, held
+                       ///< against the client that issued it, carried through the StateMachine and
+                       ///< echoed by the device on its response. It is what pairs a reply with the
+                       ///< request that caused it — and with the client waiting for it — rather than
+                       ///< with any command of the same type. Declared last so existing
+                       ///< {type, extra} initializers keep their meaning and leave it zero.
+                       ///< 0 marks untagged traffic (autonomous actuations, inline reads).
 };
+
+///
+/// @brief Bit set in Command::extra of a kValveState response when the valve is open.
+///
+/// A kValveState response must carry both the valve identity (so StateMachine can match
+/// the response to the pending command) and the reading (so Communications can format
+/// OPEN/CLOSED). The pin occupies the low bits; this flag occupies the top bit.
+///
+constexpr uint32_t kValveStatusOpenMask = 1u << 31;
+
+///
+/// @brief Mask that recovers the valve pin from a kValveState payload.
+///
+constexpr uint32_t kValvePinMask = ~kValveStatusOpenMask;
 
 ///
 /// @brief Single entry in the SCPI command lookup table: maps a command string to its CommandType.
@@ -189,6 +255,7 @@ struct Command {
 struct CommandEntry {
     const char* name;     ///< SCPI command string (e.g., "OUTP:HEAT ON")
     CommandType command;  ///< Corresponding CommandType enum value
+    bool actuates;        ///< True if the command drives a physical output (requires the operator role)
 };
 
 ///
@@ -247,34 +314,41 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
     {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<CommandEntry, 24> kCommandMap = {{
-    {("OUTP:HEAT ON"), CommandType::kHeaterOn},
-    {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
-    {("OUTP:HEAT?"), CommandType::kHeaterState},
-    {("OUTP:PUMP ON"), CommandType::kPumpOn},
-    {("OUTP:PUMP OFF"), CommandType::kPumpOff},
-    {("OUTP:PUMP?"), CommandType::kPumpState},
-    {("OUTP:CHILL ON"), CommandType::kChillerOn},
-    {("OUTP:CHILL OFF"), CommandType::kChillerOff},
-    {("OUTP:CHILL?"), CommandType::kChillerState},
-    {("OUTP:VALV OPEN"), CommandType::kValveOpen},
-    {("OUTP:VALV CLOSE"), CommandType::kValveClose},
-    {("OUTP:VALV?"), CommandType::kValveState},
-    {("MEAS:TEMP:IN?"), CommandType::kTempInRead},
-    {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead},
-    {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
-    {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
-    {("MEAS:FLOW?"), CommandType::kFlowRead},
-    {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
-    {("PING"), CommandType::kPing},
-    {("STATE?"), CommandType::kStateQuery},
-    {("SYST:LOG ON"), CommandType::kLogOn},
-    {("SYST:LOG OFF"), CommandType::kLogOff},
-    {("SYST:LOG?"), CommandType::kLogQuery},
-    {("SYST:FAULT?"), CommandType::kFaultQuery},
+constexpr std::array<CommandEntry, 31> kCommandMap = {{
+    {("OUTP:HEAT ON"), CommandType::kHeaterOn, true},
+    {("OUTP:HEAT OFF"), CommandType::kHeaterOff, true},
+    {("OUTP:HEAT?"), CommandType::kHeaterState, false},
+    {("OUTP:PUMP ON"), CommandType::kPumpOn, true},
+    {("OUTP:PUMP OFF"), CommandType::kPumpOff, true},
+    {("OUTP:PUMP?"), CommandType::kPumpState, false},
+    {("OUTP:MIX ON"), CommandType::kMixerOn, true},
+    {("OUTP:MIX OFF"), CommandType::kMixerOff, true},
+    {("OUTP:MIX?"), CommandType::kMixerState, false},
+    {("OUTP:VALV OPEN"), CommandType::kValveOpen, true},
+    {("OUTP:VALV CLOSE"), CommandType::kValveClose, true},
+    {("OUTP:VALV?"), CommandType::kValveState, false},
+    {("MEAS:TEMP:IN?"), CommandType::kTempInRead, false},
+    {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead, false},
+    {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead, false},
+    {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead, false},
+    {("TEMP:SET:IN"), CommandType::kTempSetIn, true},
+    {("MEAS:FLOW?"), CommandType::kFlowRead, false},
+    {("MEAS:LEVEL?"), CommandType::kLevelSwitchState, false},
+    {("SYST:REINIT:TEMP:IN"), CommandType::kTempInReinit, false},
+    {("SYST:REINIT:TEMP:OUT"), CommandType::kTempOutReinit, false},
+    {("SYST:REINIT:TEMP:CAM"), CommandType::kTempBathReinit, false},
+    {("SYST:REINIT:TEMP:MEZ"), CommandType::kTempMixReinit, false},
+    {("SYST:REINIT:FLOW"), CommandType::kFlowReinit, false},
+    {("SYST:REINIT:LEVEL"), CommandType::kLevelSwitchReinit, false},
+    {("PING"), CommandType::kPing, false},
+    {("STATE?"), CommandType::kStateQuery, false},
+    {("SYST:LOG ON"), CommandType::kLogOn, false},
+    {("SYST:LOG OFF"), CommandType::kLogOff, false},
+    {("SYST:LOG?"), CommandType::kLogQuery, false},
+    {("SYST:FAULT?"), CommandType::kFaultQuery, false},
 }};
 
-constexpr std::array<ResponseEntry, 14> kResponseMap = {{
+constexpr std::array<ResponseEntry, 18> kResponseMap = {{
     {"-100,’UNKNOWN COMMAND’", ResponseType::kErrorUnknownCommand},
     {"-200,’EMPTY EVENT’", ResponseType::kErrorEmptyEvent},
     {"-300,’UNKNOWN EVENT’", ResponseType::kErrorUnknownEvent},
@@ -282,6 +356,7 @@ constexpr std::array<ResponseEntry, 14> kResponseMap = {{
     {"-102,’COMMAND TIMEOUT’", ResponseType::kErrorCommandTimeout},
     {"-220,’INVALID PARAMETER’", ResponseType::kErrorInvalidParam},
     {"-103,’SENSOR FAULT’", ResponseType::kErrorSensorFault},
+    {"-104,’NOT OPERATOR’", ResponseType::kErrorNotOperator},
     {"PONG", ResponseType::kPingOk},
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},
@@ -289,21 +364,23 @@ constexpr std::array<ResponseEntry, 14> kResponseMap = {{
     {"CLOSED", ResponseType::kStatusClosed},
     {"HIGH", ResponseType::kStatusHigh},
     {"LOW", ResponseType::kStatusLow},
+    {"OK", ResponseType::kReinitOk},
+    {"-105,’REINIT FAILED’", ResponseType::kErrorReinitFailed},
+    {"-106,’BUSY’", ResponseType::kErrorBusy},
 }};
 
-constexpr std::array<CommandResponseEntry, 23> kCommandResponseMap = {{
+constexpr std::array<CommandResponseEntry, 29> kCommandResponseMap = {{
     {CommandType::kHeaterOn, ResponseType::kStatusOn},
     {CommandType::kHeaterOff, ResponseType::kStatusOff},
     {CommandType::kHeaterState, ResponseType::kStatusOn},
     {CommandType::kPumpOn, ResponseType::kStatusOn},
     {CommandType::kPumpOff, ResponseType::kStatusOff},
     {CommandType::kPumpState, ResponseType::kStatusOn},
-    {CommandType::kChillerOn, ResponseType::kStatusOn},
-    {CommandType::kChillerOff, ResponseType::kStatusOff},
-    {CommandType::kChillerState, ResponseType::kStatusOn},
+    {CommandType::kMixerOn, ResponseType::kStatusOn},
+    {CommandType::kMixerOff, ResponseType::kStatusOff},
+    {CommandType::kMixerState, ResponseType::kStatusOn},
     {CommandType::kValveOpen, ResponseType::kStatusOpen},
     {CommandType::kValveClose, ResponseType::kStatusClosed},
-    {CommandType::kValveState, ResponseType::kStatusOpen},
     {CommandType::kTempInRead, ResponseType::kMeasTemp},
     {CommandType::kTempOutRead, ResponseType::kMeasTemp},
     {CommandType::kTempBathRead, ResponseType::kMeasTemp},
@@ -315,6 +392,13 @@ constexpr std::array<CommandResponseEntry, 23> kCommandResponseMap = {{
     {CommandType::kLogOn, ResponseType::kStatusOn},
     {CommandType::kLogOff, ResponseType::kStatusOff},
     {CommandType::kLogQuery, ResponseType::kStatusOn},
+    {CommandType::kTempSetIn, ResponseType::kStatusOn},
+    {CommandType::kTempInReinit, ResponseType::kReinitOk},
+    {CommandType::kTempOutReinit, ResponseType::kReinitOk},
+    {CommandType::kTempBathReinit, ResponseType::kReinitOk},
+    {CommandType::kTempMixReinit, ResponseType::kReinitOk},
+    {CommandType::kFlowReinit, ResponseType::kReinitOk},
+    {CommandType::kLevelSwitchReinit, ResponseType::kReinitOk},
 }};
 
 constexpr std::array<StateNameEntry, 7> kStateNameMap = {{
@@ -325,6 +409,69 @@ constexpr std::array<StateNameEntry, 7> kStateNameMap = {{
     {SystemState::kSoftError, "SOFT ERROR"},
     {SystemState::kHardError, "HARD ERROR"},
     {SystemState::kShutdown, "SHUTDOWN"},
+}};
+
+///
+/// @brief Identity of a device that can fail hardware initialisation, used as the bit index into
+/// modules::FaultRegistry's bitmask (bit N = this FaultId's numeric value). Keep this enum under
+/// 32 entries: the registry stores it as a single uint32_t bitmask, one bit per FaultId.
+///
+/// @note SYST:FAULT? now answers with per-sensor names (e.g. "TEMP_IN,FLOWMETER") instead of the
+/// old coarse "THERMOCOUPLES" entry that lumped all four I2C amplifiers together, so a single dead
+/// amplifier is now distinguishable from four. The SCADA does not currently send SYST:FAULT?, so
+/// this wire-format change breaks nothing today.
+///
+enum class FaultId : uint8_t {
+    kPump,
+    kMixer,
+    kHeater,
+    kTempIn,
+    kTempOut,
+    kTempBath,
+    kTempMix,
+    kFlowmeter,
+    kLevelSwitch,
+    kCount  ///< Sentinel: also gives the registry its bit width (must stay <= 32).
+};
+
+static_assert(static_cast<uint8_t>(FaultId::kCount) <= 32, "FaultId must fit in FaultRegistry's uint32_t bitmask");
+
+///
+/// @brief Single entry in the fault name lookup table: maps a FaultId to its wire name.
+///
+struct FaultNameEntry {
+    FaultId id;        ///< Fault identity
+    const char* name;  ///< Wire name used in the SYST:FAULT? response (e.g. "TEMP_IN")
+};
+
+constexpr std::array<FaultNameEntry, 9> kFaultNameMap = {{
+    {FaultId::kPump, "PUMP"},
+    {FaultId::kMixer, "MIXER"},
+    {FaultId::kHeater, "HEATER"},
+    {FaultId::kTempIn, "TEMP_IN"},
+    {FaultId::kTempOut, "TEMP_OUT"},
+    {FaultId::kTempBath, "TEMP_CAM"},
+    {FaultId::kTempMix, "TEMP_MEZ"},
+    {FaultId::kFlowmeter, "FLOWMETER"},
+    {FaultId::kLevelSwitch, "LEVEL_SWITCH"},
+}};
+
+///
+/// @brief Single entry in the re-init lookup table: maps a SYST:REINIT:* command to the FaultId
+/// it clears when that device confirms the re-initialisation succeeded (kReinitOk).
+///
+struct ReinitFaultEntry {
+    CommandType command;  ///< Re-initialisation command
+    FaultId fault;        ///< Fault cleared on that command's successful response
+};
+
+constexpr std::array<ReinitFaultEntry, 6> kReinitFaultMap = {{
+    {CommandType::kTempInReinit, FaultId::kTempIn},
+    {CommandType::kTempOutReinit, FaultId::kTempOut},
+    {CommandType::kTempBathReinit, FaultId::kTempBath},
+    {CommandType::kTempMixReinit, FaultId::kTempMix},
+    {CommandType::kFlowReinit, FaultId::kFlowmeter},
+    {CommandType::kLevelSwitchReinit, FaultId::kLevelSwitch},
 }};
 
 }  // namespace definitions

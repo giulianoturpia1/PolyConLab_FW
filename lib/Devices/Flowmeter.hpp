@@ -12,13 +12,11 @@
 #pragma once
 
 #include <Arduino.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include "Definitions.hpp"
-#include "ICommandResponseQueue.hpp"
+#include "SyncDevice.hpp"
 
 namespace modules {
 
@@ -26,7 +24,11 @@ namespace modules {
 /// @brief Singleton Flowmeter controller. It manages the flowmeter sensor and its readings.
 /// The flowmeter measures flow by pulses managed by an interrupt service routine, and calculates flow rate in liters per minute.
 ///
-class Flowmeter {
+/// A SyncDevice: the pulse counting runs autonomously in an ISR and a hardware
+/// timer set up in begin(); a kFlowRead command just reads the latest snapshot
+/// inline on the caller's task (no dedicated task or queue).
+///
+class Flowmeter : public SyncDevice {
    public:
     ///
     /// @brief Get the singleton instance of the Flowmeter controller.
@@ -34,18 +36,6 @@ class Flowmeter {
     /// @return Flowmeter&
     ///
     static Flowmeter& instance();
-
-    ///
-    /// @brief Start the dedicated FreeRTOS task/queue for this module.
-    ///
-    bool create_task();
-
-    ///
-    /// @brief Set the sink used to publish command execution responses.
-    ///
-    /// @param queue Response queue implementation. If nullptr, response publishing is disabled.
-    ///
-    void set_response_queue(interfaces::ICommandResponseQueue* queue);
 
     ///
     /// @brief Initialize flowmeter with the sensor pin and necessary hardware setup. Attach interrupts and timer.
@@ -56,6 +46,26 @@ class Flowmeter {
     ///
     bool begin(uint32_t pinFlow_, float pulsesPerLiter = definitions::kFlowmeterPulsesPerLiter);
 
+    /// @copydoc interfaces::IDevice::accepts
+    bool accepts(definitions::CommandType type) const override;
+
+   protected:
+    ///
+    /// @copydoc modules::SyncDevice::execute_command
+    /// @note Only kFlowRead is handled; the flow rate is packed as IEEE-754 bits in the response's extra.
+    ///
+    bool execute_command(const definitions::Command& cmd, definitions::Command& out_response) override;
+
+   private:
+    Flowmeter();
+
+    // Rule of Five
+    ~Flowmeter() = default;
+    Flowmeter(const Flowmeter&) = delete;
+    Flowmeter& operator=(const Flowmeter&) = delete;
+    Flowmeter(Flowmeter&&) = delete;
+    Flowmeter& operator=(Flowmeter&&) = delete;
+
     ///
     /// @brief Stop the flowmeter. Detach interrupts and end timer.
     ///
@@ -63,6 +73,7 @@ class Flowmeter {
 
     ///
     /// @brief Read flow rate in liters per minute. Returns the latest calculated flow rate based on pulse counts in the last second.
+    /// Internal read reached via execute_command().
     ///
     /// @return Float Flow rate in liters per minute, or NaN if unavailable.
     ///
@@ -82,53 +93,9 @@ class Flowmeter {
     ///
     uint32_t pin() const;
 
-    ///
-    /// @brief Queue a Flowmeter command through the module queue.
-    /// @param command Command to be sent.
-    /// @param timeout_ms Queue send timeout in milliseconds.
-    /// @return true if command was queued, false otherwise.
-    ///
-    bool queue_command(definitions::CommandType command, uint32_t timeout_ms = 0);
-
-   private:
-    Flowmeter();
-
-    // Rule of Five
-    ~Flowmeter() = default;
-    Flowmeter(const Flowmeter&) = delete;
-    Flowmeter& operator=(const Flowmeter&) = delete;
-    Flowmeter(Flowmeter&&) = delete;
-    Flowmeter& operator=(Flowmeter&&) = delete;
-
-    ///
-    /// @brief Process a Flowmeter command from the task loop. Only kFlowRead is accepted;
-    /// all other command types return false immediately.
-    ///
-    /// @param command Command to be processed.
-    /// @return true if the command was handled and a response published, false otherwise.
-    ///
-    bool process_command(definitions::CommandType command);
-
-    ///
-    /// @brief Publish a response through the configured sink.
-    ///
-    /// @param response Response payload.
-    /// @return true if the sink accepted the response.
-    ///
-    bool publish_response(const definitions::Command& response);
-
-    ///
-    /// @brief FreeRTOS task entry point for processing flowmeter commands from the queue.
-    ///
-    /// @param param
-    ///
-    static void task_entry(void* param);
-
-    uint32_t pin_;                                       ///< Input pin for the flow sensor pulse signal
-    bool status_;                                        ///< True when the hardware interrupt and timer are active
-    float pulsesPerLiter_;                               ///< Calibration constant: sensor pulses per liter
-    QueueHandle_t queue_;                                ///< FreeRTOS queue handle for flowmeter commands
-    interfaces::ICommandResponseQueue* response_queue_;  ///< Queue used to publish command responses
+    uint32_t pin_;          ///< Input pin for the flow sensor pulse signal
+    bool status_;           ///< True when the hardware interrupt and timer are active
+    float pulsesPerLiter_;  ///< Calibration constant: sensor pulses per liter
 };
 
 }  // namespace modules

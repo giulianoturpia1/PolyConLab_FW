@@ -1,10 +1,6 @@
 #include "StartupState.hpp"
 
-#include "Chiller.hpp"
-#include "HALGeneral.hpp"
-#include "Heater.hpp"
 #include "Logger.hpp"
-#include "Pump.hpp"
 #include "StateMachine.hpp"
 
 namespace modules {
@@ -34,12 +30,6 @@ void StartupState::on_enter(StateMachine* context) {
 
 const char* StartupState::name() const {
     return "STARTUP";
-}
-
-void StartupState::apply_safe_outputs() {
-    Heater::instance().queue_command(definitions::CommandType::kHeaterOff, 10);
-    Pump::instance().queue_command(definitions::CommandType::kPumpOff, 10);
-    Chiller::instance().queue_command(definitions::CommandType::kChillerOff, 10);
 }
 
 }  // namespace modules

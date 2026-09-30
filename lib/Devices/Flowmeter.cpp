@@ -1,20 +1,19 @@
 #include "Flowmeter.hpp"
 
-#include <freertos/task.h>
-
 #include <cmath>
 #include <cstring>
 
-#include "Config.hpp"
+#include "Definitions.hpp"
 #include "HALGeneral.hpp"
 #include "Logger.hpp"
-
-constexpr char kFlowmeterTaskName[] = "flowmeter_task";
 
 static volatile uint32_t flow_pulses = 0;           ///< Raw pulse counter, incremented by isrFlowMeter.
 static volatile uint32_t flow_pulses_snapshot = 0;  ///< Pulses captured in the last 1-second window by isrTimerFlow.
 static portMUX_TYPE flowMux = portMUX_INITIALIZER_UNLOCKED;
 static hw_timer_t* flowTimer = nullptr;
+int timeWindowSeconds = 1;
+long secondfromScaler = 1000000;
+long timeWindowfromScaler = timeWindowSeconds * secondfromScaler;  // timeWindowSeconds seconds
 
 namespace modules {
 
@@ -25,19 +24,19 @@ static const TaggedLogger kLog("Flowmeter");
 // Counts one pulse per falling edge on the flow sensor pin.
 // Only integer arithmetic: no float in ISR context.
 void IRAM_ATTR isrFlowMeter() {
-    portENTER_CRITICAL_ISR(&flowMux);
+    taskENTER_CRITICAL_ISR(&flowMux);
     flow_pulses++;
-    portEXIT_CRITICAL_ISR(&flowMux);
+    taskEXIT_CRITICAL_ISR(&flowMux);
 }
 
 // Fires once per second. Snapshots and resets the pulse counter.
 // Float conversion is intentionally deferred to readFlow() (task context)
 // to avoid FPU state corruption in ISR context.
 void IRAM_ATTR isrTimerFlow() {
-    portENTER_CRITICAL_ISR(&flowMux);
+    taskENTER_CRITICAL_ISR(&flowMux);
     flow_pulses_snapshot = flow_pulses;
     flow_pulses = 0;
-    portEXIT_CRITICAL_ISR(&flowMux);
+    taskEXIT_CRITICAL_ISR(&flowMux);
 }
 
 ////////////////////////////////////// Public Methods //////////////////////////////////////
@@ -45,32 +44,6 @@ void IRAM_ATTR isrTimerFlow() {
 Flowmeter& Flowmeter::instance() {
     static Flowmeter instance;
     return instance;
-}
-
-bool Flowmeter::create_task() {
-    if (queue_ != nullptr) {
-        return true;
-    }
-
-    queue_ = xQueueCreate(config::kDeviceQueueLength, sizeof(definitions::CommandType));
-    if (queue_ == nullptr) {
-        kLog.error("No se pudo crear la cola del caudalimetro.");
-        return false;
-    }
-
-    if (xTaskCreatePinnedToCore(task_entry, kFlowmeterTaskName, config::kFlowmeterTaskStackSize, this, config::kDeviceTaskPriority, nullptr,
-                                config::kI2cCoreId) != pdPASS) {
-        kLog.error("No se pudo crear la tarea del caudalimetro.");
-        vQueueDelete(queue_);
-        queue_ = nullptr;
-        return false;
-    }
-
-    return true;
-}
-
-void Flowmeter::set_response_queue(interfaces::ICommandResponseQueue* queue) {
-    response_queue_ = queue;
 }
 
 bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
@@ -89,7 +62,7 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
     pulsesPerLiter_ = pulsesPerLiter;
     hal_general().pin_mode(pin_, INPUT_PULLUP);
 
-    attachInterrupt(digitalPinToInterrupt(27), isrFlowMeter, FALLING);
+    attachInterrupt(digitalPinToInterrupt(pin_), isrFlowMeter, FALLING);
 
     flowTimer = timerBegin(0, 80, true);  // timer 0, prescaler 80 → 1 tick = 1 µs
     if (flowTimer == nullptr) {
@@ -98,10 +71,40 @@ bool Flowmeter::begin(uint32_t pinFlow_, float pulsesPerLiter) {
     }
 
     timerAttachInterrupt(flowTimer, &isrTimerFlow, true);
-    timerAlarmWrite(flowTimer, 1000000, true);  // 1 sec
+    timerAlarmWrite(flowTimer, timeWindowfromScaler, true);
     timerAlarmEnable(flowTimer);
 
     status_ = true;
+    return true;
+}
+
+bool Flowmeter::accepts(definitions::CommandType type) const {
+    return type == definitions::CommandType::kFlowRead || type == definitions::CommandType::kFlowReinit;
+}
+
+////////////////////////////////////// Private Methods //////////////////////////////////////
+
+Flowmeter::Flowmeter() : pin_(0), status_(false), pulsesPerLiter_(450.0f) {}
+
+bool Flowmeter::execute_command(const definitions::Command& cmd, definitions::Command& out_response) {
+    if (cmd.type == definitions::CommandType::kFlowReinit) {
+        // Tear down the interrupt/timer, then re-run begin() from the cached pin and calibration.
+        stop();
+        const bool ok = begin(pin_, pulsesPerLiter_);
+        out_response = {cmd.type,
+                        static_cast<uint32_t>(ok ? definitions::ResponseType::kReinitOk : definitions::ResponseType::kErrorReinitFailed)};
+        return true;
+    }
+
+    if (cmd.type != definitions::CommandType::kFlowRead) {
+        return false;
+    }
+
+    float current_flow = readFlow();
+    uint32_t flow_rate_bits;
+    std::memcpy(&flow_rate_bits, &current_flow, sizeof(float));
+    kLog.info("Publicando respuesta del flujo:" + std::string(" L/min ") + std::to_string(current_flow));
+    out_response = {definitions::CommandType::kFlowRead, flow_rate_bits};
     return true;
 }
 
@@ -121,14 +124,17 @@ float Flowmeter::readFlow() {
 
     // Read both counters in a single critical section for a consistent snapshot.
     uint32_t pulses, pulses_raw;
-    portENTER_CRITICAL(&flowMux);
+    taskENTER_CRITICAL(&flowMux);
     pulses = flow_pulses_snapshot;
     pulses_raw = flow_pulses;
-    portEXIT_CRITICAL(&flowMux);
+    taskEXIT_CRITICAL(&flowMux);
 
     // Convert pulses/second → liters/minute in task context (safe for FPU).
     kLog.debug("Calculando flujo: snapshot=" + std::to_string(pulses) + " raw=" + std::to_string(pulses_raw) + " pulsos");
-    return (static_cast<float>(pulses) / pulsesPerLiter_) * 60.0f;
+    float pulseFrequency = static_cast<float>(pulses) / static_cast<float>(timeWindowSeconds);  // pulses per second
+
+    return float((pulseFrequency * definitions::kReferenceFlow) / definitions::kReferenceFrequencyofPulsesPerSecond) *
+           60.0f;  // Convert to liters per minute
 }
 
 bool Flowmeter::status() const {
@@ -137,53 +143,6 @@ bool Flowmeter::status() const {
 
 uint32_t Flowmeter::pin() const {
     return pin_;
-}
-
-bool Flowmeter::queue_command(definitions::CommandType command, uint32_t timeout_ms) {
-    if (queue_ == nullptr || xQueueSend(queue_, &command, pdMS_TO_TICKS(timeout_ms)) != pdPASS) {
-        return false;
-    }
-
-    return true;
-}
-
-////////////////////////////////////// Private Methods //////////////////////////////////////
-
-Flowmeter::Flowmeter() : pin_(0), status_(false), pulsesPerLiter_(450.0f), queue_(nullptr), response_queue_(nullptr) {}
-
-bool Flowmeter::process_command(definitions::CommandType command) {
-    if (command != definitions::CommandType::kFlowRead) {
-        return false;
-    }
-
-    float current_flow = readFlow();
-    uint32_t flow_rate_bits;
-    std::memcpy(&flow_rate_bits, &current_flow, sizeof(float));
-    kLog.info("Publicando respuesta del flujo:" + std::string(" L/min ") + std::to_string(current_flow));
-    publish_response({definitions::CommandType::kFlowRead, flow_rate_bits});
-    return true;
-}
-
-bool Flowmeter::publish_response(const definitions::Command& response) {
-    if (response_queue_ == nullptr) {
-        return false;
-    }
-
-    return response_queue_->publish(response, config::kDeviceResponseTimeoutMs);
-}
-
-void Flowmeter::task_entry(void* param) {
-    Flowmeter* self = static_cast<Flowmeter*>(param);
-    definitions::CommandType command = definitions::CommandType::kFlowRead;
-
-    while (true) {
-        if (xQueueReceive(self->queue_, &command, config::kDeviceWaitTicks) == pdPASS) {
-            self->process_command(command);
-        }
-        if (self->queue_ == nullptr) {
-            break;
-        }
-    }
 }
 
 }  // namespace modules

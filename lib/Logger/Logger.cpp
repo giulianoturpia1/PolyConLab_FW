@@ -1,5 +1,6 @@
 #include "Logger.hpp"
 
+#include "Config.hpp"
 #include "HALGeneral.hpp"
 
 namespace modules {
@@ -9,7 +10,7 @@ Logger& Logger::instance() {
     return instance;
 }
 
-Logger::Logger() : enabled_(true) {}
+Logger::Logger() : enabled_(config::kLogEnabledAtBoot) {}
 
 void Logger::set_enabled(bool enabled) {
     enabled_ = enabled;

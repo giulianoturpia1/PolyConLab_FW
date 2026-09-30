@@ -25,9 +25,6 @@ class ShutdownState final : public IState {
    private:
     unsigned long enteredAtMs_ = 0;
     bool completed_ = false;
-
-    void apply_safe_outputs();
-    void close_all_valves_if_supported();
 };
 
 }  // namespace modules

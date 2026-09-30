@@ -18,18 +18,17 @@ namespace modules {
 class CheckupState final : public IState {
    public:
     definitions::SystemState handle_event(StateMachine* context, definitions::SystemEvent event) override;
-    /// @brief Allow read-only sensor queries during CHECKUP so the SCADA can
-    ///        probe each device and decide whether to send EVT:SENSORS OK or
-    ///        EVT:FAULT RECOVERABLE.  Actuator commands are rejected (returns false).
-    bool dispatch_command(StateMachine* context, const definitions::Command& request) override;
+    /// @brief Allow read-only sensor queries and SYST:REINIT:* re-init commands during CHECKUP
+    ///        so the SCADA can probe each device (deciding EVT:SENSORS OK vs EVT:FAULT
+    ///        RECOVERABLE) and recover a failed sensor.  Actuator commands are rejected.
+    definitions::CommandOutcome handle_command(StateMachine* context, const definitions::Command& request,
+                                               definitions::Command& out_response) override;
     void on_enter(StateMachine* context) override;
     const char* name() const override;
 
    private:
     bool scadaOk_ = false;
     bool sensorOk_ = false;
-
-    void apply_safe_outputs();
 };
 
 }  // namespace modules

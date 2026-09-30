@@ -17,15 +17,14 @@ Repository that holds all the firmware and utilities related to the ESP32-based 
   - [6.1. Unable to find COM Port on Windows](#61-unable-to-find-com-port-on-windows)
   - [6.2. Industrial Shields Library Issues](#62-industrial-shields-library-issues)
   - [6.3. Ethernet Arduino Library Issues](#63-ethernet-arduino-library-issues)
-  - [6.4. Testing and Simulation](#64-testing-and-simulation)
-    - [6.4.1. Arduino Header Dependencies](#641-arduino-header-dependencies)
+  - [6.4. Arduino Header Dependencies](#64-arduino-header-dependencies)
 - [7. Contact Information](#7-contact-information)
 
 ## 1. Introduction and Prerequisites
 
 ### 1.1. Introduction
 
-PolyConLab_FW is a state-machine driven firmware for an ESP32-based Programmable Logic Controller (PLC) designed to manage industrial automation workflows. The firmware implements a modular, asynchronous architecture using FreeRTOS queues and tasks to coordinate multiple actuators (heaters, pumps, chillers, solenoid valves) and sensors across different operational states. It supports both manual control and autonomous calibration modes, with robust state management and feedback tracking. This project uses PlatformIO as the build system to manage dependencies and facilitate cross-platform development.
+PolyConLab_FW is a state-machine driven firmware for an ESP32-based Programmable Logic Controller (PLC) designed to manage industrial automation workflows. The firmware implements a modular, asynchronous architecture using FreeRTOS queues and tasks to coordinate multiple actuators (heater, pump, mixer, solenoid valve) and sensors across different operational states. It supports both manual control and autonomous calibration modes, with robust state management and feedback tracking. This project uses PlatformIO as the build system to manage dependencies and facilitate cross-platform development.
 
 For detailed information about the firmware implementation, architecture, and design patterns, please refer to [lib/README.md](lib/README.md).
 
@@ -147,10 +146,15 @@ python -m pre-commit run --all-files
 
 If you are using Windows and PlatformIO is unable to find the COM port of your ESP32-based PLC, ensure that you have the necessary drivers installed. You may need to install the CP210x USB to UART Bridge VCP Drivers, which can be found on the Silicon Labs [website](https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers).
 
+### 6.1.1. Ethernet Connection Drops When Serial Is Disconnected
+
+Closing the Serial connection (closing the COM port, closing a serial monitor, or unplugging the USB cable) resets the whole PLC, not just the Serial transport. Since the USB-port is meant to be used as a programming interface and limited serial debugging, internaly, the PLC resets each time a Serial connection is dropped. For this reason, any active Ethernet/SCADA session is dropped, meaning it is meant to happen should debugging take place while using SCADA-like features.
+
 ### 6.2. Industrial Shields Library Issues
 
-If you encounter issues related to the Industrial Shields library, the only known method of fixing this issue is by deleting the `.pio` folder in the project directory and also deleting the `.platformio` folder. This folder is usually located in the user's home directory.
+If you encounter issues related to the Industrial Shields library, one known method of fixing this issue is by deleting the `.pio` folder in the project directory and also deleting the `.platformio` folder. This folder is usually located in the user's home directory.
 The next time you build the project, PlatformIO will re-download all necessary libraries and dependencies, this may take some time depending on your internet connection.
+In addition to this method, it is also a good practice to check out the package library provided by Industrial Shields in PlatformIO. Certain issues described below stem from utilizing an outdated or incomplete package. Given this, we recommend checking from time to time any new releases for both `platform =` and `platform_packages =`. This can be checked in the [Industrial Shields download web-page](https://apps.industrialshields.com/main/arduino/boards/?C=M&O=D) or in their [GitHub repository](https://github.com/Industrial-Shields/platform-industrialshields-esp32). Note that we are using a ESP32-based PLC for this project.
 
 ### 6.3. Ethernet Arduino Library Issues
 
@@ -175,9 +179,7 @@ class Server: public Print
 
 After doing the previous modification, delete the local build files by deleting the `.pio` folder in the project directory folder.
 
-### 6.4. Testing and Simulation
-
-#### 6.4.1. Arduino Header Dependencies
+### 6.4. Arduino Header Dependencies
 
 If you encounter compilation errors related to missing Arduino.h or Arduino libraries during tests:
 

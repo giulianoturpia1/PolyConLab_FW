@@ -24,11 +24,10 @@ namespace definitions {
 ///
 enum class Pins : uint32_t {
     // Actuators
-    kHeater = Q0_1,   ///< Heating Resistor
-    kPump = Q0_0,     ///< Circulation Pump
-    kChiller = Q0_2,  ///< Chiller
-    kValve1 = R1_1,   ///< Valve 1
-    kValve2 = R1_2,   ///< Valve 2
+    kHeater = Q0_1,  ///< Heating Resistor
+    kPump = Q0_0,    ///< Circulation Pump
+    kMixer = Q0_3,   ///< Mixer/Emulsifier - Output Digital Pin (PLACEHOLDER, pin not confirmed for this target)
+    kValve1 = R1_1,  ///< Valve 1
 };
 
 enum class Addresses : uint32_t {
