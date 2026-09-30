@@ -112,6 +112,16 @@ void App::initialize_devices() {
     // physical reset produces a fresh fault list.
     FaultRegistry::instance().clear();
 
+    // One I2C bus carries the PLC's relay/input expanders and the thermocouple amplifiers, so its
+    // clock is set once here, before any device on it is initialised.
+    const uint32_t i2c_clock_hz = hal_general().i2c_set_clock(config::kI2cClockHz);
+    if (i2c_clock_hz != config::kI2cClockHz) {
+        kLog.error("No se pudo fijar el bus I2C en " + std::to_string(config::kI2cClockHz) +
+                   " Hz (actual: " + std::to_string(i2c_clock_hz) + " Hz).");
+    } else {
+        kLog.info("Bus I2C a " + std::to_string(i2c_clock_hz) + " Hz.");
+    }
+
     if (!pump_.begin(static_cast<uint32_t>(definitions::Pins::kPump))) {
         kLog.error("Fallo al inicializar PUMP.");
         FaultRegistry::instance().add(definitions::FaultId::kPump);
