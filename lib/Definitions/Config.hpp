@@ -386,10 +386,10 @@ constexpr bool kThermocoupleColdJunctionFine = true;
 ///
 /// @brief Plausibility window (°C): a reading outside it is reported as missing (NaN).
 ///
-/// The lower bound is exclusive: a bus held low reads exactly 0 °C and a failed read -0.0625 °C, and
-/// the water-based process never runs at or below 0 °C.
+/// The lower bound is exclusive. Under interference the amplifiers report junk between 0 and ~3 °C (a bus
+/// held low reads exactly 0 °C, a failed read -0.0625 °C); the water-based process never runs that cold.
 ///
-constexpr float kThermocoupleMinValidC = 0.0f;
+constexpr float kThermocoupleMinValidC = 5.0f;
 constexpr float kThermocoupleMaxValidC = 100.0f;
 
 ///

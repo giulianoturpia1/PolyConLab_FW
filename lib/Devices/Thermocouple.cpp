@@ -16,8 +16,7 @@ namespace modules {
 
 static const TaggedLogger kLog("Thermocouple");
 
-// True when a reading can be a real temperature: finite and inside the plausibility window. The lower
-// bound is exclusive: a bus held low reads 0x0000, exactly 0 °C, and a failed read comes back as -0.0625 °C.
+// True when a reading can be a real temperature: finite and inside the plausibility window (lower bound exclusive).
 static bool in_window(float reading) {
     return std::isfinite(reading) && reading > config::kThermocoupleMinValidC && reading <= config::kThermocoupleMaxValidC;
 }
