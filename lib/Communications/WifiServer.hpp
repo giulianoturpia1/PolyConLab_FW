@@ -26,7 +26,7 @@ namespace modules {
 /// @brief WiFi access-point (SoftAP) TCP server that reads lines and forwards them to a
 /// caller-provided handler. Implemented as a singleton.
 ///
-/// The PLC hosts its own WiFi network with a built-in DHCP server, so operator/observer devices
+/// The PLC hosts its own WiFi network with a built-in DHCP server, so client devices
 /// connect directly to the PLC without an external router. Exposes a transport-agnostic
 /// request/response contract so the @c Communications module is decoupled from the link layer.
 /// @c client_mutex_ serialises @c WiFiClient writes because the response callback runs on the
@@ -74,14 +74,6 @@ class WifiServer final : public ITcpServer {
     ///
     bool is_available() const override;
 
-    ///
-    /// @brief Identity of the currently connected client, or 0 when none is connected.
-    ///
-    /// Refreshed every poll() (including idle ticks) from the persistent client handle, so the
-    /// communications layer can detect that the operator's client has left and release the role.
-    ///
-    ClientId connected_client() const override;
-
    private:
     WifiServer();
     // Rule of Five
@@ -94,7 +86,6 @@ class WifiServer final : public ITcpServer {
     bool is_initialized_;
     bool wifi_link_up_;
     SemaphoreHandle_t client_mutex_;  ///< Serialises WiFiClient writes across the App and StateMachine tasks.
-    ClientId connected_client_;       ///< Cached identity of the connected client (0 = none); refreshed each poll().
 };
 
 }  // namespace modules

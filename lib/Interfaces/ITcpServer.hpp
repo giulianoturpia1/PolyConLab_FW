@@ -26,13 +26,12 @@ namespace modules {
 
 ///
 /// @brief Contract for a single-client TCP server that reads command lines and forwards them,
-/// with a per-client write-back and a stable client identity, independent of the physical link.
+/// with a per-client write-back, independent of the physical link.
 ///
 class ITcpServer {
    public:
-    using ClientId = definitions::ClientId;
     using ClientResponseCallback = std::function<void(const std::string&)>;
-    using ClientMessageHandler = std::function<void(const std::string&, ClientId, const ClientResponseCallback&)>;
+    using ClientMessageHandler = std::function<void(const std::string&, const ClientResponseCallback&)>;
 
     virtual ~ITcpServer() = default;
 
@@ -59,17 +58,6 @@ class ITcpServer {
     /// for Ethernet it means the PHY link is up.
     ///
     virtual bool is_available() const = 0;
-
-    ///
-    /// @brief Identity of the currently connected client, or 0 when none is connected.
-    ///
-    /// Single-client contract: at most one client at a time, so this fully describes presence. It lets
-    /// the comms layer free the operator role when its holder disconnects — needed because a SoftAP
-    /// keeps is_available() true with no client, so the link-down release never fires over WiFi.
-    ///
-    /// @return ClientId of the connected client, or 0 if there is none.
-    ///
-    virtual ClientId connected_client() const = 0;
 };
 
 }  // namespace modules

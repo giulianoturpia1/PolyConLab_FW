@@ -124,7 +124,6 @@ void WifiServer::poll(const ClientMessageHandler& handler) {
     // a busy client from holding the App task for an unbounded stretch.
     for (uint8_t line = 0; line < config::kMaxLinesPerPollTick; ++line) {
         std::string msg;
-        ClientId client_id = 0;
         std::shared_ptr<WiFiClient> client_ptr;
         {
             ScopedLock lock(client_mutex_, pdMS_TO_TICKS(config::kClientMutexPollTimeoutMs));
@@ -133,25 +132,20 @@ void WifiServer::poll(const ClientMessageHandler& handler) {
                 return;
             }
 
-            // Adopt the next arrival only when we have no live client; once connected, service it directly so
-            // its identity stays stable (kApMaxClients == 1), and close any surplus socket so the session is
-            // single-client at the transport layer, not merely single-association at the 802.11 layer.
+            // Adopt the next arrival only when we have no live client; once connected, service it directly
+            // (kApMaxClients == 1), and close any surplus socket so the session is single-client at the
+            // transport layer, not merely single-association at the 802.11 layer.
             if (!gClient.connected()) {
                 gClient = gWifiServer.available();
             } else {
                 reject_extra_clients();
             }
 
-            // Refresh the cached identity every tick — including idle ones — so connected_client() reports
-            // an accurate presence and the comms layer can free the operator role when the client leaves.
-            connected_client_ = gClient.connected() ? static_cast<ClientId>(gClient.remoteIP()) : 0;
-
             if (!gClient.connected() || !gClient.available()) {
                 return;  // nothing more buffered: the tick is done — the guard releases on the way out
             }
 
             String arduino_msg = gClient.readStringUntil('\n');
-            client_id = connected_client_;
             msg = utils::trim(std::string(arduino_msg.c_str()));
             client_ptr = std::make_shared<WiFiClient>(gClient);
         }
@@ -165,12 +159,8 @@ void WifiServer::poll(const ClientMessageHandler& handler) {
 
         ClientResponseCallback respond = create_response_callback(client_ptr, client_mutex_);
 
-        handler(msg, client_id, respond);
+        handler(msg, respond);
     }
-}
-
-WifiServer::ClientId WifiServer::connected_client() const {
-    return connected_client_;
 }
 
 bool WifiServer::ensure_connection() {
@@ -185,7 +175,7 @@ bool WifiServer::is_available() const {
 
 ////////////////////////////////////// Private Methods //////////////////////////////////////
 
-WifiServer::WifiServer() : is_initialized_(false), wifi_link_up_(false), client_mutex_(xSemaphoreCreateMutex()), connected_client_(0) {}
+WifiServer::WifiServer() : is_initialized_(false), wifi_link_up_(false), client_mutex_(xSemaphoreCreateMutex()) {}
 
 }  // namespace modules
 

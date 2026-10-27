@@ -51,30 +51,16 @@ void Communications::poll_network() {
         if (last_available_) {
             kLog.info("Red desconectada. Pausando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kCommunicationLost);
-            authorizer_.release();
         }
     } else {
         if (!last_available_) {
             kLog.info("Red reconectada. Reanudando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
         }
-        // Free the operator role once its holding client has left. A SoftAP keeps is_available()
-        // true with zero clients (no uplink to lose), so the link-down release() above never fires
-        // over WiFi — presence tracking is what lets the next client claim the role after a
-        // disconnect. Uses the identity cached by the previous poll() tick.
-        if (authorizer_.sync_operator_presence(server_.connected_client())) {
-            kLog.info("Rol de operador liberado: el cliente operador se desconecto.");
-        }
-        server_.poll(
-            [this](const std::string& msg, definitions::ClientId client_id, const TcpServer::ClientResponseCallback& client_respond) {
-                active_responder_ = client_respond;
-                active_transport_ = definitions::Transport::kTcp;
-                active_client_ = client_id;
-                if (authorizer_.claim(client_id)) {
-                    kLog.info("Rol de operador asignado al cliente " + std::to_string(client_id));
-                }
-                handle_message(msg);
-            });
+        server_.poll([this](const std::string& msg, const TcpServer::ClientResponseCallback& client_respond) {
+            active_responder_ = client_respond;
+            handle_message(msg);
+        });
     }
 
     last_available_ = available;
@@ -90,8 +76,6 @@ void Communications::poll_serial() {
         return;
     }
 
-    active_transport_ = definitions::Transport::kSerial;
-    active_client_ = 0;  // serial console has no client id
     active_responder_ = serial_send_;
     handle_message(msg);
 }
@@ -114,8 +98,6 @@ Communications::Communications()
       outbound_count_(0),
       next_token_(0),
       response_queue_(nullptr),
-      active_transport_(definitions::Transport::kNone),
-      active_client_(0),
       server_(TcpServer::instance()),
       last_available_(true) {}  // assume up at boot so the first poll_network() tick won't fire a spurious kUnpause
 
@@ -139,13 +121,6 @@ void Communications::handle_command(const std::string& msg) {
     const definitions::CommandEntry* cmd = utils::find_command(base_command);
     if (!cmd) {
         respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownCommand));
-        return;
-    }
-
-    // Only the operator (or serial) may drive physical outputs; queries stay open.
-    if (!authorizer_.is_authorized(*cmd, active_transport_, active_client_)) {
-        kLog.warning("Comando de actuacion rechazado: el cliente no es el operador.");
-        respond_now(utils::to_scpi(definitions::ResponseType::kErrorNotOperator));
         return;
     }
 

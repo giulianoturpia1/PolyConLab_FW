@@ -25,7 +25,7 @@ namespace config {
 // ── Network / WiFi Access Point (SoftAP) ──────────────────────────────────────
 //
 // The PLC hosts its own WiFi network from inside the enclosure: it runs as a
-// WiFi access point with a built-in DHCP server, so operator/observer devices
+// WiFi access point with a built-in DHCP server, so client devices
 // connect directly to the PLC with no external router. The PLC always sits at
 // kApIp, and the SCADA application targets that fixed address.
 //

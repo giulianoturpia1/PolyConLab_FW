@@ -130,24 +130,6 @@ inline const char* command_name(const definitions::CommandType command) {
 }
 
 ///
-/// @brief Whether a message sender holds operator privilege (pure authorization policy).
-///
-/// Serial is the local physical console and is always privileged. Over WiFi, only the client
-/// holding the operator role may actuate; operator_id == 0 means the role is unclaimed.
-///
-/// @param transport   Transport the message arrived on.
-/// @param sender      Identity of the sending client (0 for serial).
-/// @param operator_id Client currently holding the operator role (0 = unclaimed).
-/// @return bool True if the sender holds operator privilege.
-///
-inline bool sender_is_operator(const definitions::Transport transport, const uint32_t sender, const uint32_t operator_id) {
-    if (transport == definitions::Transport::kSerial) {
-        return true;
-    }
-    return operator_id != 0 && sender == operator_id;
-}
-
-///
 /// @brief Format an integer value as a "0xNN" hex string.
 ///
 /// @param value Value to format.

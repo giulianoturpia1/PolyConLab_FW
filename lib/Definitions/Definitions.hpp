@@ -183,7 +183,6 @@ enum class ResponseType {
     kErrorCommandRejected,  ///< Command not accepted in the current FSM state
     kErrorCommandTimeout,   ///< Device did not confirm command execution within timeout
     kErrorInvalidParam,     ///< Command parameter is out of range (e.g. valve number = 0)
-    kErrorNotOperator,      ///< Actuation command from a client that does not hold the operator role
     kErrorSensorFault,      ///< Sensor returned NaN (disconnected or CRC failure)
     kErrorReinitFailed,     ///< A sensor re-initialisation (re-run begin()) did not succeed
     kErrorBusy,             ///< No free in-flight slot: the command was not dispatched and may be retried
@@ -200,21 +199,6 @@ enum class CommandOutcome {
     kPending,    ///< Dispatched to a device; that device's reply will confirm it
     kCompleted,  ///< Handled by the state itself, which filled the response to send back
 };
-
-///
-/// @brief Communication transport that originated a command or response.
-///
-enum class Transport {
-    kNone,   ///< No active transport (idle / after response delivery)
-    kTcp,    ///< Command received over the TCP server (WiFi or Ethernet)
-    kSerial  ///< Command received over Serial
-};
-
-///
-/// @brief Identity of a connected client (its IP packed as uint32_t); 0 = none/unknown.
-/// Used by the authorization layer to tell clients apart, independent of the transport.
-///
-using ClientId = uint32_t;
 
 ///
 /// @brief Command structure used for representing a command in the system.
@@ -256,7 +240,6 @@ constexpr uint32_t kValvePinMask = ~kValveStatusOpenMask;
 struct CommandEntry {
     const char* name;     ///< SCPI command string (e.g., "OUTP:HEAT ON")
     CommandType command;  ///< Corresponding CommandType enum value
-    bool actuates;        ///< True if the command drives a physical output (requires the operator role)
 };
 
 ///
@@ -316,40 +299,40 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
 }};
 
 constexpr std::array<CommandEntry, 31> kCommandMap = {{
-    {("OUTP:HEAT ON"), CommandType::kHeaterOn, true},
-    {("OUTP:HEAT OFF"), CommandType::kHeaterOff, true},
-    {("OUTP:HEAT?"), CommandType::kHeaterState, false},
-    {("OUTP:PUMP ON"), CommandType::kPumpOn, true},
-    {("OUTP:PUMP OFF"), CommandType::kPumpOff, true},
-    {("OUTP:PUMP?"), CommandType::kPumpState, false},
-    {("OUTP:MIX ON"), CommandType::kMixerOn, true},
-    {("OUTP:MIX OFF"), CommandType::kMixerOff, true},
-    {("OUTP:MIX?"), CommandType::kMixerState, false},
-    {("OUTP:VALV OPEN"), CommandType::kValveOpen, true},
-    {("OUTP:VALV CLOSE"), CommandType::kValveClose, true},
-    {("OUTP:VALV?"), CommandType::kValveState, false},
-    {("MEAS:TEMP:IN?"), CommandType::kTempInRead, false},
-    {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead, false},
-    {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead, false},
-    {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead, false},
-    {("TEMP:SET:IN"), CommandType::kTempSetIn, true},
-    {("MEAS:FLOW?"), CommandType::kFlowRead, false},
-    {("MEAS:LEVEL?"), CommandType::kLevelSwitchState, false},
-    {("SYST:REINIT:TEMP:IN"), CommandType::kTempInReinit, false},
-    {("SYST:REINIT:TEMP:OUT"), CommandType::kTempOutReinit, false},
-    {("SYST:REINIT:TEMP:CAM"), CommandType::kTempBathReinit, false},
-    {("SYST:REINIT:TEMP:MEZ"), CommandType::kTempMixReinit, false},
-    {("SYST:REINIT:FLOW"), CommandType::kFlowReinit, false},
-    {("SYST:REINIT:LEVEL"), CommandType::kLevelSwitchReinit, false},
-    {("PING"), CommandType::kPing, false},
-    {("STATE?"), CommandType::kStateQuery, false},
-    {("SYST:LOG ON"), CommandType::kLogOn, false},
-    {("SYST:LOG OFF"), CommandType::kLogOff, false},
-    {("SYST:LOG?"), CommandType::kLogQuery, false},
-    {("SYST:FAULT?"), CommandType::kFaultQuery, false},
+    {("OUTP:HEAT ON"), CommandType::kHeaterOn},
+    {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
+    {("OUTP:HEAT?"), CommandType::kHeaterState},
+    {("OUTP:PUMP ON"), CommandType::kPumpOn},
+    {("OUTP:PUMP OFF"), CommandType::kPumpOff},
+    {("OUTP:PUMP?"), CommandType::kPumpState},
+    {("OUTP:MIX ON"), CommandType::kMixerOn},
+    {("OUTP:MIX OFF"), CommandType::kMixerOff},
+    {("OUTP:MIX?"), CommandType::kMixerState},
+    {("OUTP:VALV OPEN"), CommandType::kValveOpen},
+    {("OUTP:VALV CLOSE"), CommandType::kValveClose},
+    {("OUTP:VALV?"), CommandType::kValveState},
+    {("MEAS:TEMP:IN?"), CommandType::kTempInRead},
+    {("MEAS:TEMP:OUT?"), CommandType::kTempOutRead},
+    {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
+    {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
+    {("TEMP:SET:IN"), CommandType::kTempSetIn},
+    {("MEAS:FLOW?"), CommandType::kFlowRead},
+    {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
+    {("SYST:REINIT:TEMP:IN"), CommandType::kTempInReinit},
+    {("SYST:REINIT:TEMP:OUT"), CommandType::kTempOutReinit},
+    {("SYST:REINIT:TEMP:CAM"), CommandType::kTempBathReinit},
+    {("SYST:REINIT:TEMP:MEZ"), CommandType::kTempMixReinit},
+    {("SYST:REINIT:FLOW"), CommandType::kFlowReinit},
+    {("SYST:REINIT:LEVEL"), CommandType::kLevelSwitchReinit},
+    {("PING"), CommandType::kPing},
+    {("STATE?"), CommandType::kStateQuery},
+    {("SYST:LOG ON"), CommandType::kLogOn},
+    {("SYST:LOG OFF"), CommandType::kLogOff},
+    {("SYST:LOG?"), CommandType::kLogQuery},
+    {("SYST:FAULT?"), CommandType::kFaultQuery},
 }};
 
-constexpr std::array<ResponseEntry, 19> kResponseMap = {{
+constexpr std::array<ResponseEntry, 18> kResponseMap = {{
     {"-100,\"UNKNOWN COMMAND\"", ResponseType::kErrorUnknownCommand},
     {"-200,\"EMPTY EVENT\"", ResponseType::kErrorEmptyEvent},
     {"-300,\"UNKNOWN EVENT\"", ResponseType::kErrorUnknownEvent},
@@ -357,7 +340,6 @@ constexpr std::array<ResponseEntry, 19> kResponseMap = {{
     {"-102,\"COMMAND TIMEOUT\"", ResponseType::kErrorCommandTimeout},
     {"-220,\"INVALID PARAMETER\"", ResponseType::kErrorInvalidParam},
     {"-103,\"SENSOR FAULT\"", ResponseType::kErrorSensorFault},
-    {"-104,\"NOT OPERATOR\"", ResponseType::kErrorNotOperator},
     {"PONG", ResponseType::kPingOk},
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},

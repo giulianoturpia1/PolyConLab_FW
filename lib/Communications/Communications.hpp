@@ -19,7 +19,6 @@
 #include <functional>
 #include <string>
 
-#include "Authorizer.hpp"
 #include "Config.hpp"
 #include "Definitions.hpp"
 #include "TcpServer.hpp"
@@ -45,10 +44,6 @@ namespace modules {
 /// The StateMachine publishes outcomes from its own task, so they arrive through response_queue_ as
 /// plain Command values and are formatted and delivered on the App task in tick(). Nothing in
 /// outbound_ is touched by two tasks, and only the flush writes to a client.
-///
-/// Authorization is delegated to authorizer_ (see Authorizer): Serial is always privileged, WiFi
-/// actuation is gated to the first client that claims the operator role, and poll_network() frees the
-/// role on disconnect via Authorizer::sync_operator_presence().
 ///
 /// @note Closing the Serial connection (COM port close or USB unplug) pulses the USB-serial
 /// bridge's DTR/RTS auto-reset (EN), rebooting the whole board and dropping WiFi too. See PCL-69.
@@ -116,7 +111,7 @@ class Communications {
     void handle_message(const std::string& msg);
 
     ///
-    /// @brief Parse, authorize and dispatch a SCPI device command.
+    /// @brief Parse and dispatch a SCPI device command.
     ///
     /// @param msg Trimmed SCPI command string.
     ///
@@ -215,11 +210,8 @@ class Communications {
     uint8_t outbound_count_;                                      ///< Slots in use
     uint16_t next_token_;                                         ///< Correlation id generator
     QueueHandle_t response_queue_;                                ///< Outcomes published by the StateMachine's task, drained in tick()
-    definitions::Transport active_transport_;  ///< Transport of the current message. Used for authorization/identity, not for routing.
-    definitions::ClientId active_client_;      ///< WiFi sender of the current message; 0 for serial.
-    Authorizer authorizer_;                    ///< Owns the operator-role state and the actuation gate.
-    TcpServer& server_;                        ///< Active TCP transport singleton (WiFi or Ethernet, chosen at compile time).
-    bool last_available_;                      ///< Last known transport availability; detects changes to queue connectivity events.
+    TcpServer& server_;    ///< Active TCP transport singleton (WiFi or Ethernet, chosen at compile time).
+    bool last_available_;  ///< Last known transport availability; detects changes to queue connectivity events.
 };
 
 }  // namespace modules

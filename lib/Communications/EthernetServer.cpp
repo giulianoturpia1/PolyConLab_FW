@@ -120,7 +120,6 @@ void EthernetServer::poll(const ClientMessageHandler& handler) {
     // is read in one tick instead of one line per tick, bounded so one client cannot hold the App task.
     for (uint8_t line = 0; line < config::kMaxLinesPerPollTick; ++line) {
         std::string msg;
-        ClientId client_id = 0;
         std::shared_ptr<EthernetClient> client_ptr;
         {
             ScopedLock lock(spi_mutex_, pdMS_TO_TICKS(config::kSpiMutexPollTimeoutMs));
@@ -129,25 +128,20 @@ void EthernetServer::poll(const ClientMessageHandler& handler) {
                 return;
             }
 
-            // Adopt the next arrival only when we have no live client; once connected, service it directly so
-            // its identity stays stable, and close any surplus socket so the session is single-client at the
-            // transport layer (a wired LAN, unlike the WiFi SoftAP, has no association cap of its own).
+            // Adopt the next arrival only when we have no live client; once connected, service it directly,
+            // and close any surplus socket so the session is single-client at the transport layer (a wired
+            // LAN, unlike the WiFi SoftAP, has no association cap of its own).
             if (!gClient.connected()) {
                 gClient = gEthernetServer.available();
             } else {
                 reject_extra_clients();
             }
 
-            // Refresh the cached identity every tick — including idle ones — so connected_client() reports
-            // an accurate presence and the comms layer can free the operator role when the client leaves.
-            connected_client_ = gClient.connected() ? static_cast<ClientId>(gClient.remoteIP()) : 0;
-
             if (!gClient.connected() || !gClient.available()) {
                 return;  // nothing more buffered: the tick is done — the guard releases on the way out
             }
 
             String arduino_msg = gClient.readStringUntil('\n');
-            client_id = connected_client_;
             msg = utils::trim(std::string(arduino_msg.c_str()));
             client_ptr = std::make_shared<EthernetClient>(gClient);
         }
@@ -161,12 +155,8 @@ void EthernetServer::poll(const ClientMessageHandler& handler) {
 
         ClientResponseCallback respond = create_response_callback(client_ptr, spi_mutex_);
 
-        handler(msg, client_id, respond);
+        handler(msg, respond);
     }
-}
-
-EthernetServer::ClientId EthernetServer::connected_client() const {
-    return connected_client_;
 }
 
 bool EthernetServer::ensure_connection() {
@@ -209,8 +199,7 @@ void EthernetServer::restart_server() {
     is_initialized_ = true;
 }
 
-EthernetServer::EthernetServer()
-    : is_initialized_(false), ethernet_link_up_(false), spi_mutex_(xSemaphoreCreateMutex()), connected_client_(0) {}
+EthernetServer::EthernetServer() : is_initialized_(false), ethernet_link_up_(false), spi_mutex_(xSemaphoreCreateMutex()) {}
 
 }  // namespace modules
 
