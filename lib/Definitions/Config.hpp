@@ -343,10 +343,11 @@ static_assert(kOutboundRingLength > kMaxInFlightCommands, "The outbound ring mus
 ///
 /// Setpoints outside this range — and non-finite values — are rejected with kErrorInvalidParam
 /// before reaching the StateMachine. Tune to the physical envelope of the bath/chiller; the
-/// ManualState default setpoint (kManualDefaultSetpointC) sits inside it.
+/// ManualState default setpoint (kManualDefaultSetpointC) sits inside it. The maximum may not exceed the
+/// bath limit (kMaxBathTempC), above which MANUAL keeps the heater off. The SCADA reads them with TEMP:LIM?.
 ///
 constexpr float kTempSetpointMinC = 0.0f;
-constexpr float kTempSetpointMaxC = 100.0f;
+constexpr float kTempSetpointMaxC = 65.0f;
 
 // ── Thermocouple Amplifiers (MCP9600) ────────────────────────────────────────
 
@@ -427,7 +428,7 @@ constexpr float kManualDeadbandC = 0.5f;
 /// MANUAL only turns the heater off on a measured threshold, never because a reading is missing. When the
 /// bath reading is missing, this limit is checked against the mix reading instead; with neither reading
 /// nothing is measured, so no action is taken. Once reached, the heater stays off until the reading drops
-/// below kBathTempClearC.
+/// below kBathTempClearC. The SCADA reads both thresholds with TEMP:LIM?.
 ///
 constexpr float kMaxBathTempC = 65.0f;
 
@@ -435,6 +436,7 @@ constexpr float kMaxBathTempC = 65.0f;
 constexpr float kBathTempClearC = 60.0f;
 
 static_assert(kBathTempClearC < kMaxBathTempC, "The clear threshold must sit below the limit");
+static_assert(kTempSetpointMaxC <= kMaxBathTempC, "A setpoint above the bath limit could never be reached");
 
 ///
 /// @brief Plausible range (°C) of the mix reading that drives the hysteresis loop.

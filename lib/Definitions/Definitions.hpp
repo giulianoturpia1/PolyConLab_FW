@@ -136,6 +136,7 @@ enum class CommandType {
 
     // Manual setpoint from SCADA: pack IEEE-754 float into Command::extra
     kTempSetIn,
+    kTempLimitQuery,  ///< TEMP:LIM? — answers the setpoint range and bath limits from config::
 
     // Level switch command
     kLevelSwitchState,
@@ -298,7 +299,7 @@ constexpr std::array<EventEntry, 21> kEventMap = {{
     {("EVT:COMM LOST"), SystemEvent::kCommunicationLost},
 }};
 
-constexpr std::array<CommandEntry, 31> kCommandMap = {{
+constexpr std::array<CommandEntry, 32> kCommandMap = {{
     {("OUTP:HEAT ON"), CommandType::kHeaterOn},
     {("OUTP:HEAT OFF"), CommandType::kHeaterOff},
     {("OUTP:HEAT?"), CommandType::kHeaterState},
@@ -316,6 +317,7 @@ constexpr std::array<CommandEntry, 31> kCommandMap = {{
     {("MEAS:TEMP:CAM?"), CommandType::kTempBathRead},
     {("MEAS:TEMP:MEZ?"), CommandType::kTempMixRead},
     {("TEMP:SET:IN"), CommandType::kTempSetIn},
+    {("TEMP:LIM?"), CommandType::kTempLimitQuery},
     {("MEAS:FLOW?"), CommandType::kFlowRead},
     {("MEAS:LEVEL?"), CommandType::kLevelSwitchState},
     {("SYST:REINIT:TEMP:IN"), CommandType::kTempInReinit},

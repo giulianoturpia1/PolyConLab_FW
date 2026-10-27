@@ -147,6 +147,11 @@ void Communications::handle_command(const std::string& msg) {
             // Comma-separated list of devices that failed init, or "NONE".
             respond_now(modules::FaultRegistry::instance().get());
             return;
+        case definitions::CommandType::kTempLimitQuery:
+            // <setpoint min>,<setpoint max>,<bath limit>,<bath clear> in °C.
+            respond_now(utils::format_float(config::kTempSetpointMinC, 1) + "," + utils::format_float(config::kTempSetpointMaxC, 1) + "," +
+                        utils::format_float(config::kMaxBathTempC, 1) + "," + utils::format_float(config::kBathTempClearC, 1));
+            return;
         case definitions::CommandType::kValveOpen:
         case definitions::CommandType::kValveClose:
         case definitions::CommandType::kValveState:
