@@ -56,12 +56,17 @@ bool EthernetServer::begin() {
     Ethernet.begin(mac.data(), ip.data());
 
     if (!ensure_connection()) {
+        if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+            kLog.error("No se detecto el controlador Ethernet.");
+        } else {
+            kLog.warning("Sin enlace Ethernet al iniciar; se reintenta en cada ciclo.");
+        }
         return false;
     }
 
     gEthernetServer.begin();
 
-    std::string msg = "Server is at: ";
+    std::string msg = "Servidor en: ";
     IPAddress local_ip = Ethernet.localIP();
     for (int i = 0; i < 4; i++) {
         msg += std::to_string(local_ip[i]);
