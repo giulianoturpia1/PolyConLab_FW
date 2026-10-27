@@ -78,7 +78,7 @@ inline const definitions::EventEntry* find_event(const std::string& event_name) 
 /// @brief Resolve a ResponseType to its canonical SCPI wire string.
 ///
 /// @param type Response type identifier.
-/// @return const char* Wire string (e.g. "ON", "-100,'Command error'"), or "ERROR:UNKNOWN_RESPONSE" if not found.
+/// @return const char* Wire string (e.g. "ON", "-100,\"UNKNOWN COMMAND\""), or "ERROR:UNKNOWN_RESPONSE" if not found.
 ///
 inline const char* to_scpi(const definitions::ResponseType type) {
     const auto it = std::find_if(definitions::kResponseMap.begin(), definitions::kResponseMap.end(),

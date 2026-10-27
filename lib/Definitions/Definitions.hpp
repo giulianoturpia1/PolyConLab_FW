@@ -279,7 +279,7 @@ struct EventEntry {
 /// @brief Single entry in the SCPI response lookup table: maps a ResponseType to its wire string.
 ///
 struct ResponseEntry {
-    const char* name;   ///< Canonical response string sent over the wire (e.g., "ON", "-100,'Command error'")
+    const char* name;   ///< Canonical response string sent over the wire (e.g., "ON", "-100,\"UNKNOWN COMMAND\"")
     ResponseType type;  ///< Response type identifier
 };
 
@@ -350,14 +350,14 @@ constexpr std::array<CommandEntry, 31> kCommandMap = {{
 }};
 
 constexpr std::array<ResponseEntry, 19> kResponseMap = {{
-    {"-100,’UNKNOWN COMMAND’", ResponseType::kErrorUnknownCommand},
-    {"-200,’EMPTY EVENT’", ResponseType::kErrorEmptyEvent},
-    {"-300,’UNKNOWN EVENT’", ResponseType::kErrorUnknownEvent},
-    {"-101,’COMMAND REJECTED’", ResponseType::kErrorCommandRejected},
-    {"-102,’COMMAND TIMEOUT’", ResponseType::kErrorCommandTimeout},
-    {"-220,’INVALID PARAMETER’", ResponseType::kErrorInvalidParam},
-    {"-103,’SENSOR FAULT’", ResponseType::kErrorSensorFault},
-    {"-104,’NOT OPERATOR’", ResponseType::kErrorNotOperator},
+    {"-100,\"UNKNOWN COMMAND\"", ResponseType::kErrorUnknownCommand},
+    {"-200,\"EMPTY EVENT\"", ResponseType::kErrorEmptyEvent},
+    {"-300,\"UNKNOWN EVENT\"", ResponseType::kErrorUnknownEvent},
+    {"-101,\"COMMAND REJECTED\"", ResponseType::kErrorCommandRejected},
+    {"-102,\"COMMAND TIMEOUT\"", ResponseType::kErrorCommandTimeout},
+    {"-220,\"INVALID PARAMETER\"", ResponseType::kErrorInvalidParam},
+    {"-103,\"SENSOR FAULT\"", ResponseType::kErrorSensorFault},
+    {"-104,\"NOT OPERATOR\"", ResponseType::kErrorNotOperator},
     {"PONG", ResponseType::kPingOk},
     {"ON", ResponseType::kStatusOn},
     {"OFF", ResponseType::kStatusOff},
@@ -367,8 +367,8 @@ constexpr std::array<ResponseEntry, 19> kResponseMap = {{
     {"LOW", ResponseType::kStatusLow},
     {"OK", ResponseType::kReinitOk},
     {"OK", ResponseType::kEventOk},
-    {"-105,’REINIT FAILED’", ResponseType::kErrorReinitFailed},
-    {"-106,’BUSY’", ResponseType::kErrorBusy},
+    {"-105,\"REINIT FAILED\"", ResponseType::kErrorReinitFailed},
+    {"-106,\"BUSY\"", ResponseType::kErrorBusy},
 }};
 
 constexpr std::array<CommandResponseEntry, 29> kCommandResponseMap = {{
