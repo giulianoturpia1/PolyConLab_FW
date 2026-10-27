@@ -1,3 +1,5 @@
+#ifdef TRANSPORT_ETHERNET  // only Ethernet builds compile this server (see TcpServer.hpp)
+
 #include "EthernetServer.hpp"
 
 #include <Arduino.h>
@@ -211,3 +213,5 @@ EthernetServer::EthernetServer()
     : is_initialized_(false), ethernet_link_up_(false), spi_mutex_(xSemaphoreCreateMutex()), connected_client_(0) {}
 
 }  // namespace modules
+
+#endif  // TRANSPORT_ETHERNET

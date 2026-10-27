@@ -1,3 +1,5 @@
+#ifndef TRANSPORT_ETHERNET  // only WiFi builds compile this server (see TcpServer.hpp)
+
 #include "WifiServer.hpp"
 
 #include <Arduino.h>
@@ -186,3 +188,5 @@ bool WifiServer::is_available() const {
 WifiServer::WifiServer() : is_initialized_(false), wifi_link_up_(false), client_mutex_(xSemaphoreCreateMutex()), connected_client_(0) {}
 
 }  // namespace modules
+
+#endif  // TRANSPORT_ETHERNET
