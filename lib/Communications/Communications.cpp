@@ -43,6 +43,8 @@ void Communications::tick() {
 }
 
 void Communications::poll_network() {
+    // poll() is skipped while unavailable, so the link is re-checked here.
+    server_.ensure_connection();
     const bool available = server_.is_available();
 
     if (!available) {
