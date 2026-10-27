@@ -249,7 +249,7 @@ void Communications::handle_event(const std::string& msg) {
 
     // Every event gets exactly one reply, so a client matching replies by position stays in step.
     if (!StateMachine::instance().queue_event(evt->event, config::kCommsQueueTimeoutMs)) {
-        respond_now(utils::to_scpi(definitions::ResponseType::kErrorUnknownEvent));
+        respond_now(utils::to_scpi(definitions::ResponseType::kErrorBusy));  // queue full: the event may be retried
         return;
     }
     respond_now(utils::to_scpi(definitions::ResponseType::kEventOk));
