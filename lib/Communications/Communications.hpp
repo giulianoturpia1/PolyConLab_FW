@@ -123,7 +123,7 @@ class Communications {
     void handle_command(const std::string& msg);
 
     ///
-    /// @brief Parse and dispatch an FSM event string to the StateMachine.
+    /// @brief Parse and dispatch an FSM event string to the StateMachine. Replies OK once queued, an error otherwise.
     ///
     /// @param msg Trimmed event string including the "EVT:" prefix.
     ///

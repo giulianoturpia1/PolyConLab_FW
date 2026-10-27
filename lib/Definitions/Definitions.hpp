@@ -179,6 +179,7 @@ enum class ResponseType {
     kStatusHigh,
     kStatusLow,
     kReinitOk,              ///< A sensor re-initialisation succeeded ("OK")
+    kEventOk,               ///< An event was queued for the state machine ("OK")
     kErrorCommandRejected,  ///< Command not accepted in the current FSM state
     kErrorCommandTimeout,   ///< Device did not confirm command execution within timeout
     kErrorInvalidParam,     ///< Command parameter is out of range (e.g. valve number = 0)
@@ -348,7 +349,7 @@ constexpr std::array<CommandEntry, 31> kCommandMap = {{
     {("SYST:FAULT?"), CommandType::kFaultQuery, false},
 }};
 
-constexpr std::array<ResponseEntry, 18> kResponseMap = {{
+constexpr std::array<ResponseEntry, 19> kResponseMap = {{
     {"-100,’UNKNOWN COMMAND’", ResponseType::kErrorUnknownCommand},
     {"-200,’EMPTY EVENT’", ResponseType::kErrorEmptyEvent},
     {"-300,’UNKNOWN EVENT’", ResponseType::kErrorUnknownEvent},
@@ -365,6 +366,7 @@ constexpr std::array<ResponseEntry, 18> kResponseMap = {{
     {"HIGH", ResponseType::kStatusHigh},
     {"LOW", ResponseType::kStatusLow},
     {"OK", ResponseType::kReinitOk},
+    {"OK", ResponseType::kEventOk},
     {"-105,’REINIT FAILED’", ResponseType::kErrorReinitFailed},
     {"-106,’BUSY’", ResponseType::kErrorBusy},
 }};
