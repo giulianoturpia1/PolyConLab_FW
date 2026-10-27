@@ -205,7 +205,7 @@ enum class CommandOutcome {
 ///
 enum class Transport {
     kNone,   ///< No active transport (idle / after response delivery)
-    kWifi,   ///< Command received over WiFi TCP
+    kTcp,    ///< Command received over the TCP server (WiFi or Ethernet)
     kSerial  ///< Command received over Serial
 };
 

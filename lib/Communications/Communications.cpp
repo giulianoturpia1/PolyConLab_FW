@@ -49,13 +49,13 @@ void Communications::poll_network() {
 
     if (!available) {
         if (last_available_) {
-            kLog.info("WiFi desconectado. Pausando sistema.");
+            kLog.info("Red desconectada. Pausando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kCommunicationLost);
             authorizer_.release();
         }
     } else {
         if (!last_available_) {
-            kLog.info("WiFi reconectado. Reanudando sistema.");
+            kLog.info("Red reconectada. Reanudando sistema.");
             StateMachine::instance().queue_event(definitions::SystemEvent::kUnpause);
         }
         // Free the operator role once its holding client has left. A SoftAP keeps is_available()
@@ -68,7 +68,7 @@ void Communications::poll_network() {
         server_.poll(
             [this](const std::string& msg, definitions::ClientId client_id, const TcpServer::ClientResponseCallback& client_respond) {
                 active_responder_ = client_respond;
-                active_transport_ = definitions::Transport::kWifi;
+                active_transport_ = definitions::Transport::kTcp;
                 active_client_ = client_id;
                 if (authorizer_.claim(client_id)) {
                     kLog.info("Rol de operador asignado al cliente " + std::to_string(client_id));
